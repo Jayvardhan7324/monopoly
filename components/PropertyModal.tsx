@@ -3,6 +3,7 @@ import React from 'react';
 import { Tile, TileType, Player, ColorGroup } from '../types';
 import { X, ArrowUpCircle, AlertCircle, Banknote, Landmark, Unlock, Home, Building2 } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { motion } from 'motion/react';
 
 interface PropertyModalProps {
   tile: Tile;
@@ -45,20 +46,34 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" onClick={onClose}>
-      <div 
-        className="shadcn-card bg-slate-900 w-full max-w-sm overflow-hidden animate-slide-up" 
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm" 
+      onClick={onClose}
+    >
+      <motion.div 
+        initial={{ scale: 0.95, y: 20, opacity: 0 }}
+        animate={{ scale: 1, y: 0, opacity: 1 }}
+        exit={{ scale: 0.95, y: 20, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+        className="shadcn-card bg-slate-900 w-full max-w-sm overflow-hidden" 
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header Banner */}
-        <div className={`${colorMap[tile.group]} p-6 relative`}>
-            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors">
+        <div className={`${colorMap[tile.group]} p-6 relative overflow-hidden`}>
+            {/* Subtle pattern overlay */}
+            <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)] mix-blend-overlay"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+            
+            <button onClick={onClose} className="absolute top-4 right-4 text-white/50 hover:text-white transition-colors z-10">
                 <X size={20} />
             </button>
-            <div className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">{tile.type}</div>
-            <h2 className="text-3xl font-black text-white uppercase tracking-tighter">{tile.name}</h2>
+            <div className="relative z-10 text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">{tile.type}</div>
+            <h2 className="relative z-10 text-3xl font-black text-white uppercase tracking-tighter drop-shadow-md">{tile.name}</h2>
             {tile.isMortgaged && (
-                <div className="mt-2 inline-block px-3 py-1 bg-black/40 backdrop-blur-sm rounded-full border border-white/20 text-[10px] font-bold text-white uppercase tracking-widest">
+                <div className="relative z-10 mt-2 inline-block px-3 py-1 bg-black/40 backdrop-blur-sm rounded-full border border-white/20 text-[10px] font-bold text-white uppercase tracking-widest">
                     Asset Mortgaged
                 </div>
             )}
@@ -163,7 +178,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 </div>
             </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 };

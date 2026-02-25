@@ -7,6 +7,9 @@ import { PropertyModal } from './components/PropertyModal';
 import { GameSettings, TileType } from './types';
 import { Play, Settings, Users, Info, ShieldCheck, Coins, Globe, Lock, Cpu, LayoutGrid, ChevronRight } from 'lucide-react';
 import { playSound } from './services/audioService';
+import { Switch } from './components/animate-ui/components/base/switch';
+import { Label } from './components/ui/label';
+import { motion, AnimatePresence } from 'motion/react';
 
 const App: React.FC = () => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
@@ -160,20 +163,48 @@ const App: React.FC = () => {
 
   if (!gameStarted) {
     return (
-      <div className="min-h-screen bg-[#020617] text-slate-50 flex items-center justify-center p-4">
-        <div className="fixed inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-slate-950 to-slate-950 pointer-events-none"></div>
-        <div className="max-w-6xl w-full grid lg:grid-cols-[1fr_400px] gap-8 relative z-10 animate-fade-in p-4">
+      <div className="min-h-screen bg-[#020617] text-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/30 via-slate-950 to-slate-950 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/20 blur-[120px] rounded-full pointer-events-none"></div>
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="max-w-6xl w-full grid lg:grid-cols-[1fr_400px] gap-8 relative z-10 p-4"
+        >
           <div className="flex flex-col justify-center p-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold tracking-wider mb-6">
+            <motion.div 
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold tracking-wider mb-6"
+            >
               <Globe size={14} /> MULTIPLAYER STRATEGY v2.0
-            </div>
-            <h1 className="text-6xl md:text-7xl font-black tracking-tighter mb-4">
+            </motion.div>
+            <motion.h1 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="text-6xl md:text-7xl font-black tracking-tighter mb-4"
+            >
               RICHUP<span className="text-indigo-500">.IO</span>
-            </h1>
-            <p className="text-slate-400 text-xl max-w-xl leading-relaxed mb-10">
+            </motion.h1>
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+              className="text-slate-400 text-xl max-w-xl leading-relaxed mb-10"
+            >
               The ultimate browser-based property trading simulator. Out-negotiate, out-invest, and out-maneuver your rivals to build an unbreakable empire.
-            </p>
-            <div className="grid grid-cols-2 gap-6 mb-12">
+            </motion.p>
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="grid grid-cols-2 gap-6 mb-12"
+            >
               <div className="space-y-2">
                 <div className="w-10 h-10 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-indigo-400">
                   <Users size={20} />
@@ -188,16 +219,24 @@ const App: React.FC = () => {
                 <h3 className="font-bold">AI Opponents</h3>
                 <p className="text-sm text-slate-500">Advanced bots that adapt to your trading style.</p>
               </div>
-            </div>
-            <button 
+            </motion.div>
+            <motion.button 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.6, type: "spring" }}
               onClick={handleStartGame}
               className="group relative w-full md:w-fit px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl shadow-2xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-4 active:scale-95"
             >
               <Play fill="currentColor" size={24} /> START NEW SESSION
               <ChevronRight className="group-hover:translate-x-1 transition-transform" />
-            </button>
+            </motion.button>
           </div>
-          <div className="shadcn-card bg-slate-900/40 backdrop-blur-xl p-0 flex flex-col h-auto max-h-[700px]">
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            className="shadcn-card bg-slate-900/40 backdrop-blur-xl p-0 flex flex-col h-auto max-h-[700px]"
+          >
             <div className="p-6 border-b border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Settings size={18} className="text-slate-400" />
@@ -227,34 +266,30 @@ const App: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                    <div className="flex items-center gap-3">
+                    <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({...settings, isPrivate: !settings.isPrivate})}>
                       <Lock size={16} className="text-slate-500" />
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold">Private Room</span>
-                        <span className="text-[10px] text-slate-600">Invite-only access</span>
+                        <span className="text-xs font-bold text-slate-200">Private Room</span>
+                        <span className="text-[10px] text-slate-600 font-normal">Invite-only access</span>
                       </div>
-                    </div>
-                    <button 
-                      onClick={() => setSettings({...settings, isPrivate: !settings.isPrivate})}
-                      className={`w-9 h-5 rounded-full relative transition-colors ${settings.isPrivate ? 'bg-indigo-600' : 'bg-slate-700'}`}
-                    >
-                      <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.isPrivate ? 'right-1' : 'left-1'}`}></div>
-                    </button>
+                    </Label>
+                    <Switch 
+                      checked={settings.isPrivate}
+                      onCheckedChange={(checked) => setSettings({...settings, isPrivate: checked})}
+                    />
                   </div>
                   <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                    <div className="flex items-center gap-3">
+                    <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({...settings, allowBots: !settings.allowBots})}>
                       <Cpu size={16} className="text-slate-500" />
                       <div className="flex flex-col">
-                        <span className="text-xs font-bold">Allow Bots</span>
-                        <span className="text-[10px] text-slate-600">Fill empty slots with AI</span>
+                        <span className="text-xs font-bold text-slate-200">Allow Bots</span>
+                        <span className="text-[10px] text-slate-600 font-normal">Fill empty slots with AI</span>
                       </div>
-                    </div>
-                    <button 
-                      onClick={() => setSettings({...settings, allowBots: !settings.allowBots})}
-                      className={`w-9 h-5 rounded-full relative transition-colors ${settings.allowBots ? 'bg-indigo-600' : 'bg-slate-700'}`}
-                    >
-                      <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.allowBots ? 'right-1' : 'left-1'}`}></div>
-                    </button>
+                    </Label>
+                    <Switch 
+                      checked={settings.allowBots}
+                      onCheckedChange={(checked) => setSettings({...settings, allowBots: checked})}
+                    />
                   </div>
                 </div>
               </section>
@@ -274,16 +309,14 @@ const App: React.FC = () => {
                     { id: 'randomizeOrder', label: 'Randomize Order', info: 'Shuffle player sequence' },
                   ].map(rule => (
                     <div key={rule.id} className="flex items-center justify-between p-3 bg-slate-950/20 rounded-xl border border-slate-800 hover:bg-slate-900/50 transition-colors">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold">{rule.label}</span>
-                        <span className="text-[10px] text-slate-600">{rule.info}</span>
-                      </div>
-                      <button 
-                        onClick={() => updateRule(rule.id as any, !settings.rules[rule.id as keyof typeof settings.rules])}
-                        className={`w-9 h-5 rounded-full relative transition-colors ${settings.rules[rule.id as keyof typeof settings.rules] ? 'bg-indigo-600' : 'bg-slate-700'}`}
-                      >
-                        <div className={`absolute top-1 w-3 h-3 bg-white rounded-full transition-all ${settings.rules[rule.id as keyof typeof settings.rules] ? 'right-1' : 'left-1'}`}></div>
-                      </button>
+                      <Label className="flex flex-col cursor-pointer flex-1" onClick={() => updateRule(rule.id as any, !settings.rules[rule.id as keyof typeof settings.rules])}>
+                        <span className="text-xs font-bold text-slate-200">{rule.label}</span>
+                        <span className="text-[10px] text-slate-600 font-normal">{rule.info}</span>
+                      </Label>
+                      <Switch 
+                        checked={settings.rules[rule.id as keyof typeof settings.rules] as boolean}
+                        onCheckedChange={(checked) => updateRule(rule.id as any, checked)}
+                      />
                     </div>
                   ))}
                 </div>
@@ -294,8 +327,8 @@ const App: React.FC = () => {
                 <Info size={10} /> Local Session Data Protected
               </p>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     );
   }
@@ -303,10 +336,16 @@ const App: React.FC = () => {
   const myProperties = gameState.tiles.filter(t => t.ownerId === 0);
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-start p-4 lg:p-8">
-        <div className="fixed inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/20 via-slate-950 to-slate-950 pointer-events-none"></div>
+    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-start p-4 lg:p-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none"></div>
 
-        <div className="relative animate-slide-up w-full flex justify-center py-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 25 }}
+          className="relative w-full flex justify-center py-4 z-10"
+        >
              <Board gameState={gameState} onTileClick={handleTileClick}>
                  <Controls 
                     gameState={gameState} 
@@ -320,6 +359,7 @@ const App: React.FC = () => {
                  />
              </Board>
 
+             <AnimatePresence>
              {selectedTileId !== null && (
                  <PropertyModal 
                     tile={gameState.tiles[selectedTileId]}
@@ -335,7 +375,8 @@ const App: React.FC = () => {
                     onSell={() => dispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
                  />
              )}
-        </div>
+             </AnimatePresence>
+        </motion.div>
     </div>
   );
 };

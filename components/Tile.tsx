@@ -2,6 +2,7 @@ import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
 import { Plane, Zap, Droplets, Landmark, Palmtree, Skull, ArrowRight, Package, Home, Building2, Crown } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { motion } from 'motion/react';
 
 interface TileProps {
   tile: TileType;
@@ -66,32 +67,32 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         if (tile.name === 'START') return (
           <div className="flex flex-col items-center justify-center h-full gap-1">
             <div className="flex gap-1 mb-1">
-                {[...Array(4)].map((_, i) => <div key={i} className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: playerColors[i] }}></div>)}
+                {[...Array(4)].map((_, i) => <div key={i} className="w-1.5 h-1.5 md:w-2.5 md:h-2.5 rounded-full" style={{ backgroundColor: playerColors[i] }}></div>)}
             </div>
-            <span className="text-[16px] text-lime-400 font-black tracking-widest uppercase">Start</span>
-            <ArrowRight size={24} className="text-lime-500 -mt-1" />
+            <span className="text-[10px] md:text-[16px] text-lime-400 font-black tracking-widest uppercase">Start</span>
+            <ArrowRight size={16} className="md:w-6 md:h-6 text-lime-500 -mt-1" />
           </div>
         );
         if (tile.name === 'In Prison') return (
           <div className="flex flex-col items-center justify-center h-full p-1 relative">
-            <span className="absolute top-1 text-[8px] text-slate-500 font-black uppercase">Passing</span>
-            <div className="w-10 h-8 bg-slate-900 border border-slate-700 flex items-center justify-center gap-1 my-1 rounded">
+            <span className="absolute top-1 text-[6px] md:text-[8px] text-slate-500 font-black uppercase">Passing</span>
+            <div className="w-6 h-5 md:w-10 md:h-8 bg-slate-900 border border-slate-700 flex items-center justify-center gap-1 my-1 rounded">
                 <div className="w-[1px] h-full bg-slate-700"></div>
                 <div className="w-[1px] h-full bg-slate-700"></div>
             </div>
-            <span className="absolute bottom-1 text-[8px] text-slate-400 font-black uppercase">In Prison</span>
+            <span className="absolute bottom-1 text-[6px] md:text-[8px] text-slate-400 font-black uppercase">In Prison</span>
           </div>
         );
         if (tile.name === 'Vacation') return (
           <div className="flex flex-col items-center justify-center h-full">
-            <Palmtree size={32} className="text-emerald-400" />
-            <span className="text-[9px] text-emerald-400 font-black uppercase">Vacation</span>
+            <Palmtree size={20} className="md:w-8 md:h-8 text-emerald-400" />
+            <span className="text-[7px] md:text-[9px] text-emerald-400 font-black uppercase">Vacation</span>
           </div>
         );
         if (tile.name === 'Go to prison') return (
           <div className="flex flex-col items-center justify-center h-full">
-            <Skull size={32} className="text-slate-200" />
-            <span className="text-[9px] text-slate-400 font-black uppercase">Go to jail</span>
+            <Skull size={20} className="md:w-8 md:h-8 text-slate-200" />
+            <span className="text-[7px] md:text-[9px] text-slate-400 font-black uppercase">Go to jail</span>
           </div>
         );
         return null;
@@ -106,20 +107,20 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
   
   if (isTop) {
     flexDir = 'flex-col-reverse';
-    barClass = 'w-full h-[24px] border-t border-black/20';
+    barClass = 'w-full h-[16px] md:h-[24px] border-t border-black/20';
     buildingFlexDir = 'flex-row';
   } else if (isBottom) {
     flexDir = 'flex-col';
-    barClass = 'w-full h-[24px] border-b border-black/20';
+    barClass = 'w-full h-[16px] md:h-[24px] border-b border-black/20';
     buildingFlexDir = 'flex-row';
   } else if (isLeft) {
     flexDir = 'flex-row-reverse';
-    barClass = 'h-full w-[24px] border-r border-black/20';
+    barClass = 'h-full w-[16px] md:w-[24px] border-r border-black/20';
     contentRotation = 'rotate-90';
     buildingFlexDir = 'flex-col';
   } else if (isRight) {
     flexDir = 'flex-row';
-    barClass = 'h-full w-[24px] border-l border-black/20';
+    barClass = 'h-full w-[16px] md:w-[24px] border-l border-black/20';
     contentRotation = '-rotate-90';
     buildingFlexDir = 'flex-col';
   }
@@ -194,7 +195,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       <div className={`flex-1 relative overflow-hidden flex flex-col items-center justify-center ${contentRotation}`}>
         {!isCorner ? (
           <div className="w-full h-full flex flex-col items-center justify-between py-1.5 px-0.5">
-            <div className="font-black text-[9px] text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5">
+            <div className="font-black text-[7px] md:text-[8px] text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5">
               {tile.name}
             </div>
             
@@ -203,7 +204,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
             </div>
 
             {tile.price > 0 && (
-              <div className="bg-black/90 px-1.5 py-0.5 rounded border border-white/10 text-[9px] font-black text-white whitespace-nowrap">
+              <div className="bg-black/90 px-1 py-0.5 rounded border border-white/10 text-[7px] md:text-[8px] font-black text-white whitespace-nowrap">
                 {tile.price}$
               </div>
             )}
@@ -227,16 +228,28 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       {players.length > 0 && (
         <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none p-1">
           <div className="flex flex-wrap gap-0.5 justify-center max-w-full">
-            {players.map((p) => (
-              <Avatar 
-                key={p.id} 
-                avatarId={p.avatar} 
-                color={p.color} 
-                isBankrupt={p.isBankrupt}
-                inJail={p.inJail}
-                className="w-5 h-5 shadow-lg border-white/20" 
-              />
-            ))}
+            {players.map((p) => {
+              const isThisPlayerCurrent = isCurrent && p.id === players[0]?.id; // Simplification, just glow if it's their turn
+              return (
+                <motion.div 
+                  layoutId={`player-${p.id}`}
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  key={p.id} 
+                  className={`relative ${isThisPlayerCurrent ? 'animate-pulse' : ''}`}
+                >
+                  {isThisPlayerCurrent && (
+                    <div className="absolute inset-0 bg-white/50 blur-md rounded-full scale-150"></div>
+                  )}
+                  <Avatar 
+                    avatarId={p.avatar} 
+                    color={p.color} 
+                    isBankrupt={p.isBankrupt}
+                    inJail={p.inJail}
+                    className="w-4 h-4 md:w-6 md:h-6 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10" 
+                  />
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       )}

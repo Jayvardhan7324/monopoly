@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { playSound } from '../services/audioService';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ControlsProps {
   gameState: GameState;
@@ -130,27 +131,28 @@ export const Controls: React.FC<ControlsProps> = ({ gameState, onRoll, onBuy, on
     <div className="w-full h-full flex flex-col gap-4 text-slate-100 p-2 animate-fade-in relative">
       
       {/* Header HUD */}
-      <div className="grid grid-cols-[1fr_auto] gap-4">
-        <div className="bg-slate-900/40 backdrop-blur-xl p-4 rounded-2xl flex items-center justify-between relative overflow-hidden border border-white/10 shadow-2xl">
+      {gameState.phase !== 'AUCTION' && (
+      <div className="grid grid-cols-[1fr_auto] gap-2 md:gap-4">
+        <div className="bg-slate-900/40 backdrop-blur-xl p-3 md:p-4 rounded-2xl flex items-center justify-between relative overflow-hidden border border-white/10 shadow-2xl">
           <div className="absolute top-0 left-0 w-full h-1.5 opacity-80" style={{ backgroundColor: currentPlayer.color }}></div>
           <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/5 to-transparent pointer-events-none"></div>
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl border-2 border-white/10 bg-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] relative group">
+          <div className="flex items-center gap-3 md:gap-5 min-w-0 mr-2 flex-1">
+            <div className="w-10 h-10 md:w-14 md:h-14 shrink-0 rounded-2xl border-2 border-white/10 bg-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] relative group">
                  <Avatar 
                     avatarId={currentPlayer.avatar} 
                     color={currentPlayer.color} 
                     isBankrupt={currentPlayer.isBankrupt} 
                     inJail={currentPlayer.inJail}
-                    className="w-10 h-10" 
+                    className="w-6 h-6 md:w-10 md:h-10" 
                  />
-                 <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-slate-900 rounded-lg border border-white/20 flex items-center justify-center text-[10px] font-black text-white shadow-lg">
+                 <div className="absolute -bottom-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-slate-900 rounded-lg border border-white/20 flex items-center justify-center text-[8px] md:text-[10px] font-black text-white shadow-lg">
                     {gameState.currentPlayerIndex + 1}
                  </div>
             </div>
-            <div className="flex flex-col">
-              <h2 className="font-black text-2xl tracking-tighter text-white uppercase italic">{currentPlayer.name}</h2>
-              <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">
-                  <MapPin size={10} className="text-indigo-400" /> {currentTile.name}
+            <div className="flex flex-col min-w-0 pr-2">
+              <h2 className="font-black text-lg md:text-2xl tracking-tighter text-white uppercase italic truncate">{currentPlayer.name}</h2>
+              <div className="flex items-center gap-1.5 text-[8px] md:text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] truncate">
+                  <MapPin size={10} className="text-indigo-400 shrink-0" /> <span className="truncate">{currentTile.name}</span>
               </div>
             </div>
           </div>
@@ -159,30 +161,32 @@ export const Controls: React.FC<ControlsProps> = ({ gameState, onRoll, onBuy, on
           <button 
             onClick={handleToggleTrade}
             disabled={gameState.players.find(p => p.id === 0)?.isBankrupt}
-            className={`relative group overflow-hidden px-5 py-3 rounded-xl border transition-all flex items-center gap-3 font-black text-[11px] uppercase tracking-widest disabled:opacity-30 disabled:pointer-events-none shadow-xl
+            className={`relative shrink-0 group overflow-hidden px-3 py-2 md:px-5 md:py-3 rounded-xl border transition-all flex items-center gap-2 md:gap-3 font-black text-[9px] md:text-[11px] uppercase tracking-widest disabled:opacity-30 disabled:pointer-events-none shadow-xl
               ${isTradeMode ? 'bg-rose-600 border-rose-500 text-white' : 'bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 hover:scale-105 active:scale-95'}`}
           >
-            {isTradeMode ? <X size={18} /> : <Handshake size={18} />} 
-            {isTradeMode ? 'Cancel Trade' : 'Propose Trade'}
+            {isTradeMode ? <X size={14} className="md:w-[18px] md:h-[18px]" /> : <Handshake size={14} className="md:w-[18px] md:h-[18px]" />} 
+            <span className="hidden sm:inline">{isTradeMode ? 'Cancel Trade' : 'Propose Trade'}</span>
+            <span className="sm:hidden">{isTradeMode ? 'Cancel' : 'Trade'}</span>
             {!isTradeMode && (
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]"></div>
             )}
           </button>
         </div>
 
-        <div className="bg-slate-950/80 backdrop-blur-md p-4 rounded-2xl flex flex-col items-end justify-center min-w-[180px] border border-white/10 shadow-2xl relative overflow-hidden">
+        <div className="bg-slate-950/80 backdrop-blur-md p-3 md:p-4 rounded-2xl flex flex-col items-end justify-center min-w-[120px] md:min-w-[180px] border border-white/10 shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 blur-3xl rounded-full -mr-16 -mt-16"></div>
-             <div className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-1">Net Balance</div>
-             <div className="flex items-center gap-1 text-emerald-400 font-mono text-4xl font-black tracking-tighter drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]">
-                <span className="text-xl opacity-60">$</span>{currentPlayer.money}
+             <div className="text-slate-500 text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] mb-1">Net Balance</div>
+             <div className="flex items-center gap-1 text-emerald-400 font-mono text-2xl md:text-4xl font-black tracking-tighter drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]">
+                <span className="text-lg md:text-xl opacity-60">$</span>{currentPlayer.money}
              </div>
              {gameState.settings.rules.vacationCash && (
-                 <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-amber-500 mt-2 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+                 <div className="flex items-center gap-1.5 text-[8px] md:text-[10px] font-black uppercase text-amber-500 mt-1 md:mt-2 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
                     <Landmark size={10} /> POOL: ${gameState.taxPool}
                  </div>
              )}
         </div>
       </div>
+      )}
 
       {/* Main Content Area (Action + Logs) */}
       <div className="flex-1 flex flex-col gap-4 relative min-h-0">
@@ -239,7 +243,7 @@ export const Controls: React.FC<ControlsProps> = ({ gameState, onRoll, onBuy, on
                     </button>
                  </div>
                  
-                 <div className="w-full max-w-md flex flex-col gap-3">
+                 <div className="w-full max-w-md flex flex-col gap-3 z-10">
                     <div className="flex justify-between items-end">
                         <span className="text-[10px] font-bold uppercase text-slate-500 tracking-[0.2em]">Time Remaining</span>
                         <span className={`font-mono font-black text-3xl ${gameState.auction.timer <= 3 ? 'text-rose-500 animate-pulse' : 'text-indigo-400'}`}>
@@ -426,7 +430,12 @@ export const Controls: React.FC<ControlsProps> = ({ gameState, onRoll, onBuy, on
                 )}
 
                 {(gameState.phase === 'ACTION' || gameState.phase === 'TURN_END') && (
-                     <div className="flex flex-col items-center gap-6 animate-fade-in w-full max-w-md">
+                     <motion.div 
+                        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                        className="flex flex-col items-center gap-6 w-full max-w-md"
+                     >
                         <div className="w-full bg-black/90 rounded-2xl p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center">
                             <p className="text-white text-xl md:text-2xl font-medium italic leading-relaxed tracking-tight">
                                 "{gameState.logs[0]}"
@@ -458,17 +467,27 @@ export const Controls: React.FC<ControlsProps> = ({ gameState, onRoll, onBuy, on
                             )}
 
                             {gameState.phase === 'TURN_END' && currentPlayer.isBot && gameState.turnLogs.length > 0 && (
-                                <div className="mt-6 border-t border-white/10 pt-6 animate-fade-in">
+                                <motion.div 
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="mt-6 border-t border-white/10 pt-6 overflow-hidden"
+                                >
                                     <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4">Turn Summary</div>
                                     <div className="space-y-2 text-left max-h-40 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
                                         {gameState.turnLogs.map((log, idx) => (
-                                            <div key={idx} className="text-xs text-slate-300 flex items-start gap-2">
+                                            <motion.div 
+                                                initial={{ opacity: 0, x: -10 }}
+                                                animate={{ opacity: 1, x: 0 }}
+                                                transition={{ delay: idx * 0.1 }}
+                                                key={idx} 
+                                                className="text-xs text-slate-300 flex items-start gap-2"
+                                            >
                                                 <div className="w-1 h-1 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
                                                 <span className="leading-relaxed">{log}</span>
-                                            </div>
+                                            </motion.div>
                                         ))}
                                     </div>
-                                </div>
+                                </motion.div>
                             )}
 
                             {!currentPlayer.isBot && (
@@ -487,7 +506,7 @@ export const Controls: React.FC<ControlsProps> = ({ gameState, onRoll, onBuy, on
                                 </button>
                             )}
                         </div>
-                     </div>
+                     </motion.div>
                 )}
               </>
             )}
