@@ -1,0 +1,5 @@
+{
+  "name": "Richup Clone - React Edition",
+  "description": "A multiplayer strategic board game played in the browser simulating property trading, inspired by Richup.io. Features local multiplayer with bots and an AI Advisor powered by Gemini.",
+  "requestFramePermissions": []
+}
