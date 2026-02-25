@@ -22,13 +22,13 @@ export const getAIAdvice = async (gameState: GameState): Promise<string> => {
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-2.0-flash',
       contents: context,
     });
 
     return response.text || "No advice generated.";
   } catch (error) {
     console.error("Gemini API Error:", error);
-    return "My crystal ball is foggy (API Error).";
+    return "Unable to connect to the advisor network. Please check your connection or API key.";
   }
 };

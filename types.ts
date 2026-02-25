@@ -1,4 +1,3 @@
-
 export enum TileType {
   PROPERTY = 'PROPERTY',
   RAILROAD = 'RAILROAD',
@@ -6,7 +5,7 @@ export enum TileType {
   CHANCE = 'CHANCE',
   COMMUNITY_CHEST = 'COMMUNITY_CHEST',
   TAX = 'TAX',
-  CORNER = 'CORNER', // START, JAIL, VACATION, GO_TO_JAIL
+  CORNER = 'CORNER',
 }
 
 export enum ColorGroup {
@@ -32,7 +31,7 @@ export interface Tile {
   buildingCount: number;
   isMortgaged: boolean;
   houseCost: number;
-  countryCode?: string; // e.g., 'br', 'us', 'gb'
+  countryCode?: string;
 }
 
 export interface Player {
@@ -61,7 +60,7 @@ export interface GameRules {
 
 export interface GameSettings {
   maxPlayers: number;
-  isPrivate: boolean;
+  isPrivate: false;
   allowBots: boolean;
   boardMap: string;
   rules: GameRules;
@@ -69,15 +68,15 @@ export interface GameSettings {
 
 export type GamePhase = 'ROLL' | 'MOVING' | 'RESOLVING' | 'ACTION' | 'TURN_END' | 'AUCTION';
 
-export type SoundEffectType = 
-  | 'roll' 
-  | 'buy' 
-  | 'pay' 
-  | 'upgrade' 
-  | 'turn_switch' 
-  | 'win' 
-  | 'land' 
-  | 'trade' 
+export type SoundEffectType =
+  | 'roll'
+  | 'buy'
+  | 'pay'
+  | 'upgrade'
+  | 'turn_switch'
+  | 'win'
+  | 'land'
+  | 'trade'
   | 'bid'
   | 'ui_click'
   | 'ui_hover'
@@ -93,7 +92,7 @@ export interface AuctionState {
   tileId: number;
   currentBid: number;
   highestBidderId: number | null;
-  bidders: number[]; // Active player IDs
+  bidders: number[];
   timer: number;
 }
 

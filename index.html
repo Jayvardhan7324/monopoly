@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
@@ -40,49 +39,34 @@
         --card-foreground: 213 31% 91%;
         --radius: 0.75rem;
       }
-      
+
       body {
         font-family: 'Outfit', sans-serif;
-        background-color: #020617; /* slate-950 */
+        background-color: #020617;
         color: #f8fafc;
         -webkit-font-smoothing: antialiased;
         min-height: 100vh;
       }
-      
-      /* Smooth modern scrollbar */
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      ::-webkit-scrollbar-track {
-        background: hsl(var(--muted)); 
-      }
-      ::-webkit-scrollbar-thumb {
-        background: hsl(var(--border)); 
-        border-radius: 10px;
-        border: 2px solid hsl(var(--muted));
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #334155; 
-      }
+
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: hsl(var(--muted)); }
+      ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 10px; border: 2px solid hsl(var(--muted)); }
+      ::-webkit-scrollbar-thumb:hover { background: #334155; }
 
       @keyframes fade-in {
         from { opacity: 0; transform: scale(0.98) translateY(4px); }
-        to { opacity: 1; transform: scale(1) translateY(0); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
       }
-      .animate-fade-in {
-        animation: fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
+      .animate-fade-in { animation: fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
       @keyframes slide-up {
         from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
+        to   { opacity: 1; transform: translateY(0); }
       }
-      .animate-slide-up {
-        animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-      }
+      .animate-slide-up { animation: slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
 
       @keyframes shimmer {
-        0% { transform: translateX(-100%); }
+        0%   { transform: translateX(-100%); }
         100% { transform: translateX(100%); }
       }
 
@@ -92,7 +76,7 @@
         -webkit-backdrop-filter: blur(12px);
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
-      
+
       .shadcn-card {
         background-color: hsl(var(--card));
         color: hsl(var(--card-foreground));
@@ -101,22 +85,16 @@
         box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
       }
 
-      .perspective-1000 {
-        perspective: 1000px;
-      }
+      /* ── Dice ───────────────────────────────────────────────────── */
 
-      .backface-hidden {
-        backface-visibility: hidden;
-        -webkit-backface-visibility: hidden;
-      }
-
-      .preserve-3d {
-        transform-style: preserve-3d;
-        -webkit-transform-style: preserve-3d;
-      }
-
-      /* Dice Styles */
       .dice-wrap {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .dice-scaler {
         position: relative;
         display: flex;
         align-items: center;
@@ -138,13 +116,19 @@
       .dice-face {
         box-sizing: border-box;
         position: absolute;
-        width: 100px;
+        width:  100px;
         height: 100px;
         background-color: #f6f3f0;
-        border: 2px solid #e6e3e0;
         border-radius: 20px;
         transform-style: preserve-3d;
-        /* backface-visibility: hidden; */
+        /*
+         * Large inset shadow floods colour into every rounded corner from
+         * inside the face — no dark background leaks through the gaps.
+         * Second layer adds a subtle inner shading for depth.
+         */
+        box-shadow:
+          inset 0 0 0 40px #f6f3f0,
+          inset 0 0 12px 2px rgba(0,0,0,0.08);
       }
 
       .dice-face::before {
@@ -152,48 +136,56 @@
         content: "";
         width: 100%;
         height: 100%;
-        background-color: #e6e3e0;
+        background-color: #e0dcd8;
         border-radius: 20px;
         transform: translateZ(-1px);
+        box-shadow: inset 0 0 0 40px #e0dcd8;
       }
 
       .dice-dot {
         position: absolute;
-        width: 18px;
+        width:  18px;
         height: 18px;
         background-color: #131210;
         border-radius: 50%;
         box-shadow: inset 1px 1px 3px rgba(0,0,0,0.3);
+        z-index: 2;
       }
 
-      .dice-dot.center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
-      .dice-dot.top-left { top: 16px; left: 16px; }
-      .dice-dot.top-right { top: 16px; right: 16px; }
-      .dice-dot.bottom-left { bottom: 16px; left: 16px; }
+      .dice-dot.center       { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+      .dice-dot.top-left     { top: 16px; left: 16px; }
+      .dice-dot.top-right    { top: 16px; right: 16px; }
+      .dice-dot.bottom-left  { bottom: 16px; left: 16px; }
       .dice-dot.bottom-right { bottom: 16px; right: 16px; }
-      .dice-dot.middle-left { top: 50%; left: 16px; transform: translateY(-50%); }
+      .dice-dot.middle-left  { top: 50%; left: 16px;  transform: translateY(-50%); }
       .dice-dot.middle-right { top: 50%; right: 16px; transform: translateY(-50%); }
 
-      .dice-face.front { transform: translateZ(50px); }
-      .dice-face.up { transform: rotateX(90deg) translateZ(50px); }
-      .dice-face.left { transform: rotateY(-90deg) translateZ(50px); }
-      .dice-face.right { transform: rotateY(90deg) translateZ(50px); }
+      .dice-face.front  { transform: translateZ(50px); }
+      .dice-face.up     { transform: rotateX(90deg)  translateZ(50px); }
+      .dice-face.left   { transform: rotateY(-90deg) translateZ(50px); }
+      .dice-face.right  { transform: rotateY(90deg)  translateZ(50px); }
       .dice-face.bottom { transform: rotateX(-90deg) translateZ(50px); }
-      .dice-face.back { transform: rotateX(180deg) translateZ(50px); }
+      .dice-face.back   { transform: rotateX(180deg) translateZ(50px); }
 
       @keyframes rotatePerFace {
-        0% { transform: rotateX(0deg) rotateY(0deg) rotateZ(0deg); }
+        0%   { transform: rotateX(0deg)   rotateY(0deg)   rotateZ(0deg); }
         100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
+      }
+
+      /* Mobile dice scale (T-14) */
+      @media (max-width: 480px) {
+        .dice-wrap   { width: 52px !important; height: 52px !important; }
+        .dice-scaler { transform: scale(0.52) !important; }
       }
     </style>
   <script type="importmap">
 {
   "imports": {
-    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react-dom/":   "https://esm.sh/react-dom@^19.2.4/",
     "lucide-react": "https://esm.sh/lucide-react@0.468.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
-    "@google/genai": "https://esm.sh/@google/genai@^1.39.0"
+    "react/":       "https://esm.sh/react@^19.2.4/",
+    "react":        "https://esm.sh/react@^19.2.4",
+    "@google/genai":"https://esm.sh/@google/genai@^1.39.0"
   }
 }
 </script>

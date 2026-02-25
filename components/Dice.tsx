@@ -6,21 +6,12 @@ interface DiceProps {
   size?: number;
 }
 
-const perFace = [
-  [-0.1, 0.3, -1],    // 1
-  [-0.1, 0.6, -0.4],  // 2
-  [-0.85, -0.42, 0.73], // 3
-  [-0.8, 0.3, -0.75], // 4
-  [0.3, 0.45, 0.9],   // 5
-  [-0.16, 0.6, 0.18]  // 6
-];
-
 export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 72 }) => {
   const [transform, setTransform] = useState('');
 
   useEffect(() => {
     if (isRolling) {
-      setTransform(''); // Let animation handle it
+      setTransform('');
     } else {
       switch (value) {
         case 1: setTransform('rotateX(0deg) rotateY(0deg)'); break;
@@ -38,51 +29,54 @@ export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 72 }) => {
 
   return (
     <div className="dice-wrap" style={{ width: size, height: size }}>
-      <div 
-        className="dice-scaler" 
-        style={{ 
-          width: 100, 
-          height: 100, 
-          transform: `scale(${scale})`, 
-          transformOrigin: 'center' 
+      <div
+        className="dice-scaler"
+        style={{
+          width: 100,
+          height: 100,
+          transform: `scale(${scale})`,
+          transformOrigin: 'center',
         }}
       >
-        <div 
+        <div
           className={`dice ${isRolling ? 'rolling' : ''}`}
           style={{ transform: !isRolling ? transform : undefined }}
         >
+          {/* Inner sphere — fills the rounded corners so no black shows through */}
+          <div className="dice-inner-sphere" />
+
           <div className="dice-face front">
-             <span className="dice-dot center"></span>
+            <span className="dice-dot center" />
           </div>
           <div className="dice-face up">
-             <span className="dice-dot top-left"></span>
-             <span className="dice-dot bottom-right"></span>
+            <span className="dice-dot top-left" />
+            <span className="dice-dot bottom-right" />
           </div>
           <div className="dice-face left">
-             <span className="dice-dot top-left"></span>
-             <span className="dice-dot top-right"></span>
-             <span className="dice-dot bottom-left"></span>
-             <span className="dice-dot bottom-right"></span>
+            <span className="dice-dot top-left" />
+            <span className="dice-dot top-right" />
+            <span className="dice-dot bottom-left" />
+            <span className="dice-dot bottom-right" />
           </div>
           <div className="dice-face right">
-             <span className="dice-dot top-left"></span>
-             <span className="dice-dot center"></span>
-             <span className="dice-dot bottom-right"></span>
+            <span className="dice-dot top-left" />
+            <span className="dice-dot center" />
+            <span className="dice-dot bottom-right" />
           </div>
           <div className="dice-face bottom">
-             <span className="dice-dot top-left"></span>
-             <span className="dice-dot top-right"></span>
-             <span className="dice-dot center"></span>
-             <span className="dice-dot bottom-left"></span>
-             <span className="dice-dot bottom-right"></span>
+            <span className="dice-dot top-left" />
+            <span className="dice-dot top-right" />
+            <span className="dice-dot center" />
+            <span className="dice-dot bottom-left" />
+            <span className="dice-dot bottom-right" />
           </div>
           <div className="dice-face back">
-             <span className="dice-dot top-left"></span>
-             <span className="dice-dot top-right"></span>
-             <span className="dice-dot middle-left"></span>
-             <span className="dice-dot middle-right"></span>
-             <span className="dice-dot bottom-left"></span>
-             <span className="dice-dot bottom-right"></span>
+            <span className="dice-dot top-left" />
+            <span className="dice-dot top-right" />
+            <span className="dice-dot middle-left" />
+            <span className="dice-dot middle-right" />
+            <span className="dice-dot bottom-left" />
+            <span className="dice-dot bottom-right" />
           </div>
         </div>
       </div>
