@@ -32,6 +32,33 @@ async function startServer() {
       callback({ success: true, roomId, players: [player] });
     });
 
+    socket.on("join_random_room", (data, callback) => {
+      // Find a room that is not full and hasn't started
+      let targetRoomId = null;
+      for (const [id, room] of rooms.entries()) {
+        if (!room.state && room.players.length < 5) {
+          targetRoomId = id;
+          break;
+        }
+      }
+
+      if (targetRoomId) {
+        const room = rooms.get(targetRoomId)!;
+        const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: false };
+        room.players.push(player);
+        socket.join(targetRoomId);
+        io.to(targetRoomId).emit("room_updated", { players: room.players });
+        callback({ success: true, roomId: targetRoomId, players: room.players });
+      } else {
+        // Create a new room
+        const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: true };
+        rooms.set(roomId, { host: socket.id, players: [player], state: null });
+        socket.join(roomId);
+        callback({ success: true, roomId, players: [player] });
+      }
+    });
+
     socket.on("join_room", (data, callback) => {
       const room = rooms.get(data.roomId);
       if (!room) {
@@ -57,6 +84,33 @@ async function startServer() {
         if (room && room.host === socket.id) {
           room.state = data.initialState;
           io.to(roomId).emit("game_started", { state: data.initialState });
+        }
+      }
+    });
+
+    socket.on("kick_player", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
+      if (roomId) {
+        const room = rooms.get(roomId);
+        if (room && room.host === socket.id && !room.state) {
+          const playerIndex = room.players.findIndex(p => p.id === data.playerId);
+          if (playerIndex !== -1) {
+            const kickedPlayer = room.players[playerIndex];
+            room.players.splice(playerIndex, 1);
+            io.sockets.sockets.get(kickedPlayer.id)?.leave(roomId);
+            io.to(kickedPlayer.id).emit("kicked");
+            io.to(roomId).emit("room_updated", { players: room.players });
+          }
+        }
+      }
+    });
+
+    socket.on("update_settings", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
+      if (roomId) {
+        const room = rooms.get(roomId);
+        if (room && room.host === socket.id && !room.state) {
+          socket.to(roomId).emit("settings_updated", data.settings);
         }
       }
     });

@@ -1,42 +1,15 @@
 
 import React from 'react';
-import { 
-  Skull, User, Bot, Ghost, Gamepad2, Zap, Smile, Lock,
-  Cat, Dog, Bird, Rocket, Star, Heart, Coffee, Pizza, Music, Camera, Car
-} from 'lucide-react';
+import { Skull, Lock } from 'lucide-react';
 
 interface AvatarProps {
-  avatarId: string;
   color: string;
   className?: string;
   isBankrupt?: boolean;
   inJail?: boolean;
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ avatarId, color, className = "w-6 h-6", isBankrupt, inJail }) => {
-  const getAvatarIcon = () => {
-    const props = { size: "60%", strokeWidth: 2.5, className: "text-white drop-shadow-md" };
-    switch (avatarId) {
-      case 'human': return <User {...props} />;
-      case 'bot_0': return <Bot {...props} />;
-      case 'bot_1': return <Ghost {...props} />;
-      case 'bot_2': return <Gamepad2 {...props} />;
-      case 'bot_3': return <Zap {...props} />;
-      case 'cat': return <Cat {...props} />;
-      case 'dog': return <Dog {...props} />;
-      case 'bird': return <Bird {...props} />;
-      case 'rocket': return <Rocket {...props} />;
-      case 'star': return <Star {...props} />;
-      case 'heart': return <Heart {...props} />;
-      case 'coffee': return <Coffee {...props} />;
-      case 'pizza': return <Pizza {...props} />;
-      case 'music': return <Music {...props} />;
-      case 'camera': return <Camera {...props} />;
-      case 'car': return <Car {...props} />;
-      default: return <Smile {...props} />;
-    }
-  };
-
+export const Avatar: React.FC<AvatarProps> = ({ color, className = "w-6 h-6", isBankrupt, inJail }) => {
   return (
     <div 
       className={`
@@ -46,9 +19,6 @@ export const Avatar: React.FC<AvatarProps> = ({ avatarId, color, className = "w-
       style={{ backgroundColor: isBankrupt ? undefined : color }}
     >
         <div className="absolute inset-0 bg-gradient-to-tr from-black/20 to-white/20 pointer-events-none" />
-        
-        {/* Main Icon */}
-        {getAvatarIcon()}
         
         {/* Bankrupt Indicator */}
         {isBankrupt && (

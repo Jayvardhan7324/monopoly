@@ -129,63 +129,6 @@ export const Controls: React.FC<ControlsProps> = ({
   return (
     <div className="w-full h-full flex flex-col gap-4 text-slate-100 p-2 animate-fade-in relative">
 
-      {/* Header HUD */}
-      {gameState.phase !== 'AUCTION' && (
-        <div className="grid grid-cols-[1fr_auto] gap-2 md:gap-3">
-          <div className="bg-slate-900/40 backdrop-blur-xl p-2 md:p-3 rounded-xl flex items-center justify-between relative overflow-hidden border border-white/10 shadow-2xl">
-            <div className="absolute top-0 left-0 w-full h-1 opacity-80" style={{ backgroundColor: currentPlayer.color }} />
-            <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />
-            <div className="flex items-center gap-2 md:gap-4 min-w-0 mr-2 flex-1">
-              <div className="w-8 h-8 md:w-12 md:h-12 shrink-0 rounded-xl border-2 border-white/10 bg-slate-950 flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] relative">
-                <Avatar
-                  avatarId={currentPlayer.avatar}
-                  color={currentPlayer.color}
-                  isBankrupt={currentPlayer.isBankrupt}
-                  inJail={currentPlayer.inJail}
-                  className="w-5 h-5 md:w-8 md:h-8"
-                />
-                <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 md:w-4 md:h-4 bg-slate-900 rounded-lg border border-white/20 flex items-center justify-center text-[7px] md:text-[9px] font-black text-white shadow-lg">
-                  {gameState.currentPlayerIndex + 1}
-                </div>
-              </div>
-              <div className="flex flex-col min-w-0 pr-2">
-                <h2 className="font-black text-base md:text-xl tracking-tighter text-white uppercase italic truncate">{currentPlayer.name}</h2>
-                <div className="flex items-center gap-1.5 text-[7px] md:text-[9px] text-slate-400 font-black uppercase tracking-[0.2em] truncate">
-                  <MapPin size={8} className="text-indigo-400 shrink-0" /> <span className="truncate">{currentTile.name}</span>
-                </div>
-              </div>
-            </div>
-
-            <button
-              onClick={handleToggleTrade}
-              disabled={gameState.players.find(p => p.id === 0)?.isBankrupt}
-              className={`relative shrink-0 group overflow-hidden px-2 py-1.5 md:px-4 md:py-2 rounded-lg border transition-all flex items-center gap-1.5 md:gap-2 font-black text-[8px] md:text-[10px] uppercase tracking-widest disabled:opacity-30 disabled:pointer-events-none shadow-xl
-                ${isTradeMode ? 'bg-rose-600 border-rose-500 text-white' : 'bg-indigo-600 border-indigo-500 text-white hover:bg-indigo-500 hover:scale-105 active:scale-95'}`}
-            >
-              {isTradeMode ? <X size={12} className="md:w-[16px] md:h-[16px]" /> : <Handshake size={12} className="md:w-[16px] md:h-[16px]" />}
-              <span className="hidden sm:inline">{isTradeMode ? 'Cancel Trade' : 'Propose Trade'}</span>
-              <span className="sm:hidden">{isTradeMode ? 'Cancel' : 'Trade'}</span>
-              {!isTradeMode && (
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-[shimmer_1.5s_infinite]" />
-              )}
-            </button>
-          </div>
-
-          <div className="bg-slate-950/80 backdrop-blur-md p-2 md:p-3 rounded-xl flex flex-col items-end justify-center min-w-[100px] md:min-w-[150px] border border-white/10 shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 blur-3xl rounded-full -mr-12 -mt-12" />
-            <div className="text-slate-500 text-[7px] md:text-[9px] font-black uppercase tracking-[0.3em] mb-0.5">Net Balance</div>
-            <div className="flex items-center gap-1 text-emerald-400 font-mono text-xl md:text-3xl font-black tracking-tighter drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]">
-              <span className="text-base md:text-lg opacity-60">$</span>{currentPlayer.money}
-            </div>
-            {gameState.settings.rules.vacationCash && (
-              <div className="flex items-center gap-1 text-[7px] md:text-[8px] font-black uppercase text-amber-500 mt-0.5 md:mt-1 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-500/20">
-                <Landmark size={8} /> POOL: ${gameState.taxPool}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Main content */}
       <div className="flex-1 flex flex-col gap-4 relative min-h-0">
 
@@ -209,7 +152,6 @@ export const Controls: React.FC<ControlsProps> = ({
                   <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Highest Bidder</span>
                   <div className="flex items-center gap-3">
                     <Avatar
-                      avatarId={gameState.players.find(p => p.id === gameState.auction?.highestBidderId)?.avatar || ''}
                       color={gameState.players.find(p => p.id === gameState.auction?.highestBidderId)?.color || ''}
                       className="w-6 h-6"
                     />
@@ -273,7 +215,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-all flex items-center gap-2
                           ${targetPlayerId === p.id ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-slate-800 border-white/5 text-slate-500'}`}
                       >
-                        <Avatar avatarId={p.avatar} color={p.color} isBankrupt={p.isBankrupt} inJail={p.inJail} className="w-4 h-4" />
+                        <Avatar color={p.color} isBankrupt={p.isBankrupt} inJail={p.inJail} className="w-4 h-4" />
                         {p.name}
                       </button>
                     ))}
@@ -575,7 +517,6 @@ export const Controls: React.FC<ControlsProps> = ({
                     )}
                     
                     <Avatar
-                      avatarId={player.avatar}
                       color={player.color}
                       isBankrupt={player.isBankrupt}
                       inJail={player.inJail}

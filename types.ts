@@ -32,7 +32,6 @@ export interface Tile {
   isMortgaged: boolean;
   houseCost: number;
   countryCode?: string;
-  imageUrl?: string;
 }
 
 export enum BotPersonalityType {
@@ -46,7 +45,6 @@ export interface Player {
   id: number;
   name: string;
   color: string;
-  avatar: string;
   money: number;
   position: number;
   isBot: boolean;
@@ -69,7 +67,7 @@ export interface GameRules {
 
 export interface GameSettings {
   maxPlayers: number;
-  isPrivate: false;
+  isPrivate: boolean; // BUG-N3: Change from false to boolean
   allowBots: boolean;
   boardMap: string;
   rules: GameRules;

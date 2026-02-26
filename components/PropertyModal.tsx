@@ -101,7 +101,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
               <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">Portfolio Owner</span>
               {owner ? (
                 <div className="flex items-center gap-1.5">
-                  <Avatar avatarId={owner.avatar} color={owner.color} isBankrupt={owner.isBankrupt} inJail={owner.inJail} className="w-4 h-4" />
+                  <Avatar color={owner.color} isBankrupt={owner.isBankrupt} inJail={owner.inJail} className="w-4 h-4" />
                   <span className="font-bold text-xs">{owner.name}</span>
                 </div>
               ) : (

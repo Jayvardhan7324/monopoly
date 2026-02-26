@@ -15,36 +15,12 @@ import { playSound } from './services/audioService';
 import {
   INITIAL_TILES,
   PLAYER_COLORS,
-  AVAILABLE_AVATARS,
 } from './constants';
 import { Avatar } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
 import { Label } from './components/ui/label';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket } from './services/socketService';
-
-// ─── Leaderboard helpers (FEAT-08) ──────────────────────────────────────────
-interface LeaderboardEntry {
-  name: string;
-  wins: number;
-}
-
-const LEADERBOARD_KEY = 'richup_leaderboard';
-const loadLeaderboard = (): LeaderboardEntry[] => {
-  try {
-    return JSON.parse(localStorage.getItem(LEADERBOARD_KEY) || '[]');
-  } catch {
-    return [];
-  }
-};
-const saveWin = (name: string) => {
-  const board = loadLeaderboard();
-  const existing = board.find(e => e.name === name);
-  if (existing) existing.wins += 1;
-  else board.push({ name, wins: 1 });
-  board.sort((a, b) => b.wins - a.wins);
-  localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(board.slice(0, 10)));
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
@@ -60,12 +36,7 @@ const App: React.FC = () => {
   // FEAT-06: Spectator mode (all bots, no human)
   const [spectatorMode, setSpectatorMode] = useState(false);
 
-  // Leaderboard display toggle
-  const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
-
   const [humanName, setHumanName] = useState('Player 1');
-  const [humanAvatar, setHumanAvatar] = useState('human');
 
   // Multiplayer state
   const [isOnline, setIsOnline] = useState(false);
@@ -93,46 +64,77 @@ const App: React.FC = () => {
   useEffect(() => {
     const socket = initSocket();
 
-    socket.on("room_updated", (data) => {
+    const handleRoomUpdated = (data: any) => {
       setLobbyPlayers(data.players);
       const me = data.players.find((p: any) => p.id === socket.id);
       if (me) {
         setIsHost(me.isHost);
         setMyPlayerId(data.players.indexOf(me));
       }
-    });
+    };
 
-    socket.on("game_started", (data) => {
-      dispatch({ type: 'SYNC_STATE', payload: data.state });
-      setGameStarted(true);
-    });
+    const handleGameStarted = (data: any) => {
+      if (data.state) {
+        dispatch({ type: 'SYNC_STATE', payload: data.state });
+        setGameStarted(true);
+      }
+    };
 
-    socket.on("host_process_action", (action) => {
+    const handleHostProcessAction = (action: any) => {
       if (isHost) {
         dispatch(action);
       }
-    });
+    };
 
-    socket.on("sync_state", (data) => {
-      if (!isHost) {
+    const handleSyncState = (data: any) => {
+      if (!isHost && data.state) {
         dispatch({ type: 'SYNC_STATE', payload: data.state });
+        setGameStarted(true);
       }
-    });
+    };
+
+    const handleSettingsUpdated = (newSettings: any) => {
+      setSettings(newSettings);
+    };
+
+    const handleKicked = () => {
+      setIsOnline(false);
+      setRoomId("");
+      setLobbyPlayers([]);
+      setIsHost(false);
+      alert("You have been kicked from the room.");
+    };
+
+    socket.on("room_updated", handleRoomUpdated);
+    socket.on("game_started", handleGameStarted);
+    socket.on("host_process_action", handleHostProcessAction);
+    socket.on("sync_state", handleSyncState);
+    socket.on("settings_updated", handleSettingsUpdated);
+    socket.on("kicked", handleKicked);
 
     return () => {
-      socket.off("room_updated");
-      socket.off("game_started");
-      socket.off("host_process_action");
-      socket.off("sync_state");
+      socket.off("room_updated", handleRoomUpdated);
+      socket.off("game_started", handleGameStarted);
+      socket.off("host_process_action", handleHostProcessAction);
+      socket.off("sync_state", handleSyncState);
+      socket.off("settings_updated", handleSettingsUpdated);
+      socket.off("kicked", handleKicked);
     };
   }, [isHost]);
 
   // Sync state to clients if host
   useEffect(() => {
     if (isOnline && isHost && gameStarted) {
+      const stablePhases = ['ROLL', 'TURN_END', 'AUCTION', 'ACTION'];
+      if (!stablePhases.includes(gameState.phase)) return; // BUG-C7: Only sync on stable phases
+
       const socket = getSocket();
       if (socket) {
-        socket.emit("sync_state", { state: gameState });
+        // Debounce the sync emission
+        const timeoutId = setTimeout(() => {
+          socket.emit("sync_state", { state: gameState });
+        }, 0);
+        return () => clearTimeout(timeoutId);
       }
     }
   }, [gameState, isOnline, isHost, gameStarted]);
@@ -148,15 +150,6 @@ const App: React.FC = () => {
       dispatch(action);
     }
   };
-
-  // ── Save win to leaderboard when game ends ─────────────────────────────────
-  useEffect(() => {
-    if (gameState.winnerId !== null) {
-      const winner = gameState.players.find(p => p.id === gameState.winnerId);
-      if (winner) saveWin(winner.name);
-      setLeaderboard(loadLeaderboard());
-    }
-  }, [gameState.winnerId]);
 
   // ── Phase auto-transitions (non-bot) ───────────────────────────────────────
   useEffect(() => {
@@ -247,7 +240,6 @@ const App: React.FC = () => {
       type: 'START_GAME',
       payload: {
         humanName: spectatorMode ? 'Spectator' : humanName,
-        humanAvatar: humanAvatar,
         settings: effectiveSettings,
         lobbyPlayers: isOnline ? lobbyPlayers : null,
       },
@@ -270,7 +262,7 @@ const App: React.FC = () => {
   const createRoom = () => {
     const socket = getSocket();
     if (socket) {
-      socket.emit("create_room", { name: humanName, avatar: humanAvatar }, (res: any) => {
+      socket.emit("create_room", { name: humanName }, (res: any) => {
         if (res.success) {
           setIsOnline(true);
           setRoomId(res.roomId);
@@ -285,11 +277,27 @@ const App: React.FC = () => {
     if (!joinRoomId) return;
     const socket = getSocket();
     if (socket) {
-      socket.emit("join_room", { roomId: joinRoomId, name: humanName, avatar: humanAvatar }, (res: any) => {
+      socket.emit("join_room", { roomId: joinRoomId, name: humanName }, (res: any) => {
         if (res.success) {
           setIsOnline(true);
           setRoomId(res.roomId);
           setIsHost(false);
+          setLobbyPlayers(res.players);
+        } else {
+          alert(res.error);
+        }
+      });
+    }
+  };
+
+  const joinRandomRoom = () => {
+    const socket = getSocket();
+    if (socket) {
+      socket.emit("join_random_room", { name: humanName }, (res: any) => {
+        if (res.success) {
+          setIsOnline(true);
+          setRoomId(res.roomId);
+          setIsHost(res.players.find((p: any) => p.id === socket.id)?.isHost || false);
           setLobbyPlayers(res.players);
         } else {
           alert(res.error);
@@ -399,27 +407,6 @@ const App: React.FC = () => {
                       placeholder="Enter your name..."
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] text-slate-500 uppercase font-bold mb-2 block">Choose Avatar</label>
-                    <div className="grid grid-cols-8 gap-2">
-                      {AVAILABLE_AVATARS.map((avatar) => (
-                        <button
-                          key={avatar.id}
-                          onClick={() => setHumanAvatar(avatar.id)}
-                          className={`
-                            aspect-square rounded-xl flex items-center justify-center transition-all relative group
-                            ${humanAvatar === avatar.id ? 'bg-indigo-600 ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-900' : 'bg-slate-800 hover:bg-slate-700'}
-                          `}
-                          title={avatar.label}
-                        >
-                          <Avatar avatarId={avatar.id} color="transparent" className="w-full h-full border-none shadow-none" />
-                          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[8px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
-                            {avatar.label}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </motion.div>
             )}
@@ -431,10 +418,10 @@ const App: React.FC = () => {
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.6, type: 'spring' }}
-                    onClick={handleStartGame}
+                    onClick={joinRandomRoom}
                     className="group relative w-full md:w-fit px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xl shadow-2xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-4 active:scale-95"
                   >
-                    <Play fill="currentColor" size={24} /> LOCAL GAME
+                    <Play fill="currentColor" size={24} /> PLAY ONLINE
                     <ChevronRight className="group-hover:translate-x-1 transition-transform" />
                   </motion.button>
                   
@@ -446,7 +433,7 @@ const App: React.FC = () => {
                       onClick={createRoom}
                       className="group relative flex-1 px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
-                      <Globe size={20} /> HOST ONLINE
+                      <Globe size={20} /> CREATE PRIVATE ROOM
                     </motion.button>
                     <div className="flex flex-1 gap-2">
                       <input
@@ -521,152 +508,152 @@ const App: React.FC = () => {
                   )}
                 </motion.div>
               )}
-
-              {/* FEAT-08: Leaderboard */}
-              <motion.button
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                onClick={() => { setLeaderboard(loadLeaderboard()); setShowLeaderboard(!showLeaderboard); }}
-                className="w-full md:w-fit px-8 py-3 bg-transparent hover:bg-slate-900 text-slate-500 hover:text-slate-300 rounded-xl font-bold text-sm border border-slate-800 transition-all flex items-center justify-center gap-2"
-              >
-                <Trophy size={16} /> Leaderboard
-              </motion.button>
             </div>
-
-            {/* Leaderboard panel */}
-            <AnimatePresence>
-              {showLeaderboard && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-6 bg-slate-900/60 border border-slate-800 rounded-2xl p-4 overflow-hidden"
-                >
-                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <Trophy size={12} className="text-amber-400" /> All-Time Winners
-                  </h3>
-                  {leaderboard.length === 0 ? (
-                    <p className="text-slate-600 text-xs italic">No games completed yet.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {leaderboard.map((entry, i) => (
-                        <div key={entry.name} className="flex justify-between items-center text-sm">
-                          <span className={`font-bold ${i === 0 ? 'text-amber-400' : 'text-slate-400'}`}>
-                            {i + 1}. {entry.name}
-                          </span>
-                          <span className="font-mono text-slate-500">{entry.wins}W</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
-          {/* Right settings panel */}
+          {/* Right panel */}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
             className="shadcn-card bg-slate-900/40 backdrop-blur-xl p-0 flex flex-col h-auto max-h-[700px]"
           >
-            <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Settings size={18} className="text-slate-400" />
-                <h2 className="font-bold text-sm uppercase tracking-widest text-slate-200">Game Settings</h2>
-              </div>
-              <div className="flex items-center gap-2">
-                {/* FEAT-04: Sound toggle */}
-                <button
-                  onClick={() => setSoundEnabled(!soundEnabled)}
-                  className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
-                  title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-                >
-                  {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-                </button>
-                <div className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded font-mono uppercase">MAP: CLASSIC</div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin">
-              <section className="space-y-4">
-                <div className="flex items-center gap-2 text-indigo-400">
-                  <Users size={16} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Players & Room</span>
+            {!isOnline ? (
+              <div className="p-8 flex flex-col h-full">
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="font-black text-2xl text-white flex items-center gap-3">
+                    <Info className="text-indigo-400" /> HOW TO PLAY
+                  </h2>
+                  <button
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                    title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+                  >
+                    {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+                  </button>
                 </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs text-slate-500 mb-2 block">Maximum Players</label>
-                    <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
-                      {[2, 3, 4, 5].map(n => (
-                        <button
-                          key={n}
-                          onClick={() => setSettings({ ...settings, maxPlayers: n })}
-                          className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${settings.maxPlayers === n ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                        >
-                          {n}
-                        </button>
+                <div className="space-y-6 text-slate-300 leading-relaxed flex-1 overflow-y-auto pr-2 scrollbar-thin">
+                  <p>
+                    <strong>Richup.io</strong> is a multiplayer property trading game. The goal is to bankrupt your opponents by buying, upgrading, and collecting rent on properties.
+                  </p>
+                  <ul className="space-y-4">
+                    <li className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold text-sm">1</div>
+                      <span><strong>Roll the dice</strong> to move around the board. If you land on an unowned property, you can buy it. If you pass, it goes to auction.</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold text-sm">2</div>
+                      <span><strong>Collect color sets</strong> to build houses and hotels. This massively increases the rent other players must pay when they land on your tiles.</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold text-sm">3</div>
+                      <span><strong>Trade with others</strong> to complete your sets. A good trade can turn the game in your favor.</span>
+                    </li>
+                    <li className="flex gap-3">
+                      <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 font-bold text-sm">4</div>
+                      <span><strong>Avoid bankruptcy!</strong> If you owe more money than you can pay, you lose. Mortgage properties if you need quick cash.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Settings size={18} className="text-slate-400" />
+                    <h2 className="font-bold text-sm uppercase tracking-widest text-slate-200">Game Settings</h2>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSoundEnabled(!soundEnabled)}
+                      className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+                      title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
+                    >
+                      {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                    </button>
+                    <div className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded font-mono uppercase">MAP: CLASSIC</div>
+                  </div>
+                </div>
+
+                <div className={`flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin ${!isHost ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-indigo-400">
+                      <Users size={16} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Players & Room</span>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs text-slate-500 mb-2 block">Maximum Players</label>
+                        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
+                          {[2, 3, 4, 5].map(n => (
+                            <button
+                              key={n}
+                              onClick={() => setSettings({ ...settings, maxPlayers: n })}
+                              className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${settings.maxPlayers === n ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                        <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({ ...settings, isPrivate: !settings.isPrivate })}>
+                          <Lock size={16} className="text-slate-500" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-200">Private Room</span>
+                            <span className="text-[10px] text-slate-600 font-normal">Invite-only access</span>
+                          </div>
+                        </Label>
+                        <Switch checked={settings.isPrivate} onCheckedChange={checked => setSettings({ ...settings, isPrivate: checked })} />
+                      </div>
+                      <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
+                        <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({ ...settings, allowBots: !settings.allowBots })}>
+                          <Cpu size={16} className="text-slate-500" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-200">Allow Bots</span>
+                            <span className="text-[10px] text-slate-600 font-normal">Fill empty slots with AI</span>
+                          </div>
+                        </Label>
+                        <Switch checked={settings.allowBots} onCheckedChange={checked => setSettings({ ...settings, allowBots: checked })} />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2 text-emerald-400">
+                      <LayoutGrid size={16} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Gameplay Rules</span>
+                    </div>
+                    <div className="space-y-2">
+                      {[
+                        { id: 'doubleRentOnFullSet', label: 'x2 Rent on Sets', info: 'Monopoly base rent is doubled' },
+                        { id: 'vacationCash', label: 'Vacation Cash', info: 'Landing on Parking wins tax pool' },
+                        { id: 'auctionEnabled', label: 'Auction House', info: 'Unbought properties go to auction' },
+                        { id: 'noRentInJail', label: 'No Rent in Jail', info: 'Prisoners cannot collect rent' },
+                        { id: 'mortgageEnabled', label: 'Mortgage Enabled', info: 'Allow asset mortgaging' },
+                        { id: 'evenBuild', label: 'Even Build', info: 'Enforce balanced construction' },
+                        { id: 'randomizeOrder', label: 'Randomize Order', info: 'Shuffle player sequence' },
+                      ].map(rule => (
+                        <div key={rule.id} className="flex items-center justify-between p-3 bg-slate-950/20 rounded-xl border border-slate-800 hover:bg-slate-900/50 transition-colors">
+                          <Label
+                            className="flex flex-col cursor-pointer flex-1"
+                            onClick={() => updateRule(rule.id as any, !settings.rules[rule.id as keyof typeof settings.rules])}
+                          >
+                            <span className="text-xs font-bold text-slate-200">{rule.label}</span>
+                            <span className="text-[10px] text-slate-600 font-normal">{rule.info}</span>
+                          </Label>
+                          <Switch
+                            checked={settings.rules[rule.id as keyof typeof settings.rules] as boolean}
+                            onCheckedChange={checked => updateRule(rule.id as any, checked)}
+                          />
+                        </div>
                       ))}
                     </div>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                    <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({ ...settings, isPrivate: !settings.isPrivate })}>
-                      <Lock size={16} className="text-slate-500" />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-200">Private Room</span>
-                        <span className="text-[10px] text-slate-600 font-normal">Invite-only access</span>
-                      </div>
-                    </Label>
-                    <Switch checked={settings.isPrivate} onCheckedChange={checked => setSettings({ ...settings, isPrivate: checked })} />
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                    <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({ ...settings, allowBots: !settings.allowBots })}>
-                      <Cpu size={16} className="text-slate-500" />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-bold text-slate-200">Allow Bots</span>
-                        <span className="text-[10px] text-slate-600 font-normal">Fill empty slots with AI</span>
-                      </div>
-                    </Label>
-                    <Switch checked={settings.allowBots} onCheckedChange={checked => setSettings({ ...settings, allowBots: checked })} />
-                  </div>
+                  </section>
                 </div>
-              </section>
-
-              <section className="space-y-4">
-                <div className="flex items-center gap-2 text-emerald-400">
-                  <LayoutGrid size={16} />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Gameplay Rules</span>
-                </div>
-                <div className="space-y-2">
-                  {[
-                    { id: 'doubleRentOnFullSet', label: 'x2 Rent on Sets', info: 'Monopoly base rent is doubled' },
-                    { id: 'vacationCash', label: 'Vacation Cash', info: 'Landing on Parking wins tax pool' },
-                    { id: 'auctionEnabled', label: 'Auction House', info: 'Unbought properties go to auction' },
-                    { id: 'noRentInJail', label: 'No Rent in Jail', info: 'Prisoners cannot collect rent' },
-                    { id: 'mortgageEnabled', label: 'Mortgage Enabled', info: 'Allow asset mortgaging' },
-                    { id: 'evenBuild', label: 'Even Build', info: 'Enforce balanced construction' },
-                    { id: 'randomizeOrder', label: 'Randomize Order', info: 'Shuffle player sequence' },
-                  ].map(rule => (
-                    <div key={rule.id} className="flex items-center justify-between p-3 bg-slate-950/20 rounded-xl border border-slate-800 hover:bg-slate-900/50 transition-colors">
-                      <Label
-                        className="flex flex-col cursor-pointer flex-1"
-                        onClick={() => updateRule(rule.id as any, !settings.rules[rule.id as keyof typeof settings.rules])}
-                      >
-                        <span className="text-xs font-bold text-slate-200">{rule.label}</span>
-                        <span className="text-[10px] text-slate-600 font-normal">{rule.info}</span>
-                      </Label>
-                      <Switch
-                        checked={settings.rules[rule.id as keyof typeof settings.rules] as boolean}
-                        onCheckedChange={checked => updateRule(rule.id as any, checked)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-
+              </>
+            )}
+            
             <div className="p-6 bg-slate-950 border-t border-slate-800 text-center">
               <p className="text-[10px] text-slate-600 flex items-center justify-center gap-1 uppercase">
                 <Info size={10} /> Local Session Data Protected

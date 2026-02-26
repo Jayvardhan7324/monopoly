@@ -228,10 +228,13 @@ export function getBotBidAction(
   increment = Math.max(increment, GAME_CONSTANTS.MIN_AUCTION_INCREMENT);
   
   // Final bid amount
-  const finalBid = Math.min(auction.currentBid + increment, maxBid);
+  let finalBid = Math.min(auction.currentBid + increment, maxBid);
   
-  // Only bid if it's actually higher than current
-  if (finalBid <= auction.currentBid) return null;
+  // BUG-M3: Ensure the bid is always at least MIN_AUCTION_INCREMENT above the current bid
+  finalBid = Math.max(finalBid, nextMinBid);
+  
+  // Only bid if it's actually higher than current and we can afford it
+  if (finalBid <= auction.currentBid || finalBid > maxBid) return null;
 
   return {
     type: 'PLACE_BID',
@@ -259,6 +262,7 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
       
       // Offer cash or a property I don't need
       const myUselessTiles = myTiles.filter(t => {
+        if (t.isMortgaged) return false; // BUG-N4: Don't offer mortgaged tiles
         const g = gameState.tiles.filter(tile => tile.group === t.group);
         return g.filter(tile => tile.ownerId === botId).length === 1; // I only have this one
       });

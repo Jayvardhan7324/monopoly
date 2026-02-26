@@ -31,12 +31,12 @@ import {
   GAME_CONSTANTS,
   CHANCE_CARDS,
   COMMUNITY_CHEST_CARDS,
-  AVAILABLE_AVATARS,
+  PLAYER_COLORS,
   Card,
 } from '../constants';
 
 export type Action =
-  | { type: 'START_GAME'; payload: { humanName: string; humanAvatar: string; settings: GameSettings; lobbyPlayers?: any[] | null } }
+  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null } }
   | { type: 'ROLL_DICE' }
   | { type: 'MOVE_PLAYER' }
   | { type: 'LAND_ON_TILE' }
@@ -102,8 +102,11 @@ const withSound = (state: GameState, type: SoundEffectType): GameState => ({
 });
 
 /** Cap the log array so it never grows unbounded (IMP-13) */
-const addLog = (logs: string[], ...entries: string[]): string[] =>
-  [...entries, ...logs].slice(0, GAME_CONSTANTS.LOG_MAX_ENTRIES);
+const addLog = (logs: string[], ...entries: string[]): string[] => {
+  // BUG-N2: Reverse logs so they appear chronologically in the prepended block
+  const reversedEntries = [...entries].reverse();
+  return [...reversedEntries, ...logs].slice(0, GAME_CONSTANTS.LOG_MAX_ENTRIES);
+};
 
 /** Pick a random card and return it */
 const drawCard = (cards: Card[]): Card => cards[Math.floor(Math.random() * cards.length)];
@@ -158,8 +161,8 @@ const declareBankruptcy = (
   const newTiles = state.tiles.map(t => {
     if (t.ownerId !== bankruptPlayerId) return t;
     if (creditorId !== null) {
-      // Transfer to creditor — unmortgaged, buildings removed (house value lost)
-      return { ...t, ownerId: creditorId, buildingCount: 0, isMortgaged: false };
+      // Transfer to creditor — buildings removed (house value lost), mortgage preserved
+      return { ...t, ownerId: creditorId, buildingCount: 0, isMortgaged: t.isMortgaged }; // BUG-C5: Preserve mortgage if transferred to creditor
     }
     // Return to bank
     return { ...t, ownerId: null, buildingCount: 0, isMortgaged: false };
@@ -185,7 +188,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     }
 
     case 'START_GAME': {
-      const { humanName, humanAvatar, settings, lobbyPlayers } = action.payload;
+      const { humanName, settings, lobbyPlayers } = action.payload;
       
       let players: Player[] = [];
       const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
@@ -196,7 +199,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           id: i,
           name: p.name,
           color: PLAYER_COLORS[i % PLAYER_COLORS.length],
-          avatar: p.avatar,
           money: settings.rules.startingCash,
           position: 0,
           isBot: false,
@@ -211,10 +213,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             id: 0,
             name: humanName || 'Player 1',
             color: '#ef4444',
-            avatar: humanAvatar || 'human',
             money: settings.rules.startingCash,
             position: 0,
-            isBot: false,
+            isBot: humanName === 'Spectator', // BUG-C2: Spectator mode sets isBot to true
             isBankrupt: false,
             inJail: false,
             jailTurns: 0,
@@ -224,11 +225,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       const botCount = settings.allowBots ? settings.maxPlayers - players.length : 0;
 
-      const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta'];
-      
-      // Filter out chosen avatars so bots don't duplicate them if possible
-      const chosenAvatars = players.map(p => p.avatar);
-      const otherAvatars = AVAILABLE_AVATARS.filter(a => !chosenAvatars.includes(a.id)).map(a => a.id);
+      const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Epsilon', 'Bot Zeta', 'Bot Eta', 'Bot Theta'];
+      // Randomize bot names
+      const shuffledBotNames = [...botNames].sort(() => Math.random() - 0.5);
       
       const botPersonalities = [
         BotPersonalityType.AGGRESSIVE,
@@ -241,9 +240,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         const botId = players.length;
         players.push({
           id: botId,
-          name: botNames[i] || `Bot ${botId}`,
+          name: shuffledBotNames[i] || `Bot ${botId}`,
           color: botColors[i] || '#888',
-          avatar: otherAvatars[i % otherAvatars.length],
           money: settings.rules.startingCash,
           position: 0,
           isBot: true,
@@ -1146,6 +1144,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           turnCount: state.turnCount + 1,
           auction: null,
           doublesCount: nextDoublesCount,
+          turnLogs: [], // BUG-M1: Reset turnLogs atomically on END_TURN
         },
         'turn_switch'
       );
@@ -1158,7 +1157,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Wrapper: manages turnLogs
-// BUG-04: turnLogs reset ONLY on END_TURN, not on phase cycling
 // ─────────────────────────────────────────────────────────────────────────────
 export const gameReducer = (state: GameState, action: Action): GameState => {
   const newState = coreReducer(state, action);
@@ -1172,7 +1170,7 @@ export const gameReducer = (state: GameState, action: Action): GameState => {
     newState.turnLogs = state.turnLogs;
   }
 
-  // BUG-04 fix: only wipe turnLogs when the END_TURN action actually fires
+  // BUG-M1 fix: turnLogs is wiped in END_TURN inside coreReducer, but we also need to handle the wrapper logic
   if (action.type === 'END_TURN') {
     newState.turnLogs = [];
   }

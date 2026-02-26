@@ -87,26 +87,7 @@ export const INITIAL_TILES: Tile[] = [
   createTile(39, 'New York', TileType.PROPERTY, 400, ColorGroup.RED, [50, 200, 600, 1400, 1700, 2000], 200, 'us'),
 ];
 
-export const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308'];
-
-export const AVAILABLE_AVATARS = [
-  { id: 'human', label: 'Classic' },
-  { id: 'bot_0', label: 'Robot' },
-  { id: 'bot_1', label: 'Ghost' },
-  { id: 'bot_2', label: 'Gamer' },
-  { id: 'bot_3', label: 'Flash' },
-  { id: 'cat', label: 'Cat' },
-  { id: 'dog', label: 'Dog' },
-  { id: 'bird', label: 'Bird' },
-  { id: 'rocket', label: 'Rocket' },
-  { id: 'star', label: 'Star' },
-  { id: 'heart', label: 'Heart' },
-  { id: 'coffee', label: 'Coffee' },
-  { id: 'pizza', label: 'Pizza' },
-  { id: 'music', label: 'Music' },
-  { id: 'camera', label: 'Camera' },
-  { id: 'car', label: 'Car' },
-];
+export const PLAYER_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ec4899', '#f97316', '#14b8a6'];
 
 // Chance/Community Chest card definitions — IMP-02/03
 export type CardType = 'MOVE' | 'MONEY' | 'JAIL' | 'JAIL_FREE';

@@ -46,7 +46,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
           {/* Proposer Offers */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-indigo-400">
-              <Avatar avatarId={proposer.avatar} color={proposer.color} className="w-6 h-6" />
+              <Avatar color={proposer.color} className="w-6 h-6" />
               <span className="text-[10px] font-black uppercase tracking-widest">{proposer.name} Offers:</span>
             </div>
             <div className="grid grid-cols-1 gap-2">
@@ -79,7 +79,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
           {/* Proposer Requests */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-rose-400">
-              <Avatar avatarId={target.avatar} color={target.color} className="w-6 h-6" />
+              <Avatar color={target.color} className="w-6 h-6" />
               <span className="text-[10px] font-black uppercase tracking-widest">In Exchange For:</span>
             </div>
             <div className="grid grid-cols-1 gap-2">
