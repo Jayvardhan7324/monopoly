@@ -58,6 +58,7 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
                   isCurrent={currentPlayer.position === tile.id}
                   isOwned={isOwned}
                   isMonopoly={isMonopoly}
+                  taxPool={tile.name === 'Vacation' ? gameState.taxPool : undefined}
                 />
             </div>
           );

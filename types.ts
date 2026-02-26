@@ -34,6 +34,13 @@ export interface Tile {
   countryCode?: string;
 }
 
+export enum BotPersonalityType {
+  AGGRESSIVE = 'AGGRESSIVE',
+  CONSERVATIVE = 'CONSERVATIVE',
+  BALANCED = 'BALANCED',
+  OPPORTUNISTIC = 'OPPORTUNISTIC',
+}
+
 export interface Player {
   id: number;
   name: string;
@@ -45,6 +52,7 @@ export interface Player {
   isBankrupt: boolean;
   inJail: boolean;
   jailTurns: number;
+  personality?: BotPersonalityType;
 }
 
 export interface GameRules {
@@ -96,6 +104,15 @@ export interface AuctionState {
   timer: number;
 }
 
+export interface TradeOffer {
+  proposerId: number;
+  targetId: number;
+  offerCash: number;
+  offerPropertyIds: number[];
+  targetPropertyId: number;
+  requestCash: number;
+}
+
 export interface GameState {
   players: Player[];
   tiles: Tile[];
@@ -112,6 +129,7 @@ export interface GameState {
   taxPool: number;
   settings: GameSettings;
   auction: AuctionState | null;
+  pendingTrade: TradeOffer | null;
 }
 
 export interface LogEntry {

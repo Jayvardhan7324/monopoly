@@ -4,12 +4,15 @@ import { getBotAction, getBotBidAction } from './services/botService';
 import { Board } from './components/Board';
 import { Controls } from './components/Controls';
 import { PropertyModal } from './components/PropertyModal';
+import { PlayerPortfolioModal } from './components/PlayerPortfolioModal';
+import { TradeProposalModal } from './components/TradeProposalModal';
 import { GameSettings, TileType } from './types';
 import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
-  LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy,
+  LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy, X,
 } from 'lucide-react';
 import { playSound } from './services/audioService';
+import { Avatar } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
 import { Label } from './components/ui/label';
 import { motion, AnimatePresence } from 'motion/react';
@@ -42,6 +45,7 @@ const App: React.FC = () => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
+  const [viewingPlayerId, setViewingPlayerId] = useState<number | null>(null);
   const [settings, setSettings] = useState<GameSettings>(initialState.settings);
 
   // FEAT-04: Sound toggle
@@ -259,17 +263,6 @@ const App: React.FC = () => {
                 <ChevronRight className="group-hover:translate-x-1 transition-transform" />
               </motion.button>
 
-              {/* FEAT-06: Spectator mode */}
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.65, type: 'spring' }}
-                onClick={() => { setSpectatorMode(true); setTimeout(handleStartGame, 10); }}
-                className="group w-full md:w-fit px-12 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl font-black text-base shadow-lg border border-slate-700 transition-all flex items-center justify-center gap-3 active:scale-95"
-              >
-                <Eye size={20} /> WATCH BOTS PLAY
-              </motion.button>
-
               {/* FEAT-08: Leaderboard */}
               <motion.button
                 initial={{ opacity: 0 }}
@@ -460,13 +453,78 @@ const App: React.FC = () => {
             onUpgrade={tileId => dispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId } })}
             onOpenProperty={handleTileClick}
             onTrade={(offer, targetTileId) =>
-              dispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId } })
+              dispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash } })
             }
             dispatch={dispatch}
           />
         </Board>
+      </motion.div>
 
-        <AnimatePresence>
+      {/* Player Status List Under Board */}
+      <div className="w-full max-w-5xl mt-8 flex justify-center gap-4 px-4 overflow-x-auto pb-4 scrollbar-hide z-20">
+        {gameState.players.map(player => {
+          const isActive = gameState.currentPlayerIndex === gameState.players.indexOf(player);
+          return (
+            <motion.div
+              key={player.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={{ scale: 1.05, y: -5 }}
+              onClick={() => setViewingPlayerId(player.id)}
+              className={`
+                relative flex items-center gap-3 bg-slate-900/60 backdrop-blur-md border p-3 rounded-2xl min-w-[160px] shadow-2xl cursor-pointer transition-all duration-300
+                ${isActive ? 'border-indigo-500/50 bg-indigo-500/5 ring-1 ring-indigo-500/20' : 'border-white/5 hover:border-white/20'}
+                ${player.isBankrupt ? 'opacity-40 grayscale' : ''}
+              `}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="active-indicator"
+                  className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.8)] z-30"
+                  animate={{ scale: [1, 1.2, 1] }}
+                  transition={{ repeat: Infinity, duration: 2 }}
+                />
+              )}
+              
+              <div className="relative">
+                <Avatar
+                  avatarId={player.avatar}
+                  color={player.color}
+                  isBankrupt={player.isBankrupt}
+                  inJail={player.inJail}
+                  className={`w-10 h-10 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-slate-950' : ''}`}
+                />
+                {player.isBankrupt && (
+                  <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
+                    <X size={14} className="text-rose-500" strokeWidth={3} />
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex flex-col flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className={`text-[11px] font-black uppercase truncate ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
+                    {player.name}
+                  </span>
+                  {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
+                </div>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className={`font-mono text-xs font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
+                    ${player.money}
+                  </span>
+                  <div className="flex gap-0.5">
+                    {gameState.tiles.filter(t => t.ownerId === player.id).length > 0 && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
+                    )}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+
+      <AnimatePresence>
           {selectedTileId !== null && (
             <PropertyModal
               tile={gameState.tiles[selectedTileId]}
@@ -477,15 +535,32 @@ const App: React.FC = () => {
               currentPlayer={gameState.players.find(p => p.id === 0)}
               myProperties={myProperties}
               onTrade={offer =>
-                dispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId } })
+                dispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId, requestCash: offer.requestCash } })
               }
               onMortgage={() => dispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
               onUnmortgage={() => dispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
               onSell={() => dispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
             />
           )}
+
+          {viewingPlayerId !== null && (
+            <PlayerPortfolioModal
+              player={gameState.players.find(p => p.id === viewingPlayerId)!}
+              tiles={gameState.tiles}
+              onClose={() => setViewingPlayerId(null)}
+            />
+          )}
+
+          {gameState.pendingTrade && (
+            <TradeProposalModal
+              trade={gameState.pendingTrade}
+              players={gameState.players}
+              tiles={gameState.tiles}
+              onAccept={() => dispatch({ type: 'ACCEPT_TRADE' })}
+              onDecline={() => dispatch({ type: 'DECLINE_TRADE' })}
+            />
+          )}
         </AnimatePresence>
-      </motion.div>
     </div>
   );
 };

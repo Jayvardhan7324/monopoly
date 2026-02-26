@@ -12,10 +12,11 @@ interface TileProps {
   isCurrent: boolean;
   isOwned?: boolean;
   isMonopoly?: boolean;
+  taxPool?: number;
 }
 
 const colorMap: Record<ColorGroup, string> = {
-  [ColorGroup.BROWN]: '#4b5563',
+  [ColorGroup.BROWN]: '#78350f',
   [ColorGroup.LIGHT_BLUE]: '#3b82f6',
   [ColorGroup.PINK]: '#a855f7',
   [ColorGroup.ORANGE]: '#f59e0b',
@@ -28,7 +29,7 @@ const colorMap: Record<ColorGroup, string> = {
 
 const playerColors = ['#ef4444', '#3b82f6', '#22c55e', '#eab308'];
 
-export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly }) => {
+export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp = tile.type === ETileType.PROPERTY;
 
@@ -97,10 +98,15 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           );
         if (tile.name === 'Vacation')
           return (
-            <div className="flex flex-col items-center justify-center h-full">
+            <div className="flex flex-col items-center justify-center h-full relative">
               {/* BUG-08: TreePalm replaces removed Palmtree */}
               <TreePalm size={20} className="md:w-8 md:h-8 text-emerald-400" />
               <span className="text-[7px] md:text-[9px] text-emerald-400 font-black uppercase">Vacation</span>
+              {taxPool !== undefined && taxPool > 0 && (
+                <div className="absolute -bottom-1 bg-emerald-500/20 px-1 rounded border border-emerald-500/30">
+                  <span className="text-[8px] md:text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
+                </div>
+              )}
             </div>
           );
         if (tile.name === 'Go to prison')
@@ -172,7 +178,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       className={`
         relative w-full h-full flex ${flexDir}
         ${isCorner ? 'bg-[#21262d]' : 'bg-[#2a303c]'}
-        border transition-all cursor-pointer select-none overflow-hidden
+        border transition-all cursor-pointer select-none
         hover:bg-[#323946] group
         ${isCurrent ? 'ring-2 ring-indigo-500 z-50 scale-[1.02] shadow-2xl' : ''}
         ${isOwned && !isCorner ? 'hover:ring-2 hover:ring-white/30 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-[1.05] hover:z-30 transition-transform duration-300' : ''}

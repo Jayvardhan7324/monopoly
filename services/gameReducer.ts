@@ -22,6 +22,7 @@ import {
   SoundEffectType,
   GameSettings,
   AuctionState,
+  BotPersonalityType,
 } from '../types';
 import {
   INITIAL_TILES,
@@ -45,7 +46,9 @@ export type Action =
   | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'SELL_PROPERTY'; payload: { tileId: number } }
-  | { type: 'PROPOSE_TRADE'; payload: { offerCash: number; offerPropertyIds: number[]; targetTileId: number } }
+  | { type: 'PROPOSE_TRADE'; payload: { offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
+  | { type: 'ACCEPT_TRADE' }
+  | { type: 'DECLINE_TRADE' }
   | { type: 'PAY_JAIL_FINE' }
   | { type: 'ATTEMPT_JAIL_ROLL' }
   | { type: 'SKIP_JAIL_TURN' }
@@ -69,6 +72,7 @@ export const initialState: GameState = {
   lastSoundEffect: null,
   taxPool: 0,
   auction: null,
+  pendingTrade: null,
   settings: {
     maxPlayers: 4,
     isPrivate: false,
@@ -196,6 +200,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta'];
       const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
       const botAvatars = ['bot_0', 'bot_1', 'bot_2', 'bot_3'];
+      const botPersonalities = [
+        BotPersonalityType.AGGRESSIVE,
+        BotPersonalityType.CONSERVATIVE,
+        BotPersonalityType.BALANCED,
+        BotPersonalityType.OPPORTUNISTIC,
+      ];
 
       for (let i = 0; i < botCount; i++) {
         players.push({
@@ -209,6 +219,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           isBankrupt: false,
           inJail: false,
           jailTurns: 0,
+          personality: botPersonalities[i % botPersonalities.length],
         });
       }
 
@@ -885,12 +896,37 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── PROPOSE_TRADE ────────────────────────────────────────────────────────
     case 'PROPOSE_TRADE': {
-      const { offerCash, offerPropertyIds, targetTileId } = action.payload;
+      const { offerCash, offerPropertyIds, targetTileId, requestCash } = action.payload;
       const targetTile = state.tiles[targetTileId];
       const targetOwnerId = targetTile.ownerId;
       if (targetOwnerId === null) return state;
-      const bot = state.players.find(p => p.id === targetOwnerId);
-      if (!bot || !bot.isBot) return state;
+      const targetPlayer = state.players.find(p => p.id === targetOwnerId);
+      if (!targetPlayer) return state;
+
+      const proposer = state.players[state.currentPlayerIndex];
+
+      // If target is human, store as pending
+      if (!targetPlayer.isBot) {
+        return withSound(
+          {
+            ...state,
+            pendingTrade: {
+              proposerId: proposer.id,
+              targetId: targetPlayer.id,
+              offerCash,
+              offerPropertyIds,
+              targetPropertyId: targetTileId,
+              requestCash
+            },
+            logs: addLog(state.logs, `${proposer.name} proposed a trade to ${targetPlayer.name}.`)
+          },
+          'trade_offer'
+        );
+      }
+
+      // If target is bot, evaluate immediately
+      const bot = targetPlayer;
+      const personality = bot.personality || BotPersonalityType.BALANCED;
 
       // BUG-03: Do not allow offering mortgaged properties (guard on reducer side too)
       const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
@@ -905,9 +941,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const targetGroup = state.tiles.filter(t => t.group === targetTile.group);
       const botOwnedInGroup = targetGroup.filter(t => t.ownerId === bot.id).length;
 
-      let botLossValue = targetTile.price * 1.2;
+      let botLossValue = targetTile.price * 1.2 + requestCash;
       if (botOwnedInGroup === targetGroup.length) botLossValue *= 6;
       else if (botOwnedInGroup > 1) botLossValue *= 2.5;
+
+      // Bot is more reluctant to give away cash if it's low
+      if (bot.money < requestCash + 100) botLossValue *= 2;
 
       let botGainValue = offerCash;
       if (bot.money < 200) botGainValue *= 1.5;
@@ -932,14 +971,28 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         humanMonopolyPenalty = targetTile.price * (state.turnCount > 100 ? 5 : 3);
       }
 
-      if (botGainValue >= botLossValue + humanMonopolyPenalty) {
+      // Personality adjustments to the final decision
+      let threshold = 1.0;
+      if (personality === BotPersonalityType.AGGRESSIVE) threshold = 0.8; // More likely to accept
+      if (personality === BotPersonalityType.CONSERVATIVE) threshold = 1.2; // Less likely to accept
+      if (personality === BotPersonalityType.OPPORTUNISTIC) {
+        // If the trade helps the bot complete a set, they are very likely to accept
+        const helpsBotCompleteSet = offerPropertyIds.some(id => {
+          const t = state.tiles[id];
+          const g = state.tiles.filter(tile => tile.group === t.group);
+          return g.filter(tile => tile.ownerId === bot.id).length === g.length - 1;
+        });
+        if (helpsBotCompleteSet) threshold = 0.5;
+      }
+
+      if (botGainValue >= (botLossValue + humanMonopolyPenalty) * threshold) {
         const newPlayers = state.players.map(p => {
-          if (p.id === 0) return { ...p, money: p.money - offerCash };
-          if (p.id === bot.id) return { ...p, money: p.money + offerCash };
+          if (p.id === proposer.id) return { ...p, money: p.money - offerCash + requestCash };
+          if (p.id === bot.id) return { ...p, money: p.money + offerCash - requestCash };
           return p;
         });
         const newTiles = state.tiles.map(t => {
-          if (t.id === targetTileId) return { ...t, ownerId: 0 };
+          if (t.id === targetTileId) return { ...t, ownerId: proposer.id };
           if (offerPropertyIds.includes(t.id)) return { ...t, ownerId: bot.id };
           return t;
         });
@@ -956,6 +1009,52 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       return withSound(
         { ...state, logs: addLog(state.logs, `Trade rejected by ${bot.name}. Offer insufficient.`) },
+        'trade_decline'
+      );
+    }
+
+    // ─── ACCEPT_TRADE ──────────────────────────────────────────────────────────
+    case 'ACCEPT_TRADE': {
+      if (!state.pendingTrade) return state;
+      const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
+      
+      const proposer = state.players.find(p => p.id === proposerId)!;
+      const target = state.players.find(p => p.id === targetId)!;
+
+      const newPlayers = state.players.map(p => {
+        if (p.id === proposerId) return { ...p, money: p.money - offerCash + requestCash };
+        if (p.id === targetId) return { ...p, money: p.money + offerCash - requestCash };
+        return p;
+      });
+
+      const newTiles = state.tiles.map(t => {
+        if (t.id === targetPropertyId) return { ...t, ownerId: proposerId };
+        if (offerPropertyIds.includes(t.id)) return { ...t, ownerId: targetId };
+        return t;
+      });
+
+      return withSound(
+        {
+          ...state,
+          players: newPlayers,
+          tiles: newTiles,
+          pendingTrade: null,
+          logs: addLog(state.logs, `Trade accepted by ${target.name}!`),
+        },
+        'trade_accept'
+      );
+    }
+
+    // ─── DECLINE_TRADE ──────────────────────────────────────────────────────────
+    case 'DECLINE_TRADE': {
+      if (!state.pendingTrade) return state;
+      const target = state.players.find(p => p.id === state.pendingTrade!.targetId)!;
+      return withSound(
+        {
+          ...state,
+          pendingTrade: null,
+          logs: addLog(state.logs, `Trade declined by ${target.name}.`),
+        },
         'trade_decline'
       );
     }
