@@ -32,6 +32,7 @@ export interface Tile {
   isMortgaged: boolean;
   houseCost: number;
   countryCode?: string;
+  imageUrl?: string;
 }
 
 export enum BotPersonalityType {

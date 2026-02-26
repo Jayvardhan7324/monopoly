@@ -31,11 +31,12 @@ import {
   GAME_CONSTANTS,
   CHANCE_CARDS,
   COMMUNITY_CHEST_CARDS,
+  AVAILABLE_AVATARS,
   Card,
 } from '../constants';
 
 export type Action =
-  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings } }
+  | { type: 'START_GAME'; payload: { humanName: string; humanAvatar: string; settings: GameSettings; lobbyPlayers?: any[] | null } }
   | { type: 'ROLL_DICE' }
   | { type: 'MOVE_PLAYER' }
   | { type: 'LAND_ON_TILE' }
@@ -55,7 +56,8 @@ export type Action =
   | { type: 'START_AUCTION' }
   | { type: 'PLACE_BID'; payload: { playerId: number; amount: number } }
   | { type: 'DECREMENT_AUCTION_TIMER' }
-  | { type: 'END_AUCTION' };
+  | { type: 'END_AUCTION' }
+  | { type: 'SYNC_STATE'; payload: GameState };
 
 export const initialState: GameState = {
   players: [],
@@ -178,28 +180,56 @@ const declareBankruptcy = (
 const coreReducer = (state: GameState, action: Action): GameState => {
   switch (action.type) {
     // ─── START_GAME ────────────────────────────────────────────────────────────
-    case 'START_GAME': {
-      const { humanName, settings } = action.payload;
-      const botCount = settings.allowBots ? settings.maxPlayers - 1 : 0;
+    case 'SYNC_STATE': {
+      return action.payload;
+    }
 
-      let players: Player[] = [
-        {
-          id: 0,
-          name: humanName || 'Player 1',
-          color: '#ef4444',
-          avatar: 'human',
+    case 'START_GAME': {
+      const { humanName, humanAvatar, settings, lobbyPlayers } = action.payload;
+      
+      let players: Player[] = [];
+      const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
+      
+      if (lobbyPlayers && lobbyPlayers.length > 0) {
+        // Online multiplayer setup
+        players = lobbyPlayers.map((p, i) => ({
+          id: i,
+          name: p.name,
+          color: PLAYER_COLORS[i % PLAYER_COLORS.length],
+          avatar: p.avatar,
           money: settings.rules.startingCash,
           position: 0,
           isBot: false,
           isBankrupt: false,
           inJail: false,
           jailTurns: 0,
-        },
-      ];
+        }));
+      } else {
+        // Local game setup
+        players = [
+          {
+            id: 0,
+            name: humanName || 'Player 1',
+            color: '#ef4444',
+            avatar: humanAvatar || 'human',
+            money: settings.rules.startingCash,
+            position: 0,
+            isBot: false,
+            isBankrupt: false,
+            inJail: false,
+            jailTurns: 0,
+          },
+        ];
+      }
+
+      const botCount = settings.allowBots ? settings.maxPlayers - players.length : 0;
 
       const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta'];
-      const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
-      const botAvatars = ['bot_0', 'bot_1', 'bot_2', 'bot_3'];
+      
+      // Filter out chosen avatars so bots don't duplicate them if possible
+      const chosenAvatars = players.map(p => p.avatar);
+      const otherAvatars = AVAILABLE_AVATARS.filter(a => !chosenAvatars.includes(a.id)).map(a => a.id);
+      
       const botPersonalities = [
         BotPersonalityType.AGGRESSIVE,
         BotPersonalityType.CONSERVATIVE,
@@ -208,11 +238,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       ];
 
       for (let i = 0; i < botCount; i++) {
+        const botId = players.length;
         players.push({
-          id: i + 1,
-          name: botNames[i] || `Bot ${i + 1}`,
+          id: botId,
+          name: botNames[i] || `Bot ${botId}`,
           color: botColors[i] || '#888',
-          avatar: botAvatars[i % botAvatars.length],
+          avatar: otherAvatars[i % otherAvatars.length],
           money: settings.rules.startingCash,
           position: 0,
           isBot: true,

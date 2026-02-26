@@ -178,7 +178,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       className={`
         relative w-full h-full flex ${flexDir}
         ${isCorner ? 'bg-[#21262d]' : 'bg-[#2a303c]'}
-        border transition-all cursor-pointer select-none
+        border transition-all cursor-pointer select-none overflow-hidden
         hover:bg-[#323946] group
         ${isCurrent ? 'ring-2 ring-indigo-500 z-50 scale-[1.02] shadow-2xl' : ''}
         ${isOwned && !isCorner ? 'hover:ring-2 hover:ring-white/30 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-[1.05] hover:z-30 transition-transform duration-300' : ''}
@@ -224,6 +224,17 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
 
       {/* Main Content */}
       <div className={`flex-1 relative overflow-hidden flex flex-col items-center justify-center ${contentRotation}`}>
+        {tile.imageUrl && (
+          <div className="absolute inset-0 z-0">
+            <img
+              src={tile.imageUrl}
+              alt={tile.name}
+              className="w-full h-full object-cover opacity-40 group-hover:opacity-60 transition-opacity"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#2a303c] via-transparent to-transparent opacity-80" />
+          </div>
+        )}
         {!isCorner ? (
           <div className="w-full h-full flex flex-col items-center justify-between py-1.5 px-0.5">
             <div className="font-black text-[7px] md:text-[8px] text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5">

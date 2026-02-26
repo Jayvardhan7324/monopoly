@@ -125,7 +125,7 @@ export function getBotAction(gameState: GameState): BotAction {
 }
 
 /**
- * Improved auction bidding logic with personalities
+ * Improved auction bidding logic with nuanced strategies and personalities
  */
 export function getBotBidAction(
   gameState: GameState,
@@ -142,53 +142,100 @@ export function getBotBidAction(
   const botOwnedInGroup = groupTiles.filter(t => t.ownerId === bot.id).length;
   const totalInGroup = groupTiles.length;
 
-  // Base valuation
+  // 1. Strategic Valuation
   let valuation = tile.price;
 
   // Multipliers based on strategic value
-  if (botOwnedInGroup === totalInGroup - 1) {
-    valuation *= 4.0; // Completing a monopoly
+  if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) {
+    valuation *= 4.5; // Completing a monopoly is top priority
   } else if (botOwnedInGroup > 0) {
-    valuation *= 2.0; // Adding to an existing set
+    valuation *= 2.2; // Adding to an existing set
   }
 
-  // Denial bidding
+  // Denial bidding: prevent others from completing sets
   const otherPlayers = gameState.players.filter(p => p.id !== bot.id && !p.isBankrupt);
+  let highestThreatMultiplier = 1.0;
   for (const other of otherPlayers) {
     const otherOwned = groupTiles.filter(t => t.ownerId === other.id).length;
-    if (otherOwned === totalInGroup - 1) {
-      valuation = Math.max(valuation, tile.price * 3.0);
+    if (otherOwned === totalInGroup - 1 && totalInGroup > 1) {
+      highestThreatMultiplier = Math.max(highestThreatMultiplier, 3.5);
     }
   }
+  valuation *= highestThreatMultiplier;
 
-  // Personality adjustments
-  if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.5;
-  if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.8;
-  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.2;
+  // Personality adjustments to valuation
+  if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.4;
+  if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.75;
+  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.25;
 
-  // Don't exceed valuation or personality-based money limit
-  let moneyLimit = 0.9;
-  if (personality === BotPersonalityType.AGGRESSIVE) moneyLimit = 1.0;
-  if (personality === BotPersonalityType.CONSERVATIVE) moneyLimit = 0.6;
+  // 2. Financial Limits
+  let moneyLimitPercent = 0.85;
+  if (personality === BotPersonalityType.AGGRESSIVE) moneyLimitPercent = 1.0;
+  if (personality === BotPersonalityType.CONSERVATIVE) moneyLimitPercent = 0.5;
+  if (personality === BotPersonalityType.OPPORTUNISTIC && highestThreatMultiplier > 1) moneyLimitPercent = 0.95;
 
-  const maxBid = Math.min(valuation, bot.money * moneyLimit);
-  const nextBid = auction.currentBid + GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
+  const maxBid = Math.min(valuation, bot.money * moneyLimitPercent);
+  const nextMinBid = auction.currentBid + GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
 
-  if (nextBid > maxBid) return null;
+  if (nextMinBid > maxBid) return null;
 
-  // Urgency increases as timer runs low
-  const urgency = auction.timer <= 3 ? 0.9 : 0.3;
-  if (Math.random() >= urgency) return null;
-
-  // Intimidation bids
-  let increment: number = GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
-  if (personality === BotPersonalityType.AGGRESSIVE && Math.random() > 0.7) {
-    increment = 50;
+  // 3. Bidding Behavior & Timing
+  const timeRemaining = auction.timer;
+  const isHumanHighest = auction.highestBidderId === 0;
+  
+  // Probability to bid based on timer and personality
+  let bidProbability = 0.4;
+  
+  if (timeRemaining <= 2) {
+    bidProbability = 0.95; // High urgency at the end (sniping)
+  } else if (timeRemaining <= 5) {
+    bidProbability = 0.7;
+  } else if (timeRemaining > 8) {
+    // Early auction: some bots wait to see interest
+    if (personality === BotPersonalityType.CONSERVATIVE) bidProbability = 0.1;
+    if (personality === BotPersonalityType.OPPORTUNISTIC) bidProbability = 0.2;
+    if (personality === BotPersonalityType.AGGRESSIVE) bidProbability = 0.8; // Aggressive bots jump in early
   }
+
+  // Increase probability if a human is winning (competitive)
+  if (isHumanHighest) bidProbability += 0.2;
+
+  if (Math.random() > bidProbability) return null;
+
+  // 4. Dynamic Increments
+  let increment: number = GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
+  
+  // Decide if we should "jump bid" to intimidate
+  const shouldJumpBid = 
+    (personality === BotPersonalityType.AGGRESSIVE && Math.random() > 0.6) ||
+    (highestThreatMultiplier > 2 && Math.random() > 0.8) ||
+    (botOwnedInGroup === totalInGroup - 1 && Math.random() > 0.7);
+
+  if (shouldJumpBid) {
+    // Jump bid is a percentage of the remaining valuation gap
+    const gap = maxBid - auction.currentBid;
+    if (gap > 100) {
+      increment = Math.floor(gap * (0.1 + Math.random() * 0.2));
+    } else if (gap > 50) {
+      increment = 20;
+    }
+  } else if (timeRemaining <= 2 && Math.random() > 0.5) {
+    // Small extra increment at the end to beat other snipers
+    increment += Math.floor(Math.random() * 15);
+  }
+
+  // Ensure increment is at least the minimum
+  increment = Math.max(increment, GAME_CONSTANTS.MIN_AUCTION_INCREMENT);
+  
+  // Final bid amount
+  const finalBid = Math.min(auction.currentBid + increment, maxBid);
+  
+  // Only bid if it's actually higher than current
+  if (finalBid <= auction.currentBid) return null;
 
   return {
     type: 'PLACE_BID',
-    payload: { playerId: bot.id, amount: auction.currentBid + increment },
+    payload: { playerId: bot.id, amount: finalBid },
   };
 }
 

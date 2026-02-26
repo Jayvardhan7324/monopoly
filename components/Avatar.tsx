@@ -1,6 +1,9 @@
 
 import React from 'react';
-import { Skull, User, Bot, Ghost, Gamepad2, Zap, Smile, Lock } from 'lucide-react';
+import { 
+  Skull, User, Bot, Ghost, Gamepad2, Zap, Smile, Lock,
+  Cat, Dog, Bird, Rocket, Star, Heart, Coffee, Pizza, Music, Camera, Car
+} from 'lucide-react';
 
 interface AvatarProps {
   avatarId: string;
@@ -12,13 +15,25 @@ interface AvatarProps {
 
 export const Avatar: React.FC<AvatarProps> = ({ avatarId, color, className = "w-6 h-6", isBankrupt, inJail }) => {
   const getAvatarIcon = () => {
+    const props = { size: "60%", strokeWidth: 2.5, className: "text-white drop-shadow-md" };
     switch (avatarId) {
-      case 'human': return <User size="60%" strokeWidth={2.5} className="text-white drop-shadow-md" />;
-      case 'bot_0': return <Bot size="60%" strokeWidth={2.5} className="text-white drop-shadow-md" />;
-      case 'bot_1': return <Ghost size="60%" strokeWidth={2.5} className="text-white drop-shadow-md" />;
-      case 'bot_2': return <Gamepad2 size="60%" strokeWidth={2.5} className="text-white drop-shadow-md" />;
-      case 'bot_3': return <Zap size="60%" strokeWidth={2.5} className="text-white drop-shadow-md" />;
-      default: return <Smile size="60%" strokeWidth={2.5} className="text-white drop-shadow-md" />;
+      case 'human': return <User {...props} />;
+      case 'bot_0': return <Bot {...props} />;
+      case 'bot_1': return <Ghost {...props} />;
+      case 'bot_2': return <Gamepad2 {...props} />;
+      case 'bot_3': return <Zap {...props} />;
+      case 'cat': return <Cat {...props} />;
+      case 'dog': return <Dog {...props} />;
+      case 'bird': return <Bird {...props} />;
+      case 'rocket': return <Rocket {...props} />;
+      case 'star': return <Star {...props} />;
+      case 'heart': return <Heart {...props} />;
+      case 'coffee': return <Coffee {...props} />;
+      case 'pizza': return <Pizza {...props} />;
+      case 'music': return <Music {...props} />;
+      case 'camera': return <Camera {...props} />;
+      case 'car': return <Car {...props} />;
+      default: return <Smile {...props} />;
     }
   };
 

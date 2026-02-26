@@ -12,6 +12,7 @@ import { GAME_CONSTANTS } from '../constants';
 
 interface ControlsProps {
   gameState: GameState;
+  myPlayerId: number;
   onRoll: () => void;
   onBuy: () => void;
   onEndTurn: () => void;
@@ -35,11 +36,11 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const Controls: React.FC<ControlsProps> = ({
-  gameState, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer,
+  gameState, myPlayerId, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer,
 }) => {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
-  const isHumanTurn = currentPlayer?.id === 0;
+  const isHumanTurn = currentPlayer?.id === myPlayerId;
 
   // Trading state
   const [isTradeMode, setIsTradeMode] = useState(false);
@@ -51,8 +52,8 @@ export const Controls: React.FC<ControlsProps> = ({
 
   // BUG-03: Filter out mortgaged properties from tradeable assets
   const myProperties = useMemo(
-    () => gameState.tiles.filter(t => t.ownerId === 0 && t.buildingCount === 0 && !t.isMortgaged),
-    [gameState.tiles]
+    () => gameState.tiles.filter(t => t.ownerId === myPlayerId && t.buildingCount === 0 && !t.isMortgaged),
+    [gameState.tiles, myPlayerId]
   );
 
   const targetPlayerProperties = useMemo(
@@ -93,7 +94,7 @@ export const Controls: React.FC<ControlsProps> = ({
     playSound(isTradeMode ? 'modal_close' : 'modal_open');
     setIsTradeMode(!isTradeMode);
     if (!isTradeMode) {
-      const firstOpponent = gameState.players.find(p => p.id !== 0 && !p.isBankrupt);
+      const firstOpponent = gameState.players.find(p => p.id !== myPlayerId && !p.isBankrupt);
       if (firstOpponent) setTargetPlayerId(firstOpponent.id);
     }
   };
