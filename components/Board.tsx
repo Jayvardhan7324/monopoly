@@ -19,12 +19,12 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
   };
 
   return (
-    <div className="relative w-full max-w-[900px] aspect-square p-2 bg-[#0c121d] rounded-2xl shadow-[0_50px_100px_rgba(0,0,0,0.9)] border border-white/5 mx-auto">
+    <div className="relative w-full max-w-[1100px] aspect-square p-2 bg-[#0c121d] rounded-2xl shadow-[0_50px_100px_rgba(0,0,0,0.9)] border border-white/5 mx-auto">
       <div 
         className="w-full h-full grid gap-[1.5px] bg-[#1a212e] p-[1.5px] rounded-lg overflow-hidden border border-slate-800 shadow-inner"
         style={{
-          gridTemplateColumns: '1.5fr repeat(9, 1fr) 1.5fr',
-          gridTemplateRows: '1.5fr repeat(9, 1fr) 1.5fr'
+          gridTemplateColumns: 'minmax(0, 1.6fr) repeat(9, minmax(0, 1fr)) minmax(0, 1.6fr)',
+          gridTemplateRows: 'minmax(0, 1.6fr) repeat(9, minmax(0, 1fr)) minmax(0, 1.6fr)'
         }}
       >
         {/* Central Area for Controls/HUD */}

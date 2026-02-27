@@ -77,6 +77,22 @@ async function startServer() {
       callback({ success: true, roomId: data.roomId, players: room.players });
     });
 
+    socket.on("update_player", (data, callback) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
+      if (roomId) {
+        const room = rooms.get(roomId);
+        if (room) {
+          const player = room.players.find(p => p.id === socket.id);
+          if (player) {
+            if (data.name !== undefined) player.name = data.name;
+            if (data.avatar !== undefined) player.avatar = data.avatar;
+            io.to(roomId).emit("room_updated", { players: room.players });
+            if (callback) callback({ success: true });
+          }
+        }
+      }
+    });
+
     socket.on("start_game", (data) => {
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
