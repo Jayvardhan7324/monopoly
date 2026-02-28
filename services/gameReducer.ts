@@ -36,7 +36,7 @@ import {
 } from '../constants';
 
 export type Action =
-  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null } }
+  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null; selectedAvatar?: number } }
   | { type: 'ROLL_DICE' }
   | { type: 'MOVE_PLAYER' }
   | { type: 'LAND_ON_TILE' }
@@ -188,7 +188,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     }
 
     case 'START_GAME': {
-      const { humanName, settings, lobbyPlayers } = action.payload;
+      if (!action.payload) return state;
+      const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
       
       let players: Player[] = [];
       const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
@@ -205,6 +206,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           isBankrupt: false,
           inJail: false,
           jailTurns: 0,
+          avatarId: p.avatar,
         }));
       } else {
         // Local game setup
@@ -219,6 +221,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             isBankrupt: false,
             inJail: false,
             jailTurns: 0,
+            avatarId: selectedAvatar,
           },
         ];
       }
@@ -249,6 +252,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           inJail: false,
           jailTurns: 0,
           personality: botPersonalities[i % botPersonalities.length],
+          avatarId: Math.floor(Math.random() * 12),
         });
       }
 

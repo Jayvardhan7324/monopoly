@@ -55,7 +55,7 @@ export const Controls: React.FC<ControlsProps> = ({
   }, [gameState.phase]);
 
   const canUpgrade = useMemo(() => {
-    if (!currentTile || currentTile.ownerId !== currentPlayer?.id || currentTile.type !== TileType.PROPERTY) return false;
+    if (!currentPlayer || !currentTile || currentTile.ownerId !== currentPlayer.id || currentTile.type !== TileType.PROPERTY) return false;
     if (currentPlayer.money < currentTile.houseCost) return false;
     if (currentTile.buildingCount >= 5) return false;
     const groupTiles = gameState.tiles.filter(t => t.group === currentTile.group);
@@ -73,7 +73,16 @@ export const Controls: React.FC<ControlsProps> = ({
   const canBuy = currentTile.price > 0 && currentPlayer.money >= currentTile.price && currentTile.ownerId === null;
 
   return (
-    <div className="w-full h-full flex flex-col gap-4 text-slate-100 p-2 animate-fade-in relative">
+    <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative">
+      <div 
+        className="flex-shrink-0 flex flex-col gap-4 text-slate-100 p-2 animate-fade-in"
+        style={{ 
+          width: 'calc(100% / var(--board-scale, 1))', 
+          height: 'calc(100% / var(--board-scale, 1))',
+          transform: 'scale(var(--board-scale, 1))', 
+          transformOrigin: 'center' 
+        }}
+      >
 
       {/* Main content */}
       <div className="flex-1 flex flex-col gap-4 relative min-h-0">
@@ -98,6 +107,7 @@ export const Controls: React.FC<ControlsProps> = ({
                   <span className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">Highest Bidder</span>
                   <div className="flex items-center gap-2">
                     <Avatar
+                      avatarId={gameState.players.find(p => p.id === gameState.auction?.highestBidderId)?.avatarId}
                       color={gameState.players.find(p => p.id === gameState.auction?.highestBidderId)?.color || ''}
                       className="w-5 h-5"
                     />
@@ -187,7 +197,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mt-4 relative z-10">
+                        <div className="grid grid-cols-3 gap-3 w-full mt-4 relative z-10">
                           <button
                             onClick={() => dispatch({ type: 'PAY_JAIL_FINE' })}
                             disabled={currentPlayer.money < GAME_CONSTANTS.JAIL_FINE}
@@ -232,7 +242,7 @@ export const Controls: React.FC<ControlsProps> = ({
                   className="flex flex-col items-center gap-6 w-full max-w-md"
                 >
                   <div className="w-full bg-black/90 rounded-2xl p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center">
-                    <p className="text-white text-xl md:text-2xl font-medium italic leading-relaxed tracking-tight">
+                    <p className="text-white text-2xl font-medium italic leading-relaxed tracking-tight">
                       "{gameState.logs[0]}"
                     </p>
 
@@ -310,6 +320,7 @@ export const Controls: React.FC<ControlsProps> = ({
             </>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

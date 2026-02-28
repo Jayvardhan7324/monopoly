@@ -52,6 +52,7 @@ export interface Player {
   inJail: boolean;
   jailTurns: number;
   personality?: BotPersonalityType;
+  avatarId?: number;
 }
 
 export interface GameRules {

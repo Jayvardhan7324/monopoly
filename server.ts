@@ -131,6 +131,13 @@ async function startServer() {
       }
     });
 
+    socket.on("send_chat", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
+      if (roomId) {
+        io.to(roomId).emit("chat_message", data);
+      }
+    });
+
     socket.on("game_action", (data) => {
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {

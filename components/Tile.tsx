@@ -76,35 +76,35 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
                 {[...Array(4)].map((_, i) => (
                   <div
                     key={i}
-                    className="w-1.5 h-1.5 md:w-2.5 md:h-2.5 rounded-full"
+                    className="w-2.5 h-2.5 rounded-full"
                     style={{ backgroundColor: playerColors[i] }}
                   />
                 ))}
               </div>
-              <span className="text-[10px] md:text-[16px] text-lime-400 font-black tracking-widest uppercase">Start</span>
-              <ArrowRight size={16} className="md:w-6 md:h-6 text-lime-500 -mt-1" />
+              <span className="text-[16px] text-lime-400 font-black tracking-widest uppercase">Start</span>
+              <ArrowRight size={24} className="text-lime-500 -mt-1" />
             </div>
           );
         if (tile.name === 'In Prison')
           return (
             <div className="flex flex-col items-center justify-center h-full p-1 relative">
-              <span className="absolute top-1 text-[6px] md:text-[8px] text-slate-500 font-black uppercase">Passing</span>
-              <div className="w-6 h-5 md:w-10 md:h-8 bg-slate-900 border border-slate-700 flex items-center justify-center gap-1 my-1 rounded">
+              <span className="absolute top-1 text-[8px] text-slate-500 font-black uppercase">Passing</span>
+              <div className="w-10 h-8 bg-slate-900 border border-slate-700 flex items-center justify-center gap-1 my-1 rounded">
                 <div className="w-[1px] h-full bg-slate-700" />
                 <div className="w-[1px] h-full bg-slate-700" />
               </div>
-              <span className="absolute bottom-1 text-[6px] md:text-[8px] text-slate-400 font-black uppercase">In Prison</span>
+              <span className="absolute bottom-1 text-[8px] text-slate-400 font-black uppercase">In Prison</span>
             </div>
           );
         if (tile.name === 'Vacation')
           return (
             <div className="flex flex-col items-center justify-center h-full relative">
               {/* BUG-08: TreePalm replaces removed Palmtree */}
-              <TreePalm size={20} className="md:w-8 md:h-8 text-emerald-400" />
-              <span className="text-[7px] md:text-[9px] text-emerald-400 font-black uppercase">Vacation</span>
+              <TreePalm size={32} className="text-emerald-400" />
+              <span className="text-[9px] text-emerald-400 font-black uppercase">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
                 <div className="absolute -bottom-1 bg-emerald-500/20 px-1 rounded border border-emerald-500/30">
-                  <span className="text-[8px] md:text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
+                  <span className="text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
                 </div>
               )}
             </div>
@@ -112,8 +112,8 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         if (tile.name === 'Go to prison')
           return (
             <div className="flex flex-col items-center justify-center h-full">
-              <Skull size={20} className="md:w-8 md:h-8 text-slate-200" />
-              <span className="text-[7px] md:text-[9px] text-slate-400 font-black uppercase">Go to jail</span>
+              <Skull size={32} className="text-slate-200" />
+              <span className="text-[9px] text-slate-400 font-black uppercase">Go to jail</span>
             </div>
           );
         return null;
@@ -129,20 +129,20 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
 
   if (isTop) {
     flexDir = 'flex-col-reverse';
-    barClass = 'w-full h-[16px] md:h-[24px] border-t border-black/20';
+    barClass = 'w-full h-[24px] border-t border-black/20';
     buildingFlexDir = 'flex-row';
   } else if (isBottom) {
     flexDir = 'flex-col';
-    barClass = 'w-full h-[16px] md:h-[24px] border-b border-black/20';
+    barClass = 'w-full h-[24px] border-b border-black/20';
     buildingFlexDir = 'flex-row';
   } else if (isLeft) {
     flexDir = 'flex-row-reverse';
-    barClass = 'h-full w-[16px] md:w-[24px] border-r border-black/20';
+    barClass = 'h-full w-[24px] border-r border-black/20';
     contentRotation = 'rotate-90';
     buildingFlexDir = 'flex-col';
   } else if (isRight) {
     flexDir = 'flex-row';
-    barClass = 'h-full w-[16px] md:w-[24px] border-l border-black/20';
+    barClass = 'h-full w-[24px] border-l border-black/20';
     contentRotation = '-rotate-90';
     buildingFlexDir = 'flex-col';
   }
@@ -176,7 +176,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
     <div
       onClick={onClick}
       className={`
-        relative w-full h-full flex ${flexDir}
+        relative w-full h-full flex items-center justify-center overflow-hidden
         ${isCorner ? 'bg-[#21262d]' : 'bg-[#2a303c]'}
         border transition-all cursor-pointer select-none
         hover:bg-[#323946] group
@@ -185,6 +185,15 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         ${isMonopoly && tile.buildingCount > 0 ? 'border-amber-400/50 shadow-[inset_0_0_10px_rgba(251,191,36,0.2)]' : 'border-black/40'}
       `}
     >
+      <div 
+        className={`relative flex-shrink-0 flex ${flexDir} w-full h-full`}
+        style={{ 
+          width: 'calc(100% / var(--board-scale, 1))', 
+          height: 'calc(100% / var(--board-scale, 1))',
+          transform: 'scale(var(--board-scale, 1))',
+          transformOrigin: 'center'
+        }}
+      >
       {/* Monopoly Crown */}
       {isMonopoly && tile.buildingCount > 0 && (
         <div className="absolute top-0.5 right-0.5 z-20 text-amber-400 drop-shadow-md animate-pulse">
@@ -198,7 +207,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           <div className="absolute inset-0 bg-slate-900/60" />
           <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.25)_4px,rgba(0,0,0,0.25)_8px)]" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-[6px] md:text-[7px] font-black text-rose-400/80 uppercase tracking-widest rotate-[-30deg] bg-slate-900/70 px-0.5 py-px rounded">
+            <span className="text-[7px] font-black text-rose-400/80 uppercase tracking-widest rotate-[-30deg] bg-slate-900/70 px-0.5 py-px rounded">
               MRTG
             </span>
           </div>
@@ -226,12 +235,12 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       <div className={`flex-1 relative overflow-hidden flex flex-col items-center justify-center ${contentRotation}`}>
         {!isCorner ? (
           <div className="w-full h-full flex flex-col items-center justify-between py-1.5 px-0.5">
-            <div className="font-black text-[7px] md:text-[8px] text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5">
+            <div className="font-black text-[8px] text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5">
               {tile.name}
             </div>
             <div className="flex-1 flex items-center justify-center w-full min-h-0">{getIcon()}</div>
             {tile.price > 0 && (
-              <div className="bg-black/90 px-1 py-0.5 rounded border border-white/10 text-[7px] md:text-[8px] font-black text-white whitespace-nowrap">
+              <div className="bg-black/90 px-1 py-0.5 rounded border border-white/10 text-[8px] font-black text-white whitespace-nowrap">
                 {tile.price}$
               </div>
             )}
@@ -268,10 +277,11 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
                   {/* BUG-10: Jailed players show lock badge to distinguish from just-visiting */}
                   <div className="relative">
                     <Avatar
+                      avatarId={p.avatarId}
                       color={p.color}
                       isBankrupt={p.isBankrupt}
                       inJail={p.inJail}
-                      className="w-4 h-4 md:w-6 md:h-6 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10"
+                      className="w-6 h-6 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10"
                     />
                     {/* BUG-10: Extra ring for jailed players so they stand out from visitors */}
                     {p.inJail && tile.id === 10 && (
@@ -284,6 +294,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

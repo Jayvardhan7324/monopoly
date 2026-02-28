@@ -44,6 +44,10 @@
   ::-webkit-scrollbar-track { background: hsl(var(--muted)); }
   ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 10px; border: 2px solid hsl(var(--muted)); }
   ::-webkit-scrollbar-thumb:hover { background: #334155; }
+
+  button, select, input[type="checkbox"], [role="button"], .cursor-pointer {
+    cursor: pointer;
+  }
 }
 
 @layer components {
@@ -141,10 +145,7 @@
     100% { transform: rotateX(360deg) rotateY(720deg) rotateZ(360deg); }
   }
 
-  @media (max-width: 480px) {
-    .dice-wrap   { width: 52px !important; height: 52px !important; }
-    .dice-scaler { transform: scale(0.52) !important; }
-  }
+
 
   .scrollbar-hide::-webkit-scrollbar {
     display: none;

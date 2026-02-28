@@ -19,10 +19,12 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   onAccept,
   onDecline
 }) => {
-  const proposer = players.find(p => p.id === trade.proposerId)!;
-  const target = players.find(p => p.id === trade.targetId)!;
+  const proposer = players.find(p => p.id === trade.proposerId);
+  const target = players.find(p => p.id === trade.targetId);
   const targetTile = tiles[trade.targetPropertyId];
   const offeredTiles = trade.offerPropertyIds.map(id => tiles[id]);
+
+  if (!proposer || !target) return null;
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -46,7 +48,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
           {/* Proposer Offers */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-indigo-400">
-              <Avatar color={proposer.color} className="w-6 h-6" />
+              <Avatar avatarId={proposer.avatarId} color={proposer.color} className="w-6 h-6" />
               <span className="text-[10px] font-black uppercase tracking-widest">{proposer.name} Offers:</span>
             </div>
             <div className="grid grid-cols-1 gap-2">
@@ -79,7 +81,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
           {/* Proposer Requests */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-rose-400">
-              <Avatar color={target.color} className="w-6 h-6" />
+              <Avatar avatarId={target.avatarId} color={target.color} className="w-6 h-6" />
               <span className="text-[10px] font-black uppercase tracking-widest">In Exchange For:</span>
             </div>
             <div className="grid grid-cols-1 gap-2">

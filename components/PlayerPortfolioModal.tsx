@@ -44,7 +44,7 @@ export const PlayerPortfolioModal: React.FC<PlayerPortfolioModalProps> = ({ play
         {/* Header */}
         <div className="p-6 border-b border-white/5 flex items-center justify-between bg-gradient-to-r from-indigo-500/10 to-transparent">
           <div className="flex items-center gap-4">
-            <Avatar color={player.color} className="w-12 h-12 shadow-lg" />
+            <Avatar avatarId={player.avatarId} color={player.color} className="w-12 h-12 shadow-lg" />
             <div>
               <h2 className="text-xl font-black text-white uppercase tracking-tight flex items-center gap-2">
                 {player.name}'s Portfolio

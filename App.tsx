@@ -11,14 +11,14 @@ import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane
 } from 'lucide-react';
 import { playSound } from './services/audioService';
 import {
   INITIAL_TILES,
   PLAYER_COLORS,
 } from './constants';
-import { Avatar } from './components/Avatar';
+import { Avatar, APPEARANCE_COLORS } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
 import { Label } from './components/ui/label';
 import { motion, AnimatePresence } from 'motion/react';
@@ -50,6 +50,24 @@ const App: React.FC = () => {
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(11);
   const [showJoinInput, setShowJoinInput] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'logs' | 'chat'>('logs');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showMobileChat, setShowMobileChat] = useState(false);
+  const [isStacked, setIsStacked] = useState(false);
+
+  useEffect(() => {
+    const checkLayout = () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      setIsStacked(width < height + 688 || width < 1024);
+    };
+    checkLayout();
+    window.addEventListener('resize', checkLayout);
+    return () => window.removeEventListener('resize', checkLayout);
+  }, []);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
   const botBidFiringRef = useRef(false);
@@ -118,12 +136,17 @@ const App: React.FC = () => {
       alert("You have been kicked from the room.");
     };
 
+    const handleChatMessage = (data: any) => {
+      setChatMessages(prev => [...prev, data]);
+    };
+
     socket.on("room_updated", handleRoomUpdated);
     socket.on("game_started", handleGameStarted);
     socket.on("host_process_action", handleHostProcessAction);
     socket.on("sync_state", handleSyncState);
     socket.on("settings_updated", handleSettingsUpdated);
     socket.on("kicked", handleKicked);
+    socket.on("chat_message", handleChatMessage);
 
     return () => {
       socket.off("room_updated", handleRoomUpdated);
@@ -132,8 +155,14 @@ const App: React.FC = () => {
       socket.off("sync_state", handleSyncState);
       socket.off("settings_updated", handleSettingsUpdated);
       socket.off("kicked", handleKicked);
+      socket.off("chat_message", handleChatMessage);
     };
   }, [isHost]);
+
+  // Scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   // Sync state to clients if host
   useEffect(() => {
@@ -255,6 +284,7 @@ const App: React.FC = () => {
         humanName: spectatorMode ? 'Spectator' : humanName,
         settings: effectiveSettings,
         lobbyPlayers: isOnline ? lobbyPlayers : null,
+        selectedAvatar,
       },
     };
 
@@ -275,7 +305,7 @@ const App: React.FC = () => {
   const createRoom = () => {
     const socket = getSocket();
     if (socket) {
-      socket.emit("create_room", { name: humanName }, (res: any) => {
+      socket.emit("create_room", { name: humanName, avatar: selectedAvatar }, (res: any) => {
         if (res.success) {
           setIsOnline(true);
           setRoomId(res.roomId);
@@ -290,7 +320,7 @@ const App: React.FC = () => {
     if (!joinRoomId) return;
     const socket = getSocket();
     if (socket) {
-      socket.emit("join_room", { roomId: joinRoomId, name: humanName }, (res: any) => {
+      socket.emit("join_room", { roomId: joinRoomId, name: humanName, avatar: selectedAvatar }, (res: any) => {
         if (res.success) {
           setIsOnline(true);
           setRoomId(res.roomId);
@@ -306,7 +336,7 @@ const App: React.FC = () => {
   const joinRandomRoom = () => {
     const socket = getSocket();
     if (socket) {
-      socket.emit("join_random_room", { name: humanName }, (res: any) => {
+      socket.emit("join_random_room", { name: humanName, avatar: selectedAvatar }, (res: any) => {
         if (res.success) {
           setIsOnline(true);
           setRoomId(res.roomId);
@@ -320,7 +350,33 @@ const App: React.FC = () => {
   };
 
   const updateRule = (key: keyof typeof settings.rules, value: any) => {
-    setSettings({ ...settings, rules: { ...settings.rules, [key]: value } });
+    const newSettings = { ...settings, rules: { ...settings.rules, [key]: value } };
+    setSettings(newSettings);
+    if (isOnline && isHost) {
+      getSocket()?.emit("update_settings", { settings: newSettings });
+    }
+  };
+
+  const updateGeneralSetting = (key: keyof GameSettings, value: any) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    if (isOnline && isHost) {
+      getSocket()?.emit("update_settings", { settings: newSettings });
+    }
+  };
+
+  const sendChatMessage = () => {
+    if (!chatInput.trim()) return;
+    const socket = getSocket();
+    if (socket) {
+      const msg = {
+        sender: humanName,
+        text: chatInput,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      socket.emit("send_chat", msg);
+      setChatInput('');
+    }
   };
 
   const handleTileClick = (id: number) => {
@@ -335,362 +391,493 @@ const App: React.FC = () => {
     sfx('land');
   };
 
+  const renderChatBox = (isMobilePopup = false) => (
+    <div className={`bg-[#1e1e24] rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg ${isMobilePopup ? 'w-80 h-96' : 'h-80 shrink-0'}`}>
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between text-slate-300 shrink-0">
+        <div className="flex items-center gap-2 font-medium">
+          <MessageSquare size={16} className="text-indigo-400" />
+          <span className="font-bold">Chat</span>
+        </div>
+        {isMobilePopup && (
+          <button onClick={() => setShowMobileChat(false)} className="text-slate-400 hover:text-white transition-colors">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-700">
+        {chatMessages.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm gap-2 opacity-50">
+            <MessageSquare size={32} />
+            <span>No messages yet</span>
+          </div>
+        ) : (
+          chatMessages.map((msg, i) => (
+            <div key={i} className="flex flex-col gap-1">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-400">{msg.sender}</span>
+                <span className="text-[10px] text-slate-500">{msg.time}</span>
+              </div>
+              <div className="bg-slate-800/50 rounded-lg p-2 text-sm text-slate-200 break-words">
+                {msg.text}
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={chatEndRef} />
+      </div>
+
+      <div className="p-4 border-t border-slate-800 shrink-0">
+        <div className="relative">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
+            placeholder="Type a message..."
+            className="w-full bg-[#111116] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 pr-10"
+          />
+          <button 
+            onClick={sendChatMessage}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-300 transition-colors"
+          >
+            <ChevronRight size={20} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderShareBox = (showSettingsButton = false) => (
+    <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col gap-3 shadow-lg shrink-0">
+      <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
+        Share this game <Info size={14} className="text-slate-500" />
+      </div>
+      <div className="flex items-center gap-2">
+        <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
+          https://richup.io/{roomId}
+        </div>
+        <button 
+          onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('room', roomId || '');
+            navigator.clipboard.writeText(url.toString());
+          }}
+          className="bg-indigo-500 hover:bg-indigo-400 p-2 rounded-xl text-white transition-colors flex items-center gap-2 px-3 text-sm font-bold shadow-lg shadow-indigo-500/20"
+        >
+          <Copy size={16} /> Copy
+        </button>
+      </div>
+      {showSettingsButton && (
+        <button 
+          onClick={() => setShowSettingsModal(true)}
+          className="mt-2 w-full bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-slate-300 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
+        >
+          <Settings size={16} /> View room settings
+        </button>
+      )}
+    </div>
+  );
+
+  const renderGameSettings = () => (
+    <div className="space-y-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
+      <div className="flex gap-3">
+        <Users size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Maximum players</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Player capacity</div>
+          <select 
+            disabled={!isHost || gameStarted}
+            value={settings.maxPlayers}
+            onChange={(e) => updateGeneralSetting('maxPlayers', parseInt(e.target.value))}
+            className="w-full bg-[#111116] border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 disabled:opacity-50 font-bold"
+          >
+            {[2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n} Players</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Lock size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Private room</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Access control</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.isPrivate} 
+              onCheckedChange={(checked) => updateGeneralSetting('isPrivate', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Bot size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
+            Allow bots to join
+          </div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">AI Opponents</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.allowBots} 
+              onCheckedChange={(checked) => updateGeneralSetting('allowBots', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <TrendingUp size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Starting cash</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Initial funds</div>
+          <select 
+            disabled={!isHost || gameStarted}
+            value={settings.rules.startingCash}
+            onChange={(e) => updateRule('startingCash', parseInt(e.target.value))}
+            className="w-full bg-[#111116] border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 disabled:opacity-50 font-bold"
+          >
+            {[1000, 1500, 2000, 2500, 3000].map(n => <option key={n} value={n}>${n}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Landmark size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Double rent on set</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Monopoly bonus</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.doubleRentOnFullSet} 
+              onCheckedChange={(checked) => updateRule('doubleRentOnFullSet', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Plane size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Vacation cash</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Tax pool reward</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.vacationCash} 
+              onCheckedChange={(checked) => updateRule('vacationCash', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <LayoutGrid size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Auction enabled</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Bidding system</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.auctionEnabled} 
+              onCheckedChange={(checked) => updateRule('auctionEnabled', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <ShieldCheck size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">No rent in jail</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Prison rules</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.noRentInJail} 
+              onCheckedChange={(checked) => updateRule('noRentInJail', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Landmark size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Mortgage enabled</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Financial loans</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.mortgageEnabled} 
+              onCheckedChange={(checked) => updateRule('mortgageEnabled', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Dices size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Randomize order</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Turn shuffle</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.randomizeOrder} 
+              onCheckedChange={(checked) => updateRule('randomizeOrder', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Copy size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Even building</div>
+          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Construction rules</div>
+          <div className="flex justify-end">
+            <Switch 
+              disabled={!isHost || gameStarted} 
+              checked={settings.rules.evenBuild} 
+              onCheckedChange={(checked) => updateRule('evenBuild', checked)} 
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex gap-3">
+        <Globe size={18} className="text-slate-400 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold text-slate-200">Board map</div>
+          <div className="text-[10px] text-slate-500 mb-1 uppercase font-black tracking-wider">World selection</div>
+          <div className="text-right">
+            <div className="text-sm font-bold text-slate-200">{settings.boardMap}</div>
+            <button className="text-xs text-indigo-400 hover:text-indigo-300 font-bold">Browse maps &gt;</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   // ── Start Screen ────────────────────────────────────────────────────────────
   if (!gameStarted) {
-    return (
-      <div className="min-h-screen bg-[#020617] text-slate-50 flex items-center justify-center p-4 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/30 via-slate-950 to-slate-950 pointer-events-none" />
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/20 blur-[120px] rounded-full pointer-events-none" />
+    if (!isOnline) {
+      return (
+        <div className="min-h-screen bg-[#111116] text-slate-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+          {/* Top Left: Sound Toggle */}
+          <div className="absolute top-4 left-4 z-50">
+            <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 text-slate-400 hover:text-slate-200">
+              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+            </button>
+          </div>
+          {/* Top Right: Store and Login */}
+          <div className="absolute top-4 right-4 z-50 flex items-center gap-6 text-slate-400 font-medium">
+            <button className="flex items-center gap-2 hover:text-slate-200"><ShoppingCart size={18} /> Store</button>
+            <button className="flex items-center gap-2 hover:text-slate-200"><LogIn size={18} /> Login</button>
+          </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="max-w-6xl w-full grid lg:grid-cols-[1fr_450px] gap-8 lg:gap-16 relative z-10 p-4"
-        >
-          {/* Left hero */}
-          <div className="flex flex-col justify-center py-8 lg:py-12">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-[10px] md:text-xs font-black tracking-widest uppercase mb-6 w-fit"
-            >
-              <Globe size={14} /> MULTIPLAYER STRATEGY v2.0
-            </motion.div>
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter mb-6 leading-none"
-            >
+          {/* Floating Icons Background */}
+          <div className="absolute inset-0 pointer-events-none overflow-hidden">
+            <div className="absolute top-[20%] left-[15%] opacity-10 rotate-12"><Landmark size={64} /></div>
+            <div className="absolute top-[60%] left-[10%] opacity-10 -rotate-12"><Package size={48} /></div>
+            <div className="absolute top-[30%] right-[15%] opacity-10 rotate-45"><Zap size={56} /></div>
+            <div className="absolute top-[70%] right-[20%] opacity-10 -rotate-12"><Plane size={64} /></div>
+            <div className="absolute bottom-[10%] left-[40%] opacity-10 rotate-12"><Dices size={72} /></div>
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center w-full max-w-md">
+            <div className="mb-4">
+              <Dices size={64} className="text-white drop-shadow-lg" />
+            </div>
+            <h1 className="text-6xl font-black tracking-tighter mb-1">
               RICHUP<span className="text-indigo-500">.IO</span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="text-slate-400 text-lg md:text-xl max-w-xl leading-relaxed mb-12"
-            >
-              The ultimate browser-based property trading simulator. Out-negotiate, out-invest, and out-maneuver your rivals.
-            </motion.p>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 }}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-12"
-            >
-              <div className="space-y-3 bg-slate-900/30 p-4 rounded-2xl border border-slate-800/50">
-                <div className="w-12 h-12 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                  <Users size={24} />
-                </div>
-                <h3 className="font-black text-lg text-slate-200">Play with Friends</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">Local multiplayer with customizable player counts.</p>
-              </div>
-              <div className="space-y-3 bg-slate-900/30 p-4 rounded-2xl border border-slate-800/50">
-                <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <ShieldCheck size={24} />
-                </div>
-                <h3 className="font-black text-lg text-slate-200">AI Opponents</h3>
-                <p className="text-sm text-slate-500 leading-relaxed">Strategic bots that adapt to the board state.</p>
-              </div>
-            </motion.div>
+            </h1>
+            <p className="text-slate-400 text-lg mb-12">Rule the economy</p>
 
-            {/* Player Customization */}
-            {!spectatorMode && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.55 }}
-                className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 mb-8 backdrop-blur-md shadow-2xl"
+            <div className="w-full space-y-4">
+              <input
+                type="text"
+                value={humanName}
+                onChange={(e) => setHumanName(e.target.value)}
+                className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                placeholder="Player 1"
+              />
+              
+              <button
+                onClick={joinRandomRoom}
+                className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)]"
               >
-                <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                  <Users size={14} className="text-indigo-400" /> Your Identity
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-[10px] text-slate-500 uppercase font-bold mb-2 block tracking-widest">Player Name</label>
-                    <input
-                      type="text"
-                      value={humanName}
-                      onChange={(e) => setHumanName(e.target.value)}
-                      maxLength={15}
-                      className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-5 py-4 text-lg font-black text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all placeholder:text-slate-700"
-                      placeholder="Enter your name..."
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
+                <ChevronsRight size={24} /> Play
+              </button>
 
-            <div className="flex flex-col gap-6">
-              {!isOnline ? (
-                <>
-                  <motion.button
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.6, type: 'spring' }}
-                    onClick={joinRandomRoom}
-                    className="group relative w-full px-8 py-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-3xl font-black text-xl md:text-2xl shadow-2xl shadow-indigo-600/30 transition-all flex items-center justify-center gap-4 active:scale-95 overflow-hidden"
-                  >
-                    <div className="absolute inset-0 bg-[linear-gradient(45deg,transparent_25%,rgba(255,255,255,0.2)_50%,transparent_75%)] bg-[length:250%_250%,100%_100%] animate-shimmer pointer-events-none" />
-                    <Play fill="currentColor" size={28} className="relative z-10" /> 
-                    <span className="relative z-10 tracking-tight">PLAY ONLINE</span>
-                    <ChevronRight className="relative z-10 group-hover:translate-x-2 transition-transform" size={28} />
-                  </motion.button>
-                  
-                  <div className="flex flex-col sm:flex-row gap-4">
-                    <motion.button
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 0.65, type: 'spring' }}
-                      onClick={createRoom}
-                      className="group relative flex-1 px-4 py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-emerald-600/20 transition-all flex items-center justify-center gap-3 active:scale-95"
-                    >
-                      <Globe size={22} className="shrink-0" /> 
-                      <span className="tracking-tight whitespace-nowrap">CREATE ROOM</span>
-                    </motion.button>
-                    <div className="flex flex-1 gap-3">
-                      <input
-                        type="text"
-                        value={joinRoomId}
-                        onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                        placeholder="ROOM"
-                        maxLength={6}
-                        className="w-full min-w-0 bg-slate-900 border border-slate-700 rounded-2xl px-4 font-mono font-black text-center text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors uppercase text-lg placeholder:text-slate-600 placeholder:font-sans"
-                      />
-                      <motion.button
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: 0.7, type: 'spring' }}
-                        onClick={joinRoom}
-                        disabled={!joinRoomId}
-                        className="px-6 py-5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-800 text-white rounded-2xl font-black text-lg transition-all flex items-center justify-center active:scale-95 tracking-tight shrink-0"
-                      >
-                        JOIN
-                      </motion.button>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="bg-slate-900/40 border border-slate-800 rounded-3xl p-6 md:p-8 backdrop-blur-md shadow-2xl"
+              <div className="flex gap-4 pt-2">
+                <button 
+                  onClick={() => setShowJoinInput(!showJoinInput)}
+                  className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
                 >
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <h3 className="font-black text-2xl text-white flex items-center gap-3">
-                      <Globe className="text-emerald-400" size={28} /> ONLINE LOBBY
-                    </h3>
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
-                      <div className="bg-slate-950 px-4 py-2.5 rounded-2xl border border-slate-800 flex items-center gap-3 flex-1 sm:flex-none justify-center">
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Room Code</span>
-                        <span className="font-mono font-black text-xl text-indigo-400 tracking-widest">{roomId}</span>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const url = new URL(window.location.href);
-                          url.searchParams.set('room', roomId || '');
-                          navigator.clipboard.writeText(url.toString());
-                          alert('Invite link copied to clipboard!');
-                        }}
-                        className="p-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl transition-colors shadow-lg shadow-indigo-600/20 active:scale-95 shrink-0"
-                        title="Copy Invite Link"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3 mb-8">
-                    {lobbyPlayers.map((p, i) => (
-                      <div key={p.id} className="flex items-center justify-between bg-slate-800/40 p-4 rounded-2xl border border-slate-700/50">
-                        <div className="flex items-center gap-4">
-                          <Avatar avatarId={p.avatar} color={PLAYER_COLORS[i % PLAYER_COLORS.length]} className="w-12 h-12 shadow-md" />
-                          <span className="font-black text-lg text-slate-200">{p.name} {p.id === getSocket()?.id ? <span className="text-slate-500 text-sm font-bold ml-1">(You)</span> : ''}</span>
-                        </div>
-                        {p.isHost && <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-3 py-1.5 rounded-lg font-black uppercase tracking-[0.2em] border border-indigo-500/30">Host</span>}
-                      </div>
-                    ))}
-                    {Array.from({ length: settings.maxPlayers - lobbyPlayers.length }).map((_, i) => (
-                      <div key={`empty-${i}`} className="flex items-center gap-4 bg-slate-900/30 p-4 rounded-2xl border border-slate-800 border-dashed opacity-50">
-                        <div className="w-12 h-12 rounded-full bg-slate-800/80 flex items-center justify-center">
-                          <Users size={20} className="text-slate-600" />
-                        </div>
-                        <span className="font-bold text-slate-600 italic">Waiting for player...</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {isHost ? (
-                    <button
-                      onClick={handleStartGame}
-                      className="w-full py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xl shadow-xl shadow-emerald-600/20 transition-all flex items-center justify-center gap-3 active:scale-95 tracking-tight"
-                    >
-                      <Play fill="currentColor" size={24} /> START GAME
-                    </button>
-                  ) : (
-                    <div className="w-full py-5 bg-slate-800/80 text-slate-400 rounded-2xl font-bold text-center flex items-center justify-center gap-3 border border-slate-700/50">
-                      <div className="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                      Waiting for host to start...
-                    </div>
-                  )}
-                </motion.div>
+                  <Users size={18} /> All rooms
+                </button>
+                <button 
+                  onClick={createRoom}
+                  className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Key size={18} /> Create a private game
+                </button>
+              </div>
+              
+              {showJoinInput && (
+                <div className="flex gap-2 pt-2 animate-in fade-in slide-in-from-top-2">
+                  <input
+                    type="text"
+                    value={joinRoomId}
+                    onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                    placeholder="ROOM CODE"
+                    maxLength={6}
+                    className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase"
+                  />
+                  <button
+                    onClick={joinRoom}
+                    disabled={!joinRoomId}
+                    className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors"
+                  >
+                    Join
+                  </button>
+                </div>
               )}
             </div>
           </div>
+        </div>
+      );
+    }
 
-          {/* Right panel */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-slate-900/40 backdrop-blur-xl border border-slate-800 rounded-3xl flex flex-col h-auto max-h-[700px] shadow-2xl overflow-hidden"
-          >
-            {!isOnline ? (
-              <div className="p-8 md:p-10 flex flex-col h-full">
-                <div className="flex items-center justify-between mb-8">
-                  <h2 className="font-black text-2xl text-white flex items-center gap-3 tracking-tight">
-                    <Info className="text-indigo-400" size={28} /> HOW TO PLAY
+    // Room Lobby Screen
+    return (
+      <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-4 md:p-6 gap-6 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
+        {/* Left Column: Share, Ad & Chat */}
+        <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
+          {renderShareBox(false)}
+
+          {/* Ad Banner Space */}
+          <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
+            <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br/>Space</span>
+          </div>
+
+          {/* Chat Box */}
+          <div className="hidden group-data-[layout=row]:block">
+            {renderChatBox(false)}
+          </div>
+        </div>
+
+        {/* Center Column: Board Preview */}
+        <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 group-data-[layout=row]:p-4 order-1 group-data-[layout=row]:order-2">
+          <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
+            <Board gameState={gameState} onTileClick={() => {}}>
+              <div className="flex-1 flex flex-col items-center justify-center gap-6">
+                <div className="text-center">
+                  <h2 className="text-4xl font-black text-white tracking-tighter mb-2 drop-shadow-2xl">
+                    LOBBY <span className="text-indigo-500">{roomId}</span>
                   </h2>
-                  <button
-                    onClick={() => setSoundEnabled(!soundEnabled)}
-                    className="p-2.5 rounded-xl bg-slate-800/80 border border-slate-700 text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-all"
-                    title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-                  >
-                    {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
-                  </button>
+                  <p className="text-slate-400 font-medium">Waiting for players to join...</p>
                 </div>
-                <div className="space-y-8 text-slate-300 leading-relaxed flex-1 overflow-y-auto pr-4 scrollbar-thin">
-                  <p className="text-lg text-slate-400">
-                    <strong>Richup.io</strong> is a multiplayer property trading game. The goal is to bankrupt your opponents by buying, upgrading, and collecting rent on properties.
-                  </p>
-                  <ul className="space-y-6">
-                    <li className="flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 font-black text-sm mt-1">1</div>
-                      <span className="text-slate-300"><strong className="text-white">Roll the dice</strong> to move around the board. If you land on an unowned property, you can buy it. If you pass, it goes to auction.</span>
-                    </li>
-                    <li className="flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 font-black text-sm mt-1">2</div>
-                      <span className="text-slate-300"><strong className="text-white">Collect color sets</strong> to build houses and hotels. This massively increases the rent other players must pay when they land on your tiles.</span>
-                    </li>
-                    <li className="flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 font-black text-sm mt-1">3</div>
-                      <span className="text-slate-300"><strong className="text-white">Trade with others</strong> to complete your sets. A good trade can turn the game in your favor.</span>
-                    </li>
-                    <li className="flex gap-4 items-start">
-                      <div className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 text-indigo-400 flex items-center justify-center shrink-0 font-black text-sm mt-1">4</div>
-                      <span className="text-slate-300"><strong className="text-white">Avoid bankruptcy!</strong> If you owe more money than you can pay, you lose. Mortgage properties if you need quick cash.</span>
-                    </li>
-                  </ul>
+
+                <button 
+                  onClick={() => {
+                    if (isHost) {
+                      handleStartGame();
+                    }
+                  }}
+                  disabled={!isHost && lobbyPlayers.length < 2}
+                  className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
+                >
+                  {isHost ? 'Start Game' : 'Waiting for Host'}
+                </button>
+
+                <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
+                  <Users size={16} className="text-indigo-400" />
+                  <span className="text-sm font-bold text-slate-300">{lobbyPlayers.length} / {settings.maxPlayers} Players</span>
                 </div>
               </div>
-            ) : (
-              <>
-                <div className="p-6 border-b border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Settings size={18} className="text-slate-400" />
-                    <h2 className="font-bold text-sm uppercase tracking-widest text-slate-200">Game Settings</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSoundEnabled(!soundEnabled)}
-                      className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
-                      title={soundEnabled ? 'Mute sounds' : 'Enable sounds'}
-                    >
-                      {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-                    </button>
-                    <div className="text-[10px] bg-slate-800 text-slate-400 px-2 py-1 rounded font-mono uppercase">MAP: CLASSIC</div>
-                  </div>
-                </div>
+            </Board>
+          </div>
+        </div>
 
-                <div className={`flex-1 overflow-y-auto p-6 space-y-8 scrollbar-thin ${!isHost ? 'opacity-50 pointer-events-none' : ''}`}>
-                  <section className="space-y-4">
-                    <div className="flex items-center gap-2 text-indigo-400">
-                      <Users size={16} />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Players & Room</span>
-                    </div>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-xs text-slate-500 mb-2 block">Maximum Players</label>
-                        <div className="flex bg-slate-950 p-1 rounded-xl border border-slate-800">
-                          {[2, 3, 4, 5].map(n => (
-                            <button
-                              key={n}
-                              onClick={() => setSettings({ ...settings, maxPlayers: n })}
-                              className={`flex-1 py-1.5 rounded-lg text-sm font-bold transition-all ${settings.maxPlayers === n ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-500 hover:text-slate-300'}`}
-                            >
-                              {n}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                        <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({ ...settings, isPrivate: !settings.isPrivate })}>
-                          <Lock size={16} className="text-slate-500" />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-200">Private Room</span>
-                            <span className="text-[10px] text-slate-600 font-normal">Invite-only access</span>
-                          </div>
-                        </Label>
-                        <Switch checked={settings.isPrivate} onCheckedChange={checked => setSettings({ ...settings, isPrivate: checked })} />
-                      </div>
-                      <div className="flex items-center justify-between p-3 bg-slate-950/50 rounded-xl border border-slate-800/50">
-                        <Label className="flex items-center gap-3 cursor-pointer" onClick={() => setSettings({ ...settings, allowBots: !settings.allowBots })}>
-                          <Cpu size={16} className="text-slate-500" />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-slate-200">Allow Bots</span>
-                            <span className="text-[10px] text-slate-600 font-normal">Fill empty slots with AI</span>
-                          </div>
-                        </Label>
-                        <Switch checked={settings.allowBots} onCheckedChange={checked => setSettings({ ...settings, allowBots: checked })} />
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="space-y-4">
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <LayoutGrid size={16} />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Gameplay Rules</span>
-                    </div>
-                    <div className="space-y-2">
-                      {[
-                        { id: 'doubleRentOnFullSet', label: 'x2 Rent on Sets', info: 'Monopoly base rent is doubled' },
-                        { id: 'vacationCash', label: 'Vacation Cash', info: 'Landing on Parking wins tax pool' },
-                        { id: 'auctionEnabled', label: 'Auction House', info: 'Unbought properties go to auction' },
-                        { id: 'noRentInJail', label: 'No Rent in Jail', info: 'Prisoners cannot collect rent' },
-                        { id: 'mortgageEnabled', label: 'Mortgage Enabled', info: 'Allow asset mortgaging' },
-                        { id: 'evenBuild', label: 'Even Build', info: 'Enforce balanced construction' },
-                        { id: 'randomizeOrder', label: 'Randomize Order', info: 'Shuffle player sequence' },
-                      ].map(rule => (
-                        <div key={rule.id} className="flex items-center justify-between p-3 bg-slate-950/20 rounded-xl border border-slate-800 hover:bg-slate-900/50 transition-colors">
-                          <Label
-                            className="flex flex-col cursor-pointer flex-1"
-                            onClick={() => updateRule(rule.id as any, !settings.rules[rule.id as keyof typeof settings.rules])}
-                          >
-                            <span className="text-xs font-bold text-slate-200">{rule.label}</span>
-                            <span className="text-[10px] text-slate-600 font-normal">{rule.info}</span>
-                          </Label>
-                          <Switch
-                            checked={settings.rules[rule.id as keyof typeof settings.rules] as boolean}
-                            onCheckedChange={checked => updateRule(rule.id as any, checked)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
+        {/* Right Column: Profile & Settings */}
+        <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
+          {/* User Profile Box */}
+          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex flex-col gap-4 shadow-lg shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                <Avatar avatarId={selectedAvatar} className="w-16 h-16 shadow-2xl ring-2 ring-indigo-500/50" />
+                <div className="absolute -bottom-1 -right-1 bg-indigo-500 text-white p-1 rounded-full shadow-lg">
+                  <Settings size={12} />
                 </div>
-              </>
-            )}
-            
-            <div className="p-6 bg-slate-950 border-t border-slate-800 text-center">
-              <p className="text-[10px] text-slate-600 flex items-center justify-center gap-1 uppercase">
-                <Info size={10} /> Local Session Data Protected
-              </p>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-lg font-black text-white truncate flex items-center gap-2">
+                  {humanName}
+                  {isHost && <Crown size={16} className="text-amber-400" />}
+                </div>
+                <button 
+                  onClick={() => setSelectedAvatar((selectedAvatar + 1) % APPEARANCE_COLORS.length)}
+                  className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider"
+                >
+                  Change appearance
+                </button>
+              </div>
             </div>
-          </motion.div>
-        </motion.div>
+
+            <div className="grid grid-cols-6 gap-2 pt-2">
+              {APPEARANCE_COLORS.map((color, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setSelectedAvatar(idx);
+                    const socket = getSocket();
+                    if (socket) {
+                      socket.emit("update_player", { avatar: idx });
+                    }
+                  }}
+                  className={`aspect-square rounded-full transition-all ${
+                    selectedAvatar === idx 
+                      ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-[#1e1e24] scale-110' 
+                      : 'hover:scale-110 opacity-40 hover:opacity-100'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Game Settings Box */}
+          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex-1 overflow-hidden flex flex-col shadow-lg min-h-[400px] group-data-[layout=row]:min-h-0">
+            <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-6 shrink-0 flex items-center gap-2">
+              <Settings size={16} /> Game Settings
+            </h3>
+            {renderGameSettings()}
+          </div>
+        </div>
+
+        {/* Mobile Chat Button & Popup */}
+        <div className="group-data-[layout=row]:hidden fixed bottom-4 right-4 z-[60]">
+          {showMobileChat ? (
+            <div className="mb-4 shadow-2xl">
+              {renderChatBox(true)}
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowMobileChat(true)}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-lg shadow-indigo-500/30 transition-transform hover:scale-105"
+            >
+              <MessageSquare size={24} />
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -699,12 +886,12 @@ const App: React.FC = () => {
   const myProperties = gameState.tiles.filter(t => t.ownerId === myPlayerId);
 
   return (
-    <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-start p-4 lg:p-8 relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none" />
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none" />
+    <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-4 md:p-6 gap-6 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
+      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none fixed" />
 
       {/* FEAT-04: In-game sound toggle */}
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2 fixed">
         <button
           onClick={() => setSoundEnabled(!soundEnabled)}
           className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors backdrop-blur-sm shadow-lg"
@@ -714,12 +901,29 @@ const App: React.FC = () => {
         </button>
       </div>
 
-      <div className="w-full max-w-[1400px] mx-auto flex flex-col lg:flex-row items-center lg:items-start justify-center gap-4 lg:gap-8 px-2 lg:px-4 z-10 py-2 lg:py-4">
+      {/* Left Column: Share, Ad Banner & Chat */}
+      <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
+        {renderShareBox(true)}
+
+        {/* Ad Banner Space */}
+        <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
+          <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br/>Space</span>
+        </div>
+
+        {/* Chat Box */}
+        <div className="hidden group-data-[layout=row]:block">
+          {renderChatBox(false)}
+        </div>
+      </div>
+
+      {/* Center Column: Board Preview */}
+      <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 group-data-[layout=row]:p-4 order-1 group-data-[layout=row]:order-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="relative w-full max-w-[1100px] flex justify-center order-2 lg:order-1"
+          className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto"
         >
           <Board gameState={gameState} onTileClick={handleTileClick}>
             <Controls
@@ -737,95 +941,111 @@ const App: React.FC = () => {
             />
           </Board>
         </motion.div>
+      </div>
 
-        {/* Player Status List & Protocol Feed */}
-        <div className="w-full lg:w-64 flex flex-col gap-4 shrink-0 order-1 lg:order-2 px-2 lg:px-0">
-          <div className="flex flex-row lg:flex-col gap-3 overflow-x-auto lg:overflow-y-auto pb-2 lg:pb-0 scrollbar-hide snap-x snap-mandatory">
-            {gameState.players.map(player => {
-              const isActive = gameState.currentPlayerIndex === gameState.players.indexOf(player);
-              return (
-                <motion.div
-                  key={player.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  onClick={() => setViewingPlayerId(player.id)}
-                  className={`
-                    snap-center relative flex items-center gap-3 bg-slate-900/60 backdrop-blur-md border p-2.5 lg:p-3 rounded-2xl min-w-[140px] lg:min-w-0 shadow-2xl cursor-pointer transition-all duration-300
-                    ${isActive ? 'border-indigo-500/50 bg-indigo-500/5 ring-1 ring-indigo-500/20' : 'border-white/5 hover:border-white/20'}
-                    ${player.isBankrupt ? 'opacity-40 grayscale' : ''}
-                  `}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="active-indicator"
-                      className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.8)] z-30"
-                      animate={{ scale: [1, 1.2, 1] }}
-                      transition={{ repeat: Infinity, duration: 2 }}
-                    />
+      {/* Right Column: Players & Logs */}
+      <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
+        {/* Players List */}
+        <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-4 flex flex-col gap-3 shadow-lg shrink-0 max-h-[40vh] group-data-[layout=row]:max-h-[50%] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+          {gameState.players.map(player => {
+            const isActive = gameState.currentPlayerIndex === gameState.players.indexOf(player);
+            return (
+              <motion.div
+                key={player.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ scale: 1.02 }}
+                onClick={() => setViewingPlayerId(player.id)}
+                className={`
+                  relative flex items-center gap-3 bg-[#111116] border p-3 rounded-xl shadow-md cursor-pointer transition-all duration-300
+                  ${isActive ? 'border-indigo-500/50 ring-1 ring-indigo-500/20' : 'border-slate-800 hover:border-slate-700'}
+                  ${player.isBankrupt ? 'opacity-40 grayscale' : ''}
+                `}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="active-indicator"
+                    className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.8)] z-30"
+                    animate={{ scale: [1, 1.2, 1] }}
+                    transition={{ repeat: Infinity, duration: 2 }}
+                  />
+                )}
+                
+                <div className="relative">
+                  <Avatar
+                    avatarId={player.avatar}
+                    color={player.color}
+                    isBankrupt={player.isBankrupt}
+                    inJail={player.inJail}
+                    className={`w-10 h-10 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''}`}
+                  />
+                  {player.isBankrupt && (
+                    <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
+                      <X size={14} className="text-rose-500" strokeWidth={3} />
+                    </div>
                   )}
-                  
-                  <div className="relative">
-                    <Avatar
-                      avatarId={player.avatar}
-                      color={player.color}
-                      isBankrupt={player.isBankrupt}
-                      inJail={player.inJail}
-                      className={`w-10 h-10 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-slate-950' : ''}`}
-                    />
-                    {player.isBankrupt && (
-                      <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
-                        <X size={14} className="text-rose-500" strokeWidth={3} />
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex flex-col flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className={`text-[11px] font-black uppercase truncate ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
-                        {player.name}
-                      </span>
-                      {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
-                    </div>
-                    <div className="flex items-center justify-between mt-0.5">
-                      <span className={`font-mono text-xs font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
-                        ${player.money}
-                      </span>
-                      <div className="flex gap-0.5">
-                        {gameState.tiles.filter(t => t.ownerId === player.id).length > 0 && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-
-          {/* Protocol Feed */}
-          <div className="hidden lg:flex flex-col gap-3 mt-2 flex-1 min-h-[250px] max-h-[400px]">
-            <div className="h-full bg-slate-900/60 rounded-2xl flex flex-col p-4 border border-white/5 overflow-hidden backdrop-blur-md shadow-2xl">
-              <div className="flex justify-between items-center mb-3 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                <div className="flex items-center gap-2">
-                  <TrendingUp size={14} className="text-indigo-400" />
-                  <span>Protocol Feed</span>
                 </div>
-                <span className="font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">T-{gameState.turnCount}</span>
-              </div>
-              <div className="flex-1 overflow-y-auto space-y-2 pr-2 scrollbar-thin scrollbar-thumb-slate-700">
-                {gameState.logs.map((log, i) => (
-                  <div
-                    key={i}
-                    className={`text-xs font-bold leading-relaxed transition-opacity duration-500 ${i === 0 ? 'text-indigo-300 border-l-2 border-indigo-500 pl-3 animate-pulse' : 'text-slate-500 pl-3 opacity-60'}`}
-                  >
-                    {log}
+                
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-xs font-black uppercase truncate ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
+                      {player.name}
+                    </span>
+                    {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
                   </div>
-                ))}
-              </div>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <span className={`font-mono text-sm font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
+                      ${player.money}
+                    </span>
+                    <div className="flex gap-0.5">
+                      {gameState.tiles.filter(t => t.ownerId === player.id).length > 0 && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* Protocol Feed (Logs) */}
+        <div className="flex-1 bg-[#1e1e24] rounded-2xl border border-slate-800 flex flex-col overflow-hidden min-h-[300px] group-data-[layout=row]:min-h-0 shadow-lg">
+          <div className="p-4 border-b border-slate-800 flex items-center justify-between text-slate-300 shrink-0">
+            <div className="flex items-center gap-2 font-medium">
+              <TrendingUp size={16} className="text-indigo-400" />
+              <span className="font-bold uppercase tracking-widest text-xs">Protocol Feed</span>
             </div>
+            <span className="font-mono text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">T-{gameState.turnCount}</span>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700">
+            {gameState.logs.map((log, i) => (
+              <div
+                key={i}
+                className={`text-xs font-bold leading-relaxed transition-opacity duration-500 ${i === 0 ? 'text-indigo-300 border-l-2 border-indigo-500 pl-3 animate-pulse' : 'text-slate-500 pl-3 opacity-60'}`}
+              >
+                {log}
+              </div>
+            ))}
           </div>
         </div>
+      </div>
+
+      {/* Mobile Chat Button & Popup */}
+      <div className="group-data-[layout=row]:hidden fixed bottom-4 right-4 z-[60]">
+        {showMobileChat ? (
+          <div className="mb-4 shadow-2xl">
+            {renderChatBox(true)}
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowMobileChat(true)}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white p-4 rounded-full shadow-lg shadow-indigo-500/30 transition-transform hover:scale-105"
+          >
+            <MessageSquare size={24} />
+          </button>
+        )}
       </div>
 
       <AnimatePresence>
@@ -847,7 +1067,7 @@ const App: React.FC = () => {
             />
           )}
 
-          {viewingPlayerId !== null && (
+          {viewingPlayerId !== null && gameState.players.find(p => p.id === viewingPlayerId) && (
             <PlayerPortfolioModal
               player={gameState.players.find(p => p.id === viewingPlayerId)!}
               tiles={gameState.tiles}
@@ -864,6 +1084,38 @@ const App: React.FC = () => {
               onAccept={() => handleDispatch({ type: 'ACCEPT_TRADE' })}
               onDecline={() => handleDispatch({ type: 'DECLINE_TRADE' })}
             />
+          )}
+
+          {showSettingsModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            >
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
+                className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]"
+              >
+                <div className="flex items-center justify-between mb-6 shrink-0">
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <Settings size={20} className="text-indigo-400" />
+                    Room Settings
+                  </h3>
+                  <button
+                    onClick={() => setShowSettingsModal(false)}
+                    className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+                <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
+                  {renderGameSettings()}
+                </div>
+              </motion.div>
+            </motion.div>
           )}
         </AnimatePresence>
     </div>
