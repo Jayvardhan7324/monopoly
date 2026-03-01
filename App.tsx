@@ -303,7 +303,7 @@ const App: React.FC = () => {
   };
 
   const createRoom = () => {
-    const socket = getSocket();
+    const socket = getSocket() ?? initSocket();
     if (socket) {
       socket.emit("create_room", { name: humanName, avatar: selectedAvatar }, (res: any) => {
         if (res.success) {
@@ -318,7 +318,7 @@ const App: React.FC = () => {
 
   const joinRoom = () => {
     if (!joinRoomId) return;
-    const socket = getSocket();
+    const socket = getSocket() ?? initSocket();
     if (socket) {
       socket.emit("join_room", { roomId: joinRoomId, name: humanName, avatar: selectedAvatar }, (res: any) => {
         if (res.success) {
@@ -334,19 +334,36 @@ const App: React.FC = () => {
   };
 
   const joinRandomRoom = () => {
-    const socket = getSocket();
-    if (socket) {
-      socket.emit("join_random_room", { name: humanName, avatar: selectedAvatar }, (res: any) => {
-        if (res.success) {
-          setIsOnline(true);
-          setRoomId(res.roomId);
-          setIsHost(res.players.find((p: any) => p.id === socket.id)?.isHost || false);
-          setLobbyPlayers(res.players);
-        } else {
-          alert(res.error);
-        }
-      });
+    const socket = getSocket() ?? initSocket();
+    const payload = { name: humanName, avatar: selectedAvatar };
+
+    if (!socket) {
+      alert("Online server is unavailable. Start it with: npm run dev:online");
+      return;
     }
+
+    socket.timeout(3000).emit("join_random_room", payload, (joinErr: any, joinRes: any) => {
+      if (!joinErr && joinRes?.success) {
+        setIsOnline(true);
+        setRoomId(joinRes.roomId);
+        setIsHost(joinRes.players.find((p: any) => p.id === socket.id)?.isHost || false);
+        setLobbyPlayers(joinRes.players);
+        return;
+      }
+
+      // If no random room is available or join fails, create one and add this player.
+      socket.timeout(3000).emit("create_room", payload, (createErr: any, createRes: any) => {
+        if (!createErr && createRes?.success) {
+          setIsOnline(true);
+          setRoomId(createRes.roomId);
+          setIsHost(true);
+          setLobbyPlayers(createRes.players);
+          return;
+        }
+
+        alert("Could not connect to online rooms. Run: npm run dev:online");
+      });
+    });
   };
 
   const updateRule = (key: keyof typeof settings.rules, value: any) => {
@@ -938,6 +955,7 @@ const App: React.FC = () => {
                 handleDispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash } })
               }
               dispatch={handleDispatch}
+              onViewPlayer={setViewingPlayerId}
             />
           </Board>
         </motion.div>
@@ -973,7 +991,7 @@ const App: React.FC = () => {
                 
                 <div className="relative">
                   <Avatar
-                    avatarId={player.avatar}
+                    avatarId={player.avatarId}
                     color={player.color}
                     isBankrupt={player.isBankrupt}
                     inJail={player.inJail}
@@ -1080,7 +1098,6 @@ const App: React.FC = () => {
               trade={gameState.pendingTrade}
               players={gameState.players}
               tiles={gameState.tiles}
-              myPlayerId={myPlayerId}
               onAccept={() => handleDispatch({ type: 'ACCEPT_TRADE' })}
               onDecline={() => handleDispatch({ type: 'DECLINE_TRADE' })}
             />
