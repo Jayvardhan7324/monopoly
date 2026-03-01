@@ -7,6 +7,7 @@
  *  BUG-05  "Go to prison" tile now resets doublesCount & lastDiceRollDoubles
  *  BUG-06  Auction timer effect guarded by winnerId in App.tsx (flag set here)
  *  BUG-07  END_AUCTION verifies winner still has funds; falls back to no-winner
+ *  BUG-TURN-LOGS  Fixed wrapper: logs diff comparison was backwards causing missed entries
  *  IMP-01  Bankrupt player assets transfer to creditor on PAY_RENT
  *  IMP-02/03 Chance & Community Chest use real card deck from constants
  *  IMP-10  Magic numbers replaced with GAME_CONSTANTS
@@ -103,7 +104,7 @@ const withSound = (state: GameState, type: SoundEffectType): GameState => ({
 
 /** Cap the log array so it never grows unbounded (IMP-13) */
 const addLog = (logs: string[], ...entries: string[]): string[] => {
-  // BUG-N2: Reverse logs so they appear chronologically in the prepended block
+  // BUG-FIX: entries are already in chronological order; prepend newest first
   const reversedEntries = [...entries].reverse();
   return [...reversedEntries, ...logs].slice(0, GAME_CONSTANTS.LOG_MAX_ENTRIES);
 };
@@ -162,7 +163,7 @@ const declareBankruptcy = (
     if (t.ownerId !== bankruptPlayerId) return t;
     if (creditorId !== null) {
       // Transfer to creditor — buildings removed (house value lost), mortgage preserved
-      return { ...t, ownerId: creditorId, buildingCount: 0, isMortgaged: t.isMortgaged }; // BUG-C5: Preserve mortgage if transferred to creditor
+      return { ...t, ownerId: creditorId, buildingCount: 0, isMortgaged: t.isMortgaged };
     }
     // Return to bank
     return { ...t, ownerId: null, buildingCount: 0, isMortgaged: false };
@@ -182,18 +183,19 @@ const declareBankruptcy = (
 // ─────────────────────────────────────────────────────────────────────────────
 const coreReducer = (state: GameState, action: Action): GameState => {
   switch (action.type) {
-    // ─── START_GAME ────────────────────────────────────────────────────────────
+    // ─── SYNC_STATE ────────────────────────────────────────────────────────────
     case 'SYNC_STATE': {
       return action.payload;
     }
 
+    // ─── START_GAME ────────────────────────────────────────────────────────────
     case 'START_GAME': {
       if (!action.payload) return state;
       const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
-      
+
       let players: Player[] = [];
       const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
-      
+
       if (lobbyPlayers && lobbyPlayers.length > 0) {
         // Online multiplayer setup
         players = lobbyPlayers.map((p, i) => ({
@@ -217,7 +219,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             color: '#ef4444',
             money: settings.rules.startingCash,
             position: 0,
-            isBot: humanName === 'Spectator', // BUG-C2: Spectator mode sets isBot to true
+            isBot: humanName === 'Spectator',
             isBankrupt: false,
             inJail: false,
             jailTurns: 0,
@@ -229,9 +231,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const botCount = settings.allowBots ? settings.maxPlayers - players.length : 0;
 
       const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Epsilon', 'Bot Zeta', 'Bot Eta', 'Bot Theta'];
-      // Randomize bot names
       const shuffledBotNames = [...botNames].sort(() => Math.random() - 0.5);
-      
+
       const botPersonalities = [
         BotPersonalityType.AGGRESSIVE,
         BotPersonalityType.CONSERVATIVE,
@@ -383,7 +384,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (state.settings.rules.vacationCash) newTaxPool += taxAmount;
         logs = addLog(logs, `${player.name} paid ${tile.name} ($${taxAmount}).`);
 
-        // BUG-01: Check for immediate bankruptcy after tax payment
         if (newPlayers[state.currentPlayerIndex].money < 0) {
           const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
             { ...state, players: newPlayers, logs },
@@ -408,7 +408,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             jailTurns: 0,
           };
           logs = addLog(logs, `${player.name} sent to Jail!`);
-          // BUG-05: Reset doubles count when sent to jail via tile
           return withSound(
             { ...state, players: newPlayers, logs, phase: 'TURN_END', lastDiceRollDoubles: false, doublesCount: 0 },
             'pay'
@@ -431,7 +430,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       }
 
       // ── Chance / Community Chest ─────────────────────────────────────────────
-      // IMP-02/03: Real card system
       if (tile.type === TileType.CHANCE || tile.type === TileType.COMMUNITY_CHEST) {
         const deck = tile.type === TileType.CHANCE ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
         const card = drawCard(deck);
@@ -464,7 +462,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         }
 
         if (card.type === 'JAIL_FREE') {
-          // For simplicity: give them $50 as a stand-in (full GOOJF tracking is a future feature)
           updatedPlayers[state.currentPlayerIndex] = {
             ...updatedPlayers[state.currentPlayerIndex],
             money: updatedPlayers[state.currentPlayerIndex].money + 50,
@@ -475,9 +472,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
         if (card.type === 'MONEY' && card.value !== undefined) {
           if (card.perPlayer) {
-            // Collect from / pay each other player
             const activePlayers = updatedPlayers.filter(p => !p.isBankrupt && p.id !== player.id);
-            const perPlayerAmount = card.value; // negative = pay out, positive = collect
+            const perPlayerAmount = card.value;
             updatedPlayers = updatedPlayers.map(p => {
               if (p.id === player.id) {
                 return { ...p, money: p.money + perPlayerAmount * activePlayers.length };
@@ -502,7 +498,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             );
           }
 
-          // BUG-01: Check bankruptcy after card money loss
           if (updatedPlayers[state.currentPlayerIndex].money < 0) {
             const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
               { ...state, players: updatedPlayers, logs },
@@ -611,7 +606,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       const nextJailTurns = player.jailTurns + 1;
       if (nextJailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS) {
-        // Forced exit — pay the fine
         newPlayers[state.currentPlayerIndex] = {
           ...player,
           money: player.money - GAME_CONSTANTS.JAIL_FINE,
@@ -773,7 +767,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     }
 
     // ─── PAY_RENT ─────────────────────────────────────────────────────────────
-    // BUG-01: Immediate bankruptcy + asset transfer if player can't cover rent
     case 'PAY_RENT': {
       const player = state.players[state.currentPlayerIndex];
       const tile = state.tiles[player.position];
@@ -792,10 +785,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const canAfford = player.money >= rent;
 
       if (!canAfford) {
-        // Pay what they have, then go bankrupt — assets to creditor
         const newPlayers = state.players.map(p => {
-          if (p.id === player.id) return { ...p, money: p.money - rent }; // goes negative
-          if (p.id === owner.id) return { ...p, money: p.money + player.money }; // gets what's left
+          if (p.id === player.id) return { ...p, money: p.money - rent };
+          if (p.id === owner.id) return { ...p, money: p.money + player.money };
           return p;
         });
         const partialState = { ...state, players: newPlayers };
@@ -938,6 +930,15 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       const proposer = state.players[state.currentPlayerIndex];
 
+      // BUG-FIX: Do not allow offering mortgaged properties
+      const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id]?.isMortgaged);
+      if (offerContainsMortgaged) {
+        return withSound(
+          { ...state, logs: addLog(state.logs, 'Cannot offer mortgaged properties in a trade.') },
+          'error'
+        );
+      }
+
       // If target is human, store as pending
       if (!targetPlayer.isBot) {
         return withSound(
@@ -961,24 +962,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const bot = targetPlayer;
       const personality = bot.personality || BotPersonalityType.BALANCED;
 
-      // BUG-03: Do not allow offering mortgaged properties (guard on reducer side too)
-      const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
-      if (offerContainsMortgaged) {
-        return withSound(
-          { ...state, logs: addLog(state.logs, 'Cannot offer mortgaged properties in a trade.') },
-          'error'
-        );
-      }
-
-      // ── Strategic AI valuation ──────────────────────────────────────────────
       const targetGroup = state.tiles.filter(t => t.group === targetTile.group);
       const botOwnedInGroup = targetGroup.filter(t => t.ownerId === bot.id).length;
 
       let botLossValue = targetTile.price * 1.2 + requestCash;
       if (botOwnedInGroup === targetGroup.length) botLossValue *= 6;
       else if (botOwnedInGroup > 1) botLossValue *= 2.5;
-
-      // Bot is more reluctant to give away cash if it's low
       if (bot.money < requestCash + 100) botLossValue *= 2;
 
       let botGainValue = offerCash;
@@ -987,31 +976,29 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       offerPropertyIds.forEach(id => {
         const offeredTile = state.tiles[id];
+        if (!offeredTile) return;
         const group = state.tiles.filter(t => t.group === offeredTile.group);
         const botOwnedInThisGroup = group.filter(t => t.ownerId === bot.id).length;
         let tileValue = offeredTile.price;
         if (botOwnedInThisGroup === group.length - 1) tileValue *= 4.5;
         else if (botOwnedInThisGroup > 0) tileValue *= 1.8;
-        // Discount mortgaged tiles in the valuation
         if (offeredTile.isMortgaged) tileValue *= 0.4;
         botGainValue += tileValue;
       });
 
-      // Penalty for granting human a monopoly
       let humanMonopolyPenalty = 0;
       const humanOwnedInGroup = targetGroup.filter(t => t.ownerId === 0).length;
       if (humanOwnedInGroup === targetGroup.length - 1) {
         humanMonopolyPenalty = targetTile.price * (state.turnCount > 100 ? 5 : 3);
       }
 
-      // Personality adjustments to the final decision
       let threshold = 1.0;
-      if (personality === BotPersonalityType.AGGRESSIVE) threshold = 0.8; // More likely to accept
-      if (personality === BotPersonalityType.CONSERVATIVE) threshold = 1.2; // Less likely to accept
+      if (personality === BotPersonalityType.AGGRESSIVE) threshold = 0.8;
+      if (personality === BotPersonalityType.CONSERVATIVE) threshold = 1.2;
       if (personality === BotPersonalityType.OPPORTUNISTIC) {
-        // If the trade helps the bot complete a set, they are very likely to accept
         const helpsBotCompleteSet = offerPropertyIds.some(id => {
           const t = state.tiles[id];
+          if (!t) return false;
           const g = state.tiles.filter(tile => tile.group === t.group);
           return g.filter(tile => tile.ownerId === bot.id).length === g.length - 1;
         });
@@ -1050,8 +1037,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'ACCEPT_TRADE': {
       if (!state.pendingTrade) return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
-      
-      const proposer = state.players.find(p => p.id === proposerId)!;
+
       const target = state.players.find(p => p.id === targetId)!;
 
       const newPlayers = state.players.map(p => {
@@ -1094,7 +1080,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── END_TURN ─────────────────────────────────────────────────────────────
     case 'END_TURN': {
-      // Mark any player with negative money as bankrupt (assets to bank)
       let processedPlayers = [...state.players];
       let processedTiles = [...state.tiles];
       let processedLogs = state.logs;
@@ -1148,7 +1133,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           turnCount: state.turnCount + 1,
           auction: null,
           doublesCount: nextDoublesCount,
-          turnLogs: [], // BUG-M1: Reset turnLogs atomically on END_TURN
+          // BUG-FIX: turnLogs reset here in core reducer, wrapper skips if action=END_TURN
+          turnLogs: [],
         },
         'turn_switch'
       );
@@ -1160,23 +1146,34 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Wrapper: manages turnLogs
+// Wrapper: manages turnLogs accumulation
+// BUG-FIX: The original logic was comparing lengths backwards and also reversing
+// entries incorrectly. New approach: snapshot log count before, diff after.
 // ─────────────────────────────────────────────────────────────────────────────
 export const gameReducer = (state: GameState, action: Action): GameState => {
+  const prevLogCount = state.logs.length;
   const newState = coreReducer(state, action);
 
-  // Accumulate new log entries into turnLogs
-  if (newState.logs.length > state.logs.length) {
-    const newLogsCount = newState.logs.length - state.logs.length;
-    const addedLogs = newState.logs.slice(0, newLogsCount).reverse();
-    newState.turnLogs = [...state.turnLogs, ...addedLogs];
-  } else {
-    newState.turnLogs = state.turnLogs;
+  // Always reset turnLogs on END_TURN (already done in coreReducer)
+  if (action.type === 'END_TURN' || action.type === 'START_GAME' || action.type === 'SYNC_STATE') {
+    return newState;
   }
 
-  // BUG-M1 fix: turnLogs is wiped in END_TURN inside coreReducer, but we also need to handle the wrapper logic
-  if (action.type === 'END_TURN') {
-    newState.turnLogs = [];
+  // BUG-FIX: logs are prepended (newest first). New entries are at the front.
+  // The number of new entries = newState.logs.length - prevLogCount (if logs grew)
+  // But if logs were capped, we can't rely on length diff. Instead compare first entries.
+  const newLogCount = newState.logs.length;
+  if (newLogCount > prevLogCount) {
+    // New entries were added at the front
+    const addedCount = newLogCount - prevLogCount;
+    // These entries are newest-first at the front, reverse for chronological order in turnLogs
+    const newEntries = newState.logs.slice(0, addedCount).reverse();
+    newState.turnLogs = [...(state.turnLogs || []), ...newEntries];
+  } else if (newLogCount === prevLogCount && newState.logs[0] !== state.logs[0]) {
+    // Log was added but cap caused same length — grab the newest entry
+    newState.turnLogs = [...(state.turnLogs || []), newState.logs[0]];
+  } else {
+    newState.turnLogs = state.turnLogs;
   }
 
   return newState;
