@@ -129,20 +129,20 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
 
   if (isTop) {
     flexDir = 'flex-col-reverse';
-    barClass = 'w-full h-[24px] border-t border-black/20';
+    barClass = 'w-full h-[var(--bar-height,24px)] border-t border-black/20';
     buildingFlexDir = 'flex-row';
   } else if (isBottom) {
     flexDir = 'flex-col';
-    barClass = 'w-full h-[24px] border-b border-black/20';
+    barClass = 'w-full h-[var(--bar-height,24px)] border-b border-black/20';
     buildingFlexDir = 'flex-row';
   } else if (isLeft) {
     flexDir = 'flex-row-reverse';
-    barClass = 'h-full w-[24px] border-r border-black/20';
+    barClass = 'h-full w-[var(--bar-height,24px)] border-r border-black/20';
     contentRotation = 'rotate-90';
     buildingFlexDir = 'flex-col';
   } else if (isRight) {
     flexDir = 'flex-row';
-    barClass = 'h-full w-[24px] border-l border-black/20';
+    barClass = 'h-full w-[var(--bar-height,24px)] border-l border-black/20';
     contentRotation = '-rotate-90';
     buildingFlexDir = 'flex-col';
   }
@@ -235,12 +235,18 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       <div className={`flex-1 relative overflow-hidden flex flex-col items-center justify-center ${contentRotation}`}>
         {!isCorner ? (
           <div className="w-full h-full flex flex-col items-center justify-between py-1.5 px-0.5">
-            <div className="font-black text-[8px] text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5">
+            <div 
+              className="font-black text-slate-100 uppercase tracking-tighter text-center leading-[1.1] max-w-full break-words line-clamp-2 px-0.5"
+              style={{ fontSize: 'var(--font-size, 8px)' }}
+            >
               {tile.name}
             </div>
             <div className="flex-1 flex items-center justify-center w-full min-h-0">{getIcon()}</div>
             {tile.price > 0 && (
-              <div className="bg-black/90 px-1 py-0.5 rounded border border-white/10 text-[8px] font-black text-white whitespace-nowrap">
+              <div 
+                className="bg-black/90 px-1 py-0.5 rounded border border-white/10 font-black text-white whitespace-nowrap"
+                style={{ fontSize: 'var(--font-size, 8px)' }}
+              >
                 {tile.price}$
               </div>
             )}
