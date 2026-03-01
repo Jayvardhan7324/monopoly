@@ -1101,7 +1101,7 @@ const App: React.FC = () => {
         <div className="w-full h-screen flex flex-row">
           {/* Left Column: Share + Ad + Chat */}
           <div className="w-72 shrink-0 flex flex-col gap-3 p-4 h-full overflow-hidden border-r border-slate-800/50 relative z-10">
-            {renderShareBox(true)}
+            {renderShareBox(false)}
 
             <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl flex items-center justify-center flex-1 min-h-0 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-purple-500/5" />
