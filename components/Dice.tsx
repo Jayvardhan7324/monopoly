@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'motion/react';
+import React, { useEffect, useState } from 'react';
 
 interface DiceProps {
   value: number;
@@ -7,42 +6,80 @@ interface DiceProps {
   size?: number;
 }
 
-export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 64 }) => {
-  const dotPositions = [
-    [], // 0
-    [4], // 1
-    [0, 8], // 2
-    [0, 4, 8], // 3
-    [0, 2, 6, 8], // 4
-    [0, 2, 4, 6, 8], // 5
-    [0, 2, 3, 5, 6, 8], // 6
-  ];
+export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 72 }) => {
+  const [transform, setTransform] = useState('');
 
-  const dots = dotPositions[value] || [];
+  useEffect(() => {
+    if (isRolling) {
+      setTransform('');
+    } else {
+      switch (value) {
+        case 1: setTransform('rotateX(0deg) rotateY(0deg)'); break;
+        case 2: setTransform('rotateX(-90deg) rotateY(0deg)'); break;
+        case 3: setTransform('rotateX(0deg) rotateY(-90deg)'); break;
+        case 4: setTransform('rotateX(0deg) rotateY(90deg)'); break;
+        case 5: setTransform('rotateX(90deg) rotateY(0deg)'); break;
+        case 6: setTransform('rotateX(180deg) rotateY(0deg)'); break;
+        default: setTransform('rotateX(0deg) rotateY(0deg)'); break;
+      }
+    }
+  }, [value, isRolling]);
+
+  const scale = size / 100;
 
   return (
-    <motion.div
-      animate={isRolling ? {
-        rotate: [0, 90, 180, 270, 360],
-        scale: [1, 1.1, 1],
-      } : {}}
-      transition={isRolling ? {
-        duration: 0.5,
-        repeat: Infinity,
-        ease: "linear"
-      } : {}}
-      className="bg-white rounded-xl shadow-lg flex items-center justify-center relative border-2 border-slate-200"
-      style={{ width: size, height: size }}
-    >
-      <div className="grid grid-cols-3 grid-rows-3 gap-1 w-[70%] h-[70%]">
-        {[...Array(9)].map((_, i) => (
-          <div key={i} className="flex items-center justify-center">
-            {dots.includes(i) && (
-              <div className="w-full h-full bg-slate-900 rounded-full" />
-            )}
+    <div className="dice-wrap" style={{ width: size, height: size }}>
+      <div
+        className="dice-scaler"
+        style={{
+          width: 100,
+          height: 100,
+          transform: `scale(${scale})`,
+          transformOrigin: 'center',
+        }}
+      >
+        <div
+          className={`dice ${isRolling ? 'rolling' : ''}`}
+          style={{ transform: !isRolling ? transform : undefined }}
+        >
+          {/* Inner sphere — fills the rounded corners so no black shows through */}
+          <div className="dice-inner-sphere" />
+
+          <div className="dice-face front">
+            <span className="dice-dot center" />
           </div>
-        ))}
+          <div className="dice-face up">
+            <span className="dice-dot top-left" />
+            <span className="dice-dot bottom-right" />
+          </div>
+          <div className="dice-face left">
+            <span className="dice-dot top-left" />
+            <span className="dice-dot top-right" />
+            <span className="dice-dot bottom-left" />
+            <span className="dice-dot bottom-right" />
+          </div>
+          <div className="dice-face right">
+            <span className="dice-dot top-left" />
+            <span className="dice-dot center" />
+            <span className="dice-dot bottom-right" />
+          </div>
+          <div className="dice-face bottom">
+            <span className="dice-dot top-left" />
+            <span className="dice-dot top-right" />
+            <span className="dice-dot center" />
+            <span className="dice-dot bottom-left" />
+            <span className="dice-dot bottom-right" />
+          </div>
+          <div className="dice-face back">
+            <span className="dice-dot top-left" />
+            <span className="dice-dot top-right" />
+            <span className="dice-dot middle-left" />
+            <span className="dice-dot middle-right" />
+            <span className="dice-dot bottom-left" />
+            <span className="dice-dot bottom-right" />
+          </div>
+        </div>
       </div>
-    </motion.div>
+    </div>
   );
 };

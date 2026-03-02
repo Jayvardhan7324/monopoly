@@ -3,58 +3,6 @@ import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 
-interface RoomPlayer {
-  id: string;
-  name: string;
-  avatar: number;
-  isHost: boolean;
-}
-
-interface RoomData {
-  host: string;
-  players: RoomPlayer[];
-  state: unknown;
-}
-
-interface CreateOrJoinPayload {
-  name: string;
-  avatar: number;
-}
-
-interface JoinRoomPayload extends CreateOrJoinPayload {
-  roomId: string;
-}
-
-interface UpdatePlayerPayload {
-  name?: string;
-  avatar?: number;
-}
-
-interface StartGamePayload {
-  initialState: unknown;
-}
-
-interface KickPlayerPayload {
-  playerId: string;
-}
-
-interface UpdateSettingsPayload {
-  settings: unknown;
-}
-
-interface SyncStatePayload {
-  state: unknown;
-}
-
-type RoomAck = (response: {
-  success: boolean;
-  roomId?: string;
-  players?: RoomPlayer[];
-  error?: string;
-}) => void;
-
-type SuccessAck = (response: { success: boolean }) => void;
-
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -71,15 +19,12 @@ async function startServer() {
   });
 
   // Socket.io logic
-  const rooms = new Map<string, RoomData>();
+  const rooms = new Map<string, { host: string; players: any[]; state: any }>();
 
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
 
-    const getCurrentRoomId = (): string | undefined =>
-      Array.from(socket.rooms).find((roomName) => roomName !== socket.id);
-
-    socket.on("create_room", (data: CreateOrJoinPayload, callback: RoomAck) => {
+    socket.on("create_room", (data, callback) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: true };
       rooms.set(roomId, { host: socket.id, players: [player], state: null });
@@ -87,9 +32,9 @@ async function startServer() {
       callback({ success: true, roomId, players: [player] });
     });
 
-    socket.on("join_random_room", (data: CreateOrJoinPayload, callback: RoomAck) => {
+    socket.on("join_random_room", (data, callback) => {
       // Find a room that is not full and hasn't started
-      let targetRoomId: string | null = null;
+      let targetRoomId = null;
       for (const [id, room] of rooms.entries()) {
         if (!room.state && room.players.length < 5) {
           targetRoomId = id;
@@ -114,7 +59,7 @@ async function startServer() {
       }
     });
 
-    socket.on("join_room", (data: JoinRoomPayload, callback: RoomAck) => {
+    socket.on("join_room", (data, callback) => {
       const room = rooms.get(data.roomId);
       if (!room) {
         return callback({ success: false, error: "Room not found" });
@@ -132,12 +77,12 @@ async function startServer() {
       callback({ success: true, roomId: data.roomId, players: room.players });
     });
 
-    socket.on("update_player", (data: UpdatePlayerPayload, callback?: SuccessAck) => {
-      const roomId = getCurrentRoomId();
+    socket.on("update_player", (data, callback) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room) {
-          const player = room.players.find((p) => p.id === socket.id);
+          const player = room.players.find(p => p.id === socket.id);
           if (player) {
             if (data.name !== undefined) player.name = data.name;
             if (data.avatar !== undefined) player.avatar = data.avatar;
@@ -148,8 +93,8 @@ async function startServer() {
       }
     });
 
-    socket.on("start_game", (data: StartGamePayload) => {
-      const roomId = getCurrentRoomId();
+    socket.on("start_game", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id) {
@@ -159,12 +104,12 @@ async function startServer() {
       }
     });
 
-    socket.on("kick_player", (data: KickPlayerPayload) => {
-      const roomId = getCurrentRoomId();
+    socket.on("kick_player", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id && !room.state) {
-          const playerIndex = room.players.findIndex((p) => p.id === data.playerId);
+          const playerIndex = room.players.findIndex(p => p.id === data.playerId);
           if (playerIndex !== -1) {
             const kickedPlayer = room.players[playerIndex];
             room.players.splice(playerIndex, 1);
@@ -176,8 +121,8 @@ async function startServer() {
       }
     });
 
-    socket.on("update_settings", (data: UpdateSettingsPayload) => {
-      const roomId = getCurrentRoomId();
+    socket.on("update_settings", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id && !room.state) {
@@ -186,15 +131,15 @@ async function startServer() {
       }
     });
 
-    socket.on("send_chat", (data: { sender: string; text: string; time: string }) => {
-      const roomId = getCurrentRoomId();
+    socket.on("send_chat", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         io.to(roomId).emit("chat_message", data);
       }
     });
 
-    socket.on("game_action", (data: unknown) => {
-      const roomId = getCurrentRoomId();
+    socket.on("game_action", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room) {
@@ -204,8 +149,8 @@ async function startServer() {
       }
     });
 
-    socket.on("sync_state", (data: SyncStatePayload) => {
-      const roomId = getCurrentRoomId();
+    socket.on("sync_state", (data) => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id) {
@@ -219,7 +164,7 @@ async function startServer() {
     socket.on("disconnect", () => {
       console.log("Client disconnected:", socket.id);
       for (const [roomId, room] of rooms.entries()) {
-        const playerIndex = room.players.findIndex((p) => p.id === socket.id);
+        const playerIndex = room.players.findIndex(p => p.id === socket.id);
         if (playerIndex !== -1) {
           room.players.splice(playerIndex, 1);
           if (room.players.length === 0) {
