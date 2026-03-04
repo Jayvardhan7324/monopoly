@@ -69,6 +69,7 @@ function wouldBlockOpponent(tileId: number, playerId: number, gameState: GameSta
 export function getBotAction(gameState: GameState): BotAction {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   if (!currentPlayer || !currentPlayer.isBot || gameState.winnerId !== null) return null;
+  if (gameState.pendingTrade !== null) return null;
 
   const { phase, tiles } = gameState;
   const personality = currentPlayer.personality || BotPersonalityType.BALANCED;

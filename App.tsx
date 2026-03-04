@@ -251,7 +251,16 @@ const App: React.FC = () => {
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [gameState.phase, gameState.currentPlayerIndex, gameStarted, gameState.winnerId, isOnline, isHost]);
+  }, [
+    gameState.phase,
+    gameState.currentPlayerIndex,
+    gameStarted,
+    gameState.winnerId,
+    isOnline,
+    isHost,
+    gameState.turnLogs.length,
+    gameState.pendingTrade
+  ]);
 
   // ── Bot auction bids (IMP-11: via botService, BUG-11: ref guard) ───────────
   useEffect(() => {
