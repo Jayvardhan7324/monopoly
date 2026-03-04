@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tile, TileType, Player, ColorGroup } from '../types';
-import { X, ArrowUpCircle, AlertCircle, Banknote, Landmark, Unlock, Home, Building2, AlertTriangle } from 'lucide-react';
+import { X, ArrowUpCircle, AlertCircle, Banknote, Landmark, Unlock, Home, Building2, AlertTriangle, ArrowRightLeft, Coins, Check } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_CONSTANTS } from '../constants';
@@ -32,16 +32,43 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const PropertyModal: React.FC<PropertyModalProps> = ({
-  tile, owner, onClose, onUpgrade, canUpgrade, currentPlayer, onMortgage, onUnmortgage, onSell,
+  tile, owner, onClose, onUpgrade, canUpgrade, currentPlayer, myProperties, onTrade, onMortgage, onUnmortgage, onSell,
 }) => {
   // IMP-19: Sell confirmation state
   const [showSellConfirm, setShowSellConfirm] = useState(false);
+  // Trade offer builder state
+  const [showTradeBuilder, setShowTradeBuilder] = useState(false);
+  const [tradeOfferCash, setTradeOfferCash] = useState(0);
+  const [tradeRequestCash, setTradeRequestCash] = useState(0);
+  const [tradeOfferPropertyIds, setTradeOfferPropertyIds] = useState<number[]>([]);
 
   const isProperty = tile.type === TileType.PROPERTY;
   const isMine = owner?.id === currentPlayer?.id;
+  const isOtherOwned = owner && !isMine;
   const mortgageValue = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE);
   const unmortgageCost = Math.floor(mortgageValue * GAME_CONSTANTS.UNMORTGAGE_FEE);
   const sellValue = Math.floor(tile.price * GAME_CONSTANTS.SELL_RATE);
+
+  // Tradeable properties: mine, not mortgaged, no buildings
+  const tradeableProperties = (myProperties || []).filter(t =>
+    t.ownerId === currentPlayer?.id && !t.isMortgaged && t.buildingCount === 0 && t.id !== tile.id
+  );
+
+  const toggleTradeProperty = (id: number) => {
+    setTradeOfferPropertyIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const submitTrade = () => {
+    if (!onTrade) return;
+    onTrade({ cash: tradeOfferCash, properties: tradeOfferPropertyIds, requestCash: tradeRequestCash });
+    setShowTradeBuilder(false);
+    setTradeOfferCash(0);
+    setTradeRequestCash(0);
+    setTradeOfferPropertyIds([]);
+    onClose();
+  };
 
   const getLevelLabel = (count: number) => {
     if (count === 0) return 'Base Rent';
@@ -60,6 +87,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
   const handleClose = () => {
     setShowSellConfirm(false);
+    setShowTradeBuilder(false);
     onClose();
   };
 
@@ -76,27 +104,22 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 20, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-        className="shadcn-card bg-slate-900 w-full max-w-[320px] overflow-hidden"
+        className="shadcn-card bg-slate-900 w-full max-w-[360px] overflow-hidden max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header Banner */}
-        <div className={`${colorMap[tile.group]} p-4 relative overflow-hidden`}>
+        <div className={`${colorMap[tile.group]} p-4 relative overflow-hidden shrink-0`}>
           <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)] mix-blend-overlay" />
           <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
           <button onClick={handleClose} className="absolute top-3 right-3 text-white/50 hover:text-white transition-colors z-10">
             <X size={18} />
           </button>
-          <div className="relative z-10 text-[8px] font-black text-white/60 uppercase tracking-widest mb-0.5">{tile.type}</div>
-          <h2 className="relative z-10 text-2xl font-black text-white uppercase tracking-tighter drop-shadow-md">{tile.name}</h2>
-          {tile.isMortgaged && (
-            <div className="relative z-10 mt-1 inline-block px-2 py-0.5 bg-black/40 backdrop-blur-sm rounded-full border border-white/20 text-[8px] font-bold text-white uppercase tracking-widest">
-              Asset Mortgaged
-            </div>
-          )}
+          <h2 className="relative z-10 text-xl font-black text-white drop-shadow-md uppercase tracking-tighter">{tile.name}</h2>
+          <p className="relative z-10 text-white/60 text-[9px] font-bold uppercase tracking-widest mt-1">{tile.group !== 'NONE' ? tile.group.replace('_', ' ') : tile.type} district</p>
         </div>
 
-        <div className="p-4">
+        <div className="p-5 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
           <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-3">
             <div className="space-y-0.5">
               <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">Portfolio Owner</span>
@@ -214,6 +237,119 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 </AnimatePresence>
               )}
             </div>
+
+            {/* Trade Button — show when another player owns this property */}
+            {isOtherOwned && onTrade && currentPlayer && !tile.isMortgaged && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-3 border-t border-slate-800 pt-3"
+              >
+                {!showTradeBuilder ? (
+                  <button
+                    onClick={() => setShowTradeBuilder(true)}
+                    className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-95"
+                  >
+                    <ArrowRightLeft size={16} /> Propose Trade for {tile.name}
+                  </button>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="space-y-3 overflow-hidden"
+                  >
+                    <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Trade Offer Builder</div>
+
+                    {/* Offer Cash */}
+                    <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Coins size={12} className="text-emerald-400" /> Offer Cash
+                        </span>
+                        <span className="text-xs font-mono font-bold text-emerald-400">${tradeOfferCash}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={currentPlayer.money}
+                        step={50}
+                        value={tradeOfferCash}
+                        onChange={(e) => setTradeOfferCash(parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-emerald-500"
+                      />
+                      <div className="flex justify-between text-[9px] text-slate-600 font-mono">
+                        <span>$0</span>
+                        <span>${currentPlayer.money}</span>
+                      </div>
+                    </div>
+
+                    {/* Request Cash */}
+                    <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Coins size={12} className="text-rose-400" /> Request Cash
+                        </span>
+                        <span className="text-xs font-mono font-bold text-rose-400">${tradeRequestCash}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={owner ? owner.money : 0}
+                        step={50}
+                        value={tradeRequestCash}
+                        onChange={(e) => setTradeRequestCash(parseInt(e.target.value))}
+                        className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-rose-500"
+                      />
+                      <div className="flex justify-between text-[9px] text-slate-600 font-mono">
+                        <span>$0</span>
+                        <span>${owner?.money || 0}</span>
+                      </div>
+                    </div>
+
+                    {/* Offer Properties */}
+                    {tradeableProperties.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Offer Properties</span>
+                        <div className="max-h-28 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-slate-700 pr-1">
+                          {tradeableProperties.map(prop => {
+                            const isSelected = tradeOfferPropertyIds.includes(prop.id);
+                            return (
+                              <button
+                                key={prop.id}
+                                onClick={() => toggleTradeProperty(prop.id)}
+                                className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-all text-[10px] ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-300' : 'bg-slate-800/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
+                              >
+                                <div className={`w-1 h-5 rounded-full ${colorMap[prop.group]}`} />
+                                <span className="flex-1 font-bold truncate">{prop.name}</span>
+                                <span className="font-mono text-slate-500">${prop.price}</span>
+                                {isSelected && <Check size={12} className="text-indigo-400 shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Submit/Cancel */}
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => { setShowTradeBuilder(false); setTradeOfferCash(0); setTradeRequestCash(0); setTradeOfferPropertyIds([]); }}
+                        className="py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all active:scale-95"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={submitTrade}
+                        disabled={tradeOfferCash === 0 && tradeOfferPropertyIds.length === 0 && tradeRequestCash === 0}
+                        className="py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg text-[10px] font-bold transition-all active:scale-95 shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-1.5"
+                      >
+                        <ArrowRightLeft size={12} /> Send Offer
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </motion.div>
+            )}
           </div>
         </div>
       </motion.div>
