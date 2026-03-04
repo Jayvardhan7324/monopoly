@@ -1,7 +1,6 @@
 import express from "express";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
-import { createServer as createViteServer } from "vite";
 
 interface RoomData {
   host: string;
@@ -303,11 +302,12 @@ async function startServer() {
   });
 
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
+    const vite = await import("vite");
+    const viteServer = await vite.createServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
-    app.use(vite.middlewares);
+    app.use(viteServer.middlewares);
   } else {
     const path = await import("path");
     const distPath = path.default.resolve(process.cwd(), "dist");
