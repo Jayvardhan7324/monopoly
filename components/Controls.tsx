@@ -74,18 +74,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative">
-      <div 
-        className="flex-shrink-0 flex flex-col gap-4 text-slate-100 p-2 animate-fade-in"
-        style={{ 
-          width: 'calc(100% / var(--board-scale, 1))', 
-          height: 'calc(100% / var(--board-scale, 1))',
-          transform: 'scale(var(--board-scale, 1))', 
-          transformOrigin: 'center' 
-        }}
-      >
-
-      {/* Main content */}
-      <div className="flex-1 flex flex-col gap-4 relative min-h-0">
+      <div className="flex-1 flex flex-col gap-4 relative min-h-0 w-full animate-fade-in p-2">
 
         {/* Auction overlay */}
         {gameState.phase === 'AUCTION' && gameState.auction && (
@@ -176,9 +165,9 @@ export const Controls: React.FC<ControlsProps> = ({
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
                 <div className="flex flex-col items-center gap-12">
-                  <div className="flex gap-16">
-                    <Dice value={gameState.dice[0]} isRolling={isRollingAnim} size={100} />
-                    <Dice value={gameState.dice[1]} isRolling={isRollingAnim} size={100} />
+                  <div className="flex -space-x-40 -mt-32 relative z-10">
+                    <Dice value={gameState.dice[0]} isRolling={isRollingAnim} size={300} index={0} />
+                    <Dice value={gameState.dice[1]} isRolling={isRollingAnim} size={300} index={1} />
                   </div>
 
                   {gameState.phase === 'ROLL' && !currentPlayer.isBot && (
@@ -186,7 +175,7 @@ export const Controls: React.FC<ControlsProps> = ({
                       <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-slate-950/80 p-6 rounded-3xl border border-rose-500/30 shadow-[0_0_50px_rgba(244,63,94,0.1)] relative overflow-hidden">
                         {/* Jail Bars Background */}
                         <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 15px, #fff 15px, #fff 18px)' }} />
-                        
+
                         <div className="flex flex-col items-center gap-1 relative z-10">
                           <div className="w-12 h-12 bg-rose-500/20 rounded-full flex items-center justify-center text-rose-500 mb-2 border border-rose-500/30">
                             <Lock size={24} />
@@ -320,7 +309,6 @@ export const Controls: React.FC<ControlsProps> = ({
             </>
           )}
         </div>
-      </div>
       </div>
     </div>
   );

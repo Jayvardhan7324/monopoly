@@ -60,8 +60,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const checkLayout = () => {
       const width = window.innerWidth;
-      const height = window.innerHeight;
-      setIsStacked(width < height + 688 || width < 1024);
+      setIsStacked(width < 1100);
     };
     checkLayout();
     window.addEventListener('resize', checkLayout);
@@ -404,7 +403,7 @@ const App: React.FC = () => {
           </button>
         )}
       </div>
-      
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-700">
         {chatMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm gap-2 opacity-50">
@@ -437,7 +436,7 @@ const App: React.FC = () => {
             placeholder="Type a message..."
             className="w-full bg-[#111116] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 pr-10"
           />
-          <button 
+          <button
             onClick={sendChatMessage}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-300 transition-colors"
           >
@@ -457,7 +456,7 @@ const App: React.FC = () => {
         <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
           https://richup.io/{roomId}
         </div>
-        <button 
+        <button
           onClick={() => {
             const url = new URL(window.location.href);
             url.searchParams.set('room', roomId || '');
@@ -469,7 +468,7 @@ const App: React.FC = () => {
         </button>
       </div>
       {showSettingsButton && (
-        <button 
+        <button
           onClick={() => setShowSettingsModal(true)}
           className="mt-2 w-full bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-slate-300 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
         >
@@ -486,13 +485,13 @@ const App: React.FC = () => {
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Maximum players</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Player capacity</div>
-          <select 
+          <select
             disabled={!isHost || gameStarted}
             value={settings.maxPlayers}
             onChange={(e) => updateGeneralSetting('maxPlayers', parseInt(e.target.value))}
             className="w-full bg-[#111116] border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 disabled:opacity-50 font-bold"
           >
-            {[2,3,4,5,6,7,8].map(n => <option key={n} value={n}>{n} Players</option>)}
+            {[2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={n}>{n} Players</option>)}
           </select>
         </div>
       </div>
@@ -503,10 +502,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Private room</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Access control</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.isPrivate} 
-              onCheckedChange={(checked) => updateGeneralSetting('isPrivate', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.isPrivate}
+              onCheckedChange={(checked) => updateGeneralSetting('isPrivate', checked)}
             />
           </div>
         </div>
@@ -520,10 +519,10 @@ const App: React.FC = () => {
           </div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">AI Opponents</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.allowBots} 
-              onCheckedChange={(checked) => updateGeneralSetting('allowBots', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.allowBots}
+              onCheckedChange={(checked) => updateGeneralSetting('allowBots', checked)}
             />
           </div>
         </div>
@@ -534,7 +533,7 @@ const App: React.FC = () => {
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Starting cash</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Initial funds</div>
-          <select 
+          <select
             disabled={!isHost || gameStarted}
             value={settings.rules.startingCash}
             onChange={(e) => updateRule('startingCash', parseInt(e.target.value))}
@@ -551,10 +550,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Double rent on set</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Monopoly bonus</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.doubleRentOnFullSet} 
-              onCheckedChange={(checked) => updateRule('doubleRentOnFullSet', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.doubleRentOnFullSet}
+              onCheckedChange={(checked) => updateRule('doubleRentOnFullSet', checked)}
             />
           </div>
         </div>
@@ -566,10 +565,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Vacation cash</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Tax pool reward</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.vacationCash} 
-              onCheckedChange={(checked) => updateRule('vacationCash', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.vacationCash}
+              onCheckedChange={(checked) => updateRule('vacationCash', checked)}
             />
           </div>
         </div>
@@ -581,10 +580,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Auction enabled</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Bidding system</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.auctionEnabled} 
-              onCheckedChange={(checked) => updateRule('auctionEnabled', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.auctionEnabled}
+              onCheckedChange={(checked) => updateRule('auctionEnabled', checked)}
             />
           </div>
         </div>
@@ -596,10 +595,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">No rent in jail</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Prison rules</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.noRentInJail} 
-              onCheckedChange={(checked) => updateRule('noRentInJail', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.noRentInJail}
+              onCheckedChange={(checked) => updateRule('noRentInJail', checked)}
             />
           </div>
         </div>
@@ -611,10 +610,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Mortgage enabled</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Financial loans</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.mortgageEnabled} 
-              onCheckedChange={(checked) => updateRule('mortgageEnabled', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.mortgageEnabled}
+              onCheckedChange={(checked) => updateRule('mortgageEnabled', checked)}
             />
           </div>
         </div>
@@ -626,10 +625,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Randomize order</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Turn shuffle</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.randomizeOrder} 
-              onCheckedChange={(checked) => updateRule('randomizeOrder', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.randomizeOrder}
+              onCheckedChange={(checked) => updateRule('randomizeOrder', checked)}
             />
           </div>
         </div>
@@ -641,10 +640,10 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200">Even building</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Construction rules</div>
           <div className="flex justify-end">
-            <Switch 
-              disabled={!isHost || gameStarted} 
-              checked={settings.rules.evenBuild} 
-              onCheckedChange={(checked) => updateRule('evenBuild', checked)} 
+            <Switch
+              disabled={!isHost || gameStarted}
+              checked={settings.rules.evenBuild}
+              onCheckedChange={(checked) => updateRule('evenBuild', checked)}
             />
           </div>
         </div>
@@ -707,7 +706,7 @@ const App: React.FC = () => {
                 className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors"
                 placeholder="Player 1"
               />
-              
+
               <button
                 onClick={joinRandomRoom}
                 className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)]"
@@ -716,20 +715,20 @@ const App: React.FC = () => {
               </button>
 
               <div className="flex gap-4 pt-2">
-                <button 
+                <button
                   onClick={() => setShowJoinInput(!showJoinInput)}
                   className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Users size={18} /> All rooms
                 </button>
-                <button 
+                <button
                   onClick={createRoom}
                   className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Key size={18} /> Create a private game
                 </button>
               </div>
-              
+
               {showJoinInput && (
                 <div className="flex gap-2 pt-2 animate-in fade-in slide-in-from-top-2">
                   <input
@@ -757,15 +756,15 @@ const App: React.FC = () => {
 
     // Room Lobby Screen
     return (
-      <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-4 md:p-6 gap-6 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
+      <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
         {/* Left Column: Share, Ad & Chat */}
-        <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
+        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
 
           {/* Ad Banner Space */}
           <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
-            <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br/>Space</span>
+            <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
           </div>
 
           {/* Chat Box */}
@@ -775,9 +774,9 @@ const App: React.FC = () => {
         </div>
 
         {/* Center Column: Board Preview */}
-        <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 group-data-[layout=row]:p-4 order-1 group-data-[layout=row]:order-2">
+        <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
           <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
-            <Board gameState={gameState} onTileClick={() => {}}>
+            <Board gameState={gameState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
                 <div className="text-center">
                   <h2 className="text-4xl font-black text-white tracking-tighter mb-2 drop-shadow-2xl">
@@ -786,7 +785,7 @@ const App: React.FC = () => {
                   <p className="text-slate-400 font-medium">Waiting for players to join...</p>
                 </div>
 
-                <button 
+                <button
                   onClick={() => {
                     if (isHost) {
                       handleStartGame();
@@ -808,7 +807,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Right Column: Profile & Settings */}
-        <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
+        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
           {/* User Profile Box */}
           <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex flex-col gap-4 shadow-lg shrink-0">
             <div className="flex items-center gap-4">
@@ -823,7 +822,7 @@ const App: React.FC = () => {
                   {humanName}
                   {isHost && <Crown size={16} className="text-amber-400" />}
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedAvatar((selectedAvatar + 1) % APPEARANCE_COLORS.length)}
                   className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider"
                 >
@@ -843,11 +842,10 @@ const App: React.FC = () => {
                       socket.emit("update_player", { avatar: idx });
                     }
                   }}
-                  className={`aspect-square rounded-full transition-all ${
-                    selectedAvatar === idx 
-                      ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-[#1e1e24] scale-110' 
-                      : 'hover:scale-110 opacity-40 hover:opacity-100'
-                  }`}
+                  className={`aspect-square rounded-full transition-all ${selectedAvatar === idx
+                    ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-[#1e1e24] scale-110'
+                    : 'hover:scale-110 opacity-40 hover:opacity-100'
+                    }`}
                   style={{ backgroundColor: color }}
                 />
               ))}
@@ -886,7 +884,7 @@ const App: React.FC = () => {
   const myProperties = gameState.tiles.filter(t => t.ownerId === myPlayerId);
 
   return (
-    <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-4 md:p-6 gap-6 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
+    <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
       <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none fixed" />
 
@@ -902,13 +900,13 @@ const App: React.FC = () => {
       </div>
 
       {/* Left Column: Share, Ad Banner & Chat */}
-      <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
+      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
         {renderShareBox(true)}
 
         {/* Ad Banner Space */}
         <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
-          <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br/>Space</span>
+          <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
 
         {/* Chat Box */}
@@ -918,7 +916,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Center Column: Board Preview */}
-      <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 group-data-[layout=row]:p-4 order-1 group-data-[layout=row]:order-2">
+      <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -944,7 +942,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Right Column: Players & Logs */}
-      <div className="w-full group-data-[layout=row]:w-80 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
+      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
         {/* Players List */}
         <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-4 flex flex-col gap-3 shadow-lg shrink-0 max-h-[40vh] group-data-[layout=row]:max-h-[50%] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
           {gameState.players.map(player => {
@@ -970,7 +968,7 @@ const App: React.FC = () => {
                     transition={{ repeat: Infinity, duration: 2 }}
                   />
                 )}
-                
+
                 <div className="relative">
                   <Avatar
                     avatarId={player.avatar}
@@ -985,7 +983,7 @@ const App: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex flex-col flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className={`text-xs font-black uppercase truncate ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
@@ -1018,7 +1016,7 @@ const App: React.FC = () => {
             </div>
             <span className="font-mono text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">T-{gameState.turnCount}</span>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700">
             {gameState.logs.map((log, i) => (
               <div
@@ -1049,75 +1047,75 @@ const App: React.FC = () => {
       </div>
 
       <AnimatePresence>
-          {selectedTileId !== null && (
-            <PropertyModal
-              tile={gameState.tiles[selectedTileId]}
-              owner={gameState.players.find(p => p.id === gameState.tiles[selectedTileId].ownerId)}
-              onClose={() => setSelectedTileId(null)}
-              onUpgrade={() => dispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
-              canUpgrade={gameState.phase === 'TURN_END' && gameState.tiles[selectedTileId].ownerId === myPlayerId}
-              currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
-              myProperties={myProperties}
-              onTrade={offer =>
-                handleDispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId, requestCash: offer.requestCash } })
-              }
-              onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
-              onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
-              onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
-            />
-          )}
+        {selectedTileId !== null && (
+          <PropertyModal
+            tile={gameState.tiles[selectedTileId]}
+            owner={gameState.players.find(p => p.id === gameState.tiles[selectedTileId].ownerId)}
+            onClose={() => setSelectedTileId(null)}
+            onUpgrade={() => dispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
+            canUpgrade={gameState.phase === 'TURN_END' && gameState.tiles[selectedTileId].ownerId === myPlayerId}
+            currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
+            myProperties={myProperties}
+            onTrade={offer =>
+              handleDispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId, requestCash: offer.requestCash } })
+            }
+            onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
+            onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
+            onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
+          />
+        )}
 
-          {viewingPlayerId !== null && gameState.players.find(p => p.id === viewingPlayerId) && (
-            <PlayerPortfolioModal
-              player={gameState.players.find(p => p.id === viewingPlayerId)!}
-              tiles={gameState.tiles}
-              onClose={() => setViewingPlayerId(null)}
-            />
-          )}
+        {viewingPlayerId !== null && gameState.players.find(p => p.id === viewingPlayerId) && (
+          <PlayerPortfolioModal
+            player={gameState.players.find(p => p.id === viewingPlayerId)!}
+            tiles={gameState.tiles}
+            onClose={() => setViewingPlayerId(null)}
+          />
+        )}
 
-          {gameState.pendingTrade && (
-            <TradeProposalModal
-              trade={gameState.pendingTrade}
-              players={gameState.players}
-              tiles={gameState.tiles}
-              myPlayerId={myPlayerId}
-              onAccept={() => handleDispatch({ type: 'ACCEPT_TRADE' })}
-              onDecline={() => handleDispatch({ type: 'DECLINE_TRADE' })}
-            />
-          )}
+        {gameState.pendingTrade && (
+          <TradeProposalModal
+            trade={gameState.pendingTrade}
+            players={gameState.players}
+            tiles={gameState.tiles}
+            myPlayerId={myPlayerId}
+            onAccept={() => handleDispatch({ type: 'ACCEPT_TRADE' })}
+            onDecline={() => handleDispatch({ type: 'DECLINE_TRADE' })}
+          />
+        )}
 
-          {showSettingsModal && (
+        {showSettingsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]"
             >
-              <motion.div
-                initial={{ scale: 0.95, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.95, opacity: 0 }}
-                className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-6 w-full max-w-md shadow-2xl flex flex-col max-h-[80vh]"
-              >
-                <div className="flex items-center justify-between mb-6 shrink-0">
-                  <h3 className="text-lg font-black text-white flex items-center gap-2">
-                    <Settings size={20} className="text-indigo-400" />
-                    Room Settings
-                  </h3>
-                  <button
-                    onClick={() => setShowSettingsModal(false)}
-                    className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
-                  {renderGameSettings()}
-                </div>
-              </motion.div>
+              <div className="flex items-center justify-between mb-6 shrink-0">
+                <h3 className="text-lg font-black text-white flex items-center gap-2">
+                  <Settings size={20} className="text-indigo-400" />
+                  Room Settings
+                </h3>
+                <button
+                  onClick={() => setShowSettingsModal(false)}
+                  className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
+                {renderGameSettings()}
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

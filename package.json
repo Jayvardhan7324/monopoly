@@ -13,6 +13,10 @@
   "dependencies": {
     "@google/genai": "^1.39.0",
     "@tailwindcss/vite": "^4.2.1",
+    "@types/three": "^0.183.1",
+    "cannon-es": "^0.20.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "express": "^5.2.1",
     "lucide-react": "0.468.0",
     "motion": "^12.34.3",
@@ -20,7 +24,9 @@
     "react-dom": "^19.2.4",
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
+    "tailwind-merge": "^3.5.0",
     "tailwindcss": "^4.2.1",
+    "three": "^0.183.2",
     "tsx": "^4.21.0"
   },
   "devDependencies": {
