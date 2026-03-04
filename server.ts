@@ -313,7 +313,7 @@ async function startServer() {
     const distPath = path.default.resolve(process.cwd(), "dist");
     app.use(express.static(distPath));
     // SPA fallback: serve index.html for all non-API routes
-    app.get("*", (req, res) => {
+    app.use((req, res) => {
       res.sendFile(path.default.resolve(distPath, "index.html"));
     });
   }
