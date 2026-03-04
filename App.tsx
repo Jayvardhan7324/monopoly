@@ -936,6 +936,7 @@ const App: React.FC = () => {
                 handleDispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash } })
               }
               dispatch={handleDispatch}
+              onViewPlayer={id => setViewingPlayerId(id)}
             />
           </Board>
         </motion.div>
@@ -971,7 +972,7 @@ const App: React.FC = () => {
 
                 <div className="relative">
                   <Avatar
-                    avatarId={player.avatar}
+                    avatarId={player.avatarId}
                     color={player.color}
                     isBankrupt={player.isBankrupt}
                     inJail={player.inJail}
@@ -1017,14 +1018,17 @@ const App: React.FC = () => {
             <span className="font-mono text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">T-{gameState.turnCount}</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-thumb-slate-700">
             {gameState.logs.map((log, i) => (
-              <div
-                key={i}
-                className={`text-xs font-bold leading-relaxed transition-opacity duration-500 ${i === 0 ? 'text-indigo-300 border-l-2 border-indigo-500 pl-3 animate-pulse' : 'text-slate-500 pl-3 opacity-60'}`}
+              <motion.div
+                key={`${i}-${log}`}
+                initial={i === 0 ? { opacity: 0, x: -8 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                className={`text-xs font-bold leading-relaxed rounded-lg px-3 py-1.5 transition-all duration-300 ${i === 0 ? 'text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]' : i < 3 ? 'text-slate-400 border-l-2 border-slate-700 opacity-80' : 'text-slate-500 pl-3 opacity-50'}`}
               >
                 {log}
-              </div>
+              </motion.div>
             ))}
           </div>
         </div>

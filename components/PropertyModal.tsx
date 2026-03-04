@@ -82,7 +82,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         {/* Header Banner */}
         <div className={`${colorMap[tile.group]} p-4 relative overflow-hidden`}>
           <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)] mix-blend-overlay" />
-          <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
           <button onClick={handleClose} className="absolute top-3 right-3 text-white/50 hover:text-white transition-colors z-10">
             <X size={18} />
           </button>

@@ -24,7 +24,7 @@ const colorMap: Record<ColorGroup, string> = {
 
 export const PlayerPortfolioModal: React.FC<PlayerPortfolioModalProps> = ({ player, tiles, onClose }) => {
   const ownedTiles = tiles.filter(t => t.ownerId === player.id);
-  
+
   // Group by color
   const groupedTiles = ownedTiles.reduce((acc, tile) => {
     const group = tile.group;
@@ -88,10 +88,13 @@ export const PlayerPortfolioModal: React.FC<PlayerPortfolioModalProps> = ({ play
                     </h3>
                   </div>
                   <div className="space-y-2">
-                    {groupTiles.map(tile => (
-                      <div
+                    {groupTiles.map((tile, tileIdx) => (
+                      <motion.div
                         key={tile.id}
-                        className={`bg-white/5 border border-white/5 rounded-xl p-3 flex items-center justify-between transition-all hover:bg-white/10 ${tile.isMortgaged ? 'opacity-50 grayscale' : ''}`}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: tileIdx * 0.05, duration: 0.3 }}
+                        className={`bg-white/5 border border-white/5 rounded-xl p-3 flex items-center justify-between transition-all hover:bg-white/10 hover:border-white/10 ${tile.isMortgaged ? 'opacity-50 grayscale' : ''}`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-1 h-8 rounded-full ${colorMap[tile.group]}`} />
@@ -117,7 +120,7 @@ export const PlayerPortfolioModal: React.FC<PlayerPortfolioModalProps> = ({ play
                         <div className="text-right">
                           <div className="text-[10px] font-mono font-bold text-slate-400">${tile.price}</div>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
                 </div>

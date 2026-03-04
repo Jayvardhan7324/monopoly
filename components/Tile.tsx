@@ -4,6 +4,7 @@ import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../
 import { Plane, Zap, Droplets, Landmark, TreePalm, Skull, ArrowRight, Package, Home, Building2, Crown, Lock } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Avatar } from './Avatar';
+import { PLAYER_COLORS } from '../constants';
 import { motion } from 'motion/react';
 
 interface TileProps {
@@ -28,8 +29,6 @@ const colorMap: Record<ColorGroup, string> = {
   [ColorGroup.NONE]: '#334155',
 };
 
-const playerColors = ['#ef4444', '#3b82f6', '#22c55e', '#eab308'];
-
 export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp = tile.type === ETileType.PROPERTY;
@@ -39,7 +38,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
   const isBottom = tile.id >= 20 && tile.id <= 30;
   const isLeft = tile.id >= 31 && tile.id <= 39;
 
-  const ownerColor = tile.ownerId !== null ? playerColors[tile.ownerId] : null;
+  const ownerColor = tile.ownerId !== null ? (PLAYER_COLORS[tile.ownerId] || '#888') : null;
 
   const getIcon = () => {
     switch (tile.type) {
@@ -57,21 +56,21 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         return <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />;
       case ETileType.TAX:
         return (
-          <div className="bg-slate-700/80 w-[20px] h-[14px] flex items-center justify-center rounded-[2px] border border-slate-600">
-            <span className="text-slate-300 font-black text-[8px] leading-none">%10</span>
+          <div className="bg-slate-700/80 w-[22px] h-[16px] flex items-center justify-center rounded-[3px] border border-slate-500/60 shadow-sm">
+            <span className="text-slate-200 font-black text-[8px] leading-none tracking-tight">×10</span>
           </div>
         );
       case ETileType.CORNER:
         if (tile.name === 'START')
           return (
-            <div className="flex flex-col items-center justify-center h-full w-full bg-[#1b1c2e] p-1">
-              <span className="text-2xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-md pb-1">Start</span>
+            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
+              <span className="text-2xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)] pb-1">Start</span>
               <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
             </div>
           );
         if (tile.name === 'In Prison')
           return (
-            <div className="flex flex-col h-full w-full relative bg-[#252331] overflow-hidden">
+            <div className="flex flex-col h-full w-full relative bg-gradient-to-br from-[#252331] to-[#1e1b2e] overflow-hidden">
               <span className="absolute top-1.5 right-1.5 text-[8px] text-slate-300 font-bold tracking-wider">Passing by</span>
               <div className="absolute bottom-0 right-0 w-[60%] h-[75%] bg-slate-400/20 border-t border-l border-slate-500/30 flex shadow-inner">
                 {[...Array(4)].map((_, i) => (
@@ -83,11 +82,11 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           );
         if (tile.name === 'Vacation')
           return (
-            <div className="flex flex-col items-center justify-center h-full w-full relative bg-[#1c2236]">
-              <TreePalm size={36} className="text-[#98d287] drop-shadow-lg" />
+            <div className="flex flex-col items-center justify-center h-full w-full relative bg-gradient-to-br from-[#1c2236] to-[#162030]">
+              <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.3)]" />
               <span className="text-[10px] text-slate-200 mt-1 font-bold">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <div className="absolute -bottom-1 bg-emerald-500/20 px-1 rounded border border-emerald-500/30 z-10">
+                <div className="absolute -bottom-1 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/30 z-10 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
                   <span className="text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
                 </div>
               )}
@@ -95,7 +94,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           );
         if (tile.name === 'Go to prison')
           return (
-            <div className="flex flex-col items-center justify-center h-full w-full bg-[#1e1c28]">
+            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1e1c28] to-[#181520]">
               <Skull size={34} className="text-slate-100 drop-shadow-lg mb-1" />
               <span className="text-[10px] text-slate-100 font-bold">Go to prison</span>
             </div>
@@ -115,7 +114,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
     if (tile.buildingCount === 5) {
       return (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="w-3 h-3 bg-rose-600 border border-black/40 rounded-sm shadow-md flex items-center justify-center">
+          <div className="w-3.5 h-3.5 bg-rose-600 border border-black/40 rounded-sm shadow-lg flex items-center justify-center shadow-rose-500/30">
             <div className="w-[70%] h-[30%] bg-white/30 rounded-full" />
           </div>
         </div>
@@ -126,9 +125,9 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         {[...Array(tile.buildingCount)].map((_, i) => (
           <div
             key={i}
-            className="w-1.5 h-1.5 bg-emerald-500 border border-black/40 rounded-xs flex items-center justify-center"
+            className="w-2 h-2 bg-emerald-500 border border-black/40 rounded-xs flex items-center justify-center shadow-sm shadow-emerald-500/20"
           >
-            <div className="w-[60%] h-[60%] bg-white/20 rounded-full" />
+            <div className="w-[60%] h-[60%] bg-white/25 rounded-full" />
           </div>
         ))}
       </div>
@@ -141,9 +140,9 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       className={`
         relative w-full h-full flex items-center justify-center
         ${isCorner ? 'bg-[#21262d] rounded-[4px]' : 'bg-[#2a303c] rounded-[4px]'}
-        transition-all cursor-pointer select-none
-        hover:bg-[#323946] group
-        ${isCurrent ? 'ring-2 ring-indigo-500 z-50 shadow-2xl scale-[1.01]' : ''}
+        transition-all duration-200 cursor-pointer select-none
+        hover:bg-[#323946] hover:brightness-110 group
+        ${isCurrent ? 'ring-2 ring-indigo-500 z-50 shadow-[0_0_20px_rgba(99,102,241,0.3)] scale-[1.01]' : ''}
         ${isOwned && !isCorner ? 'hover:ring-2 hover:ring-white/30 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-[1.02] hover:z-30 transition-transform duration-300' : ''}
         ${isMonopoly && tile.buildingCount > 0 ? 'ring-1 ring-amber-400/50 shadow-[inset_0_0_15px_rgba(251,191,36,0.3)]' : ''}
       `}
@@ -203,7 +202,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
               >
                 {tile.name && (
                   <span
-                    className="max-w-[50px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[7px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
+                    className="max-w-[55px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[7px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
                     style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
                   >
                     {tile.name}
@@ -235,6 +234,8 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
                 borderRightWidth: isRight ? '1px' : 0,
               }}
             >
+              {/* Subtle gradient overlay for depth */}
+              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
               {isProp && renderBuildings()}
             </div>
           </div>
@@ -255,9 +256,11 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           >
             <div style={{ transform: isLeft || isRight ? (isLeft ? 'rotate(-90deg)' : 'rotate(90deg)') : 'none' }}>
               <img
-                src={`https://flagcdn.com/w20/${tile.countryCode}.png`}
+                src={`https://flagcdn.com/w40/${tile.countryCode}.png`}
+                srcSet={`https://flagcdn.com/w80/${tile.countryCode}.png 2x`}
                 alt={tile.countryCode}
-                className="w-[20px] h-[16px] object-cover rounded-[2px] shadow-sm border border-white/20"
+                className="w-[20px] h-[16px] object-cover rounded-[2px] shadow-md border border-white/25"
+                loading="lazy"
               />
             </div>
           </div>
@@ -266,7 +269,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         {/* Owner Color Overlay */}
         {ownerColor && !tile.isMortgaged && (
           <div
-            className="absolute pointer-events-none opacity-30 inset-0 z-0"
+            className="absolute pointer-events-none opacity-25 inset-0 z-0 transition-opacity duration-300"
             style={{ backgroundColor: ownerColor }}
           />
         )}
@@ -282,10 +285,14 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
                     layoutId={`player-${p.id}`}
                     transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                     key={p.id}
-                    className={`relative ${isCurrentPiece ? 'animate-pulse' : ''}`}
+                    className={`relative ${isCurrentPiece ? '' : ''}`}
                   >
                     {isCurrentPiece && (
-                      <div className="absolute inset-0 bg-white/50 blur-md rounded-full scale-150" />
+                      <motion.div
+                        className="absolute inset-0 bg-white/40 blur-md rounded-full scale-150"
+                        animate={{ opacity: [0.3, 0.6, 0.3] }}
+                        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                      />
                     )}
                     {/* BUG-10: Jailed players show lock badge to distinguish from just-visiting */}
                     <div className="relative">

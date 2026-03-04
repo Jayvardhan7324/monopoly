@@ -51,9 +51,10 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
         }}
       >
         {/* Central Area for Controls/HUD */}
-        <div className="col-start-2 col-end-11 row-start-2 row-end-11 bg-[#121721] relative flex flex-col overflow-hidden">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_#2a303c_0%,_transparent_80%)] opacity-20 pointer-events-none"></div>
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+        <div className="col-start-2 col-end-11 row-start-2 row-end-11 bg-[#0f1420] relative flex flex-col overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1e2640_0%,_#0f1420_60%,_#0a0e18_100%)] opacity-80 pointer-events-none"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,_rgba(0,0,0,0.4)_100%)] pointer-events-none"></div>
           <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
             <div
               className="relative flex flex-col items-center justify-center w-full h-full"

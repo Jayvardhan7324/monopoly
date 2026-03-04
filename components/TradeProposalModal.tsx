@@ -8,6 +8,7 @@ interface TradeProposalModalProps {
   trade: TradeOffer;
   players: Player[];
   tiles: Tile[];
+  myPlayerId: number;
   onAccept: () => void;
   onDecline: () => void;
 }
@@ -16,6 +17,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   trade,
   players,
   tiles,
+  myPlayerId,
   onAccept,
   onDecline
 }) => {

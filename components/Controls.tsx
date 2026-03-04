@@ -72,6 +72,8 @@ export const Controls: React.FC<ControlsProps> = ({
 
   const canBuy = currentTile.price > 0 && currentPlayer.money >= currentTile.price && currentTile.ownerId === null;
 
+  const myPlayer = gameState.players.find(p => p.id === myPlayerId);
+
   return (
     <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative">
       <div className="flex-1 flex flex-col gap-4 relative min-h-0 w-full animate-fade-in p-2">
@@ -92,7 +94,7 @@ export const Controls: React.FC<ControlsProps> = ({
                 ${gameState.auction.currentBid}
               </div>
               {gameState.auction.highestBidderId !== null && (
-                <div className={`flex items-center gap-3 mt-4 px-4 py-2 rounded-2xl border transition-all duration-300 ${gameState.auction.highestBidderId === 0 ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/80 border-white/10'}`}>
+                <div className={`flex items-center gap-3 mt-4 px-4 py-2 rounded-2xl border transition-all duration-300 ${gameState.auction.highestBidderId === myPlayerId ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-800/80 border-white/10'}`}>
                   <span className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">Highest Bidder</span>
                   <div className="flex items-center gap-2">
                     <Avatar
@@ -100,9 +102,9 @@ export const Controls: React.FC<ControlsProps> = ({
                       color={gameState.players.find(p => p.id === gameState.auction?.highestBidderId)?.color || ''}
                       className="w-5 h-5"
                     />
-                    <span className={`text-sm font-black uppercase tracking-tight ${gameState.auction.highestBidderId === 0 ? 'text-emerald-400' : 'text-white'}`}>
+                    <span className={`text-sm font-black uppercase tracking-tight ${gameState.auction.highestBidderId === myPlayerId ? 'text-emerald-400' : 'text-white'}`}>
                       {gameState.players.find(p => p.id === gameState.auction?.highestBidderId)?.name}
-                      {gameState.auction.highestBidderId === 0 && ' (YOU)'}
+                      {gameState.auction.highestBidderId === myPlayerId && ' (YOU)'}
                     </span>
                   </div>
                 </div>
@@ -111,16 +113,16 @@ export const Controls: React.FC<ControlsProps> = ({
 
             <div className="w-full max-w-sm flex gap-4 mb-6">
               <button
-                onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: 0, amount: (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT } })}
-                disabled={gameState.players[0].money < (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT || gameState.players[0].isBankrupt}
+                onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: myPlayerId, amount: (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT } })}
+                disabled={(myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT || (myPlayer?.isBankrupt ?? false)}
                 className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-indigo-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center gap-1 group"
               >
                 <span className="text-[10px] opacity-60 font-bold uppercase tracking-widest group-hover:opacity-100 transition-opacity">Min Bid</span>
                 <span>+${GAME_CONSTANTS.MIN_AUCTION_INCREMENT}</span>
               </button>
               <button
-                onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: 0, amount: (gameState.auction?.currentBid || 0) + 20 } })}
-                disabled={gameState.players[0].money < (gameState.auction?.currentBid || 0) + 20 || gameState.players[0].isBankrupt}
+                onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: myPlayerId, amount: (gameState.auction?.currentBid || 0) + 20 } })}
+                disabled={(myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + 20 || (myPlayer?.isBankrupt ?? false)}
                 className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-emerald-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center gap-1 group"
               >
                 <span className="text-[10px] opacity-60 font-bold uppercase tracking-widest group-hover:opacity-100 transition-opacity">Aggressive</span>
@@ -148,19 +150,29 @@ export const Controls: React.FC<ControlsProps> = ({
         {/* Main action */}
         <div className="flex-1 flex flex-col justify-center items-center relative py-2 overflow-hidden">
           {gameState.winnerId !== null ? (
-            <div className="flex flex-col items-center gap-4 animate-slide-up text-center">
-              <Trophy size={60} className="text-amber-400 animate-bounce mb-2" />
-              <h1 className="text-5xl font-black text-white tracking-tighter uppercase">Empire Restored</h1>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.2 }}
+              className="flex flex-col items-center gap-4 text-center"
+            >
+              <motion.div
+                animate={{ y: [0, -10, 0], rotate: [0, 5, -5, 0] }}
+                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+              >
+                <Trophy size={60} className="text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]" />
+              </motion.div>
+              <h1 className="text-5xl font-black text-white tracking-tighter uppercase bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent">Empire Restored</h1>
               <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">
                 {gameState.players.find(p => p.id === gameState.winnerId)?.name} is the last one standing
               </p>
               <button
                 onClick={() => window.location.reload()}
-                className="mt-6 px-10 py-4 bg-white text-black rounded-xl font-black text-lg hover:bg-slate-200 transition-all uppercase tracking-tight"
+                className="mt-6 px-10 py-4 bg-gradient-to-r from-white to-slate-100 text-slate-900 rounded-xl font-black text-lg hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all uppercase tracking-tight active:scale-95"
               >
                 New Empire
               </button>
-            </div>
+            </motion.div>
           ) : (
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
@@ -172,7 +184,12 @@ export const Controls: React.FC<ControlsProps> = ({
 
                   {gameState.phase === 'ROLL' && !currentPlayer.isBot && (
                     currentPlayer.inJail ? (
-                      <div className="flex flex-col items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500 bg-slate-950/80 p-6 rounded-3xl border border-rose-500/30 shadow-[0_0_50px_rgba(244,63,94,0.1)] relative overflow-hidden">
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        className="flex flex-col items-center gap-4 bg-slate-950/80 p-6 rounded-3xl border border-rose-500/30 shadow-[0_0_50px_rgba(244,63,94,0.1)] relative overflow-hidden"
+                      >
                         {/* Jail Bars Background */}
                         <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 15px, #fff 15px, #fff 18px)' }} />
 
@@ -210,14 +227,21 @@ export const Controls: React.FC<ControlsProps> = ({
                             <span>Wait Turn</span>
                           </button>
                         </div>
-                      </div>
+                      </motion.div>
                     ) : (
-                      <button
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={onRoll}
-                        className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-2xl shadow-2xl shadow-indigo-600/30 border border-white/10 active:scale-95 transition-all"
+                        className="px-14 py-6 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 text-white rounded-2xl font-black text-2xl shadow-[0_0_40px_rgba(99,102,241,0.4)] border border-white/10 animate-glow-pulse relative overflow-hidden group"
                       >
-                        ROLL DICE
-                      </button>
+                        {/* Shimmer overlay */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                        <span className="relative z-10">ROLL DICE</span>
+                      </motion.button>
                     )
                   )}
                 </div>
@@ -230,34 +254,45 @@ export const Controls: React.FC<ControlsProps> = ({
                   transition={{ type: 'spring', stiffness: 300, damping: 25 }}
                   className="flex flex-col items-center gap-6 w-full max-w-md"
                 >
-                  <div className="w-full bg-black/90 rounded-2xl p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center">
+                  <div className="w-full bg-black/90 rounded-2xl p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center backdrop-blur-sm">
                     <p className="text-white text-2xl font-medium italic leading-relaxed tracking-tight">
                       "{gameState.logs[0]}"
                     </p>
 
                     {gameState.phase === 'ACTION' && !currentPlayer.isBot && canBuy && (
-                      <div className="mt-8 flex flex-col items-center gap-4">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="mt-8 flex flex-col items-center gap-4"
+                      >
                         <div className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">Market Opportunity</div>
                         <button
                           onClick={onBuy}
-                          className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-lg shadow-xl shadow-emerald-600/20 uppercase tracking-tight active:scale-95"
+                          className="w-full py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-black text-lg shadow-xl shadow-emerald-600/20 uppercase tracking-tight active:scale-95 relative overflow-hidden group"
                         >
-                          BUY PROPERTY for ${currentTile.price}
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                          <span className="relative z-10">BUY PROPERTY for ${currentTile.price}</span>
                         </button>
-                      </div>
+                      </motion.div>
                     )}
 
                     {!currentPlayer.isBot && canUpgrade && (
-                      <div className="mt-8 flex flex-col items-center gap-4 border-t border-white/10 pt-6">
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="mt-8 flex flex-col items-center gap-4 border-t border-white/10 pt-6"
+                      >
                         <div className="text-[11px] font-black text-amber-500 uppercase tracking-[0.3em]">Property Improvement</div>
                         <button
                           onClick={() => onUpgrade(currentTile.id)}
-                          className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-lg shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-3"
+                          className="w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-lg shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-3"
                         >
                           <Hammer size={20} />
                           {currentTile.buildingCount === 4 ? 'Build Hotel' : 'Build House'} (${currentTile.houseCost})
                         </button>
-                      </div>
+                      </motion.div>
                     )}
 
                     {gameState.phase === 'TURN_END' && currentPlayer.isBot && gameState.turnLogs.length > 0 && (
@@ -285,7 +320,12 @@ export const Controls: React.FC<ControlsProps> = ({
                     )}
 
                     {!currentPlayer.isBot && (
-                      <button
+                      <motion.button
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 0.4 }}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           if (gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null) {
                             dispatch({ type: 'START_AUCTION' });
@@ -293,7 +333,7 @@ export const Controls: React.FC<ControlsProps> = ({
                             onEndTurn();
                           }
                         }}
-                        className="w-full mt-8 py-4 bg-slate-100 text-slate-950 rounded-xl font-black text-lg flex items-center justify-center gap-3 hover:bg-white transition-all shadow-[0_10px_30px_rgba(255,255,255,0.1)] active:scale-95 uppercase tracking-tighter"
+                        className="w-full mt-8 py-4 bg-gradient-to-r from-slate-100 to-white text-slate-950 rounded-xl font-black text-lg flex items-center justify-center gap-3 hover:shadow-[0_10px_30px_rgba(255,255,255,0.15)] transition-all uppercase tracking-tighter"
                       >
                         {gameState.phase === 'ACTION'
                           ? gameState.settings.rules.auctionEnabled
@@ -301,7 +341,7 @@ export const Controls: React.FC<ControlsProps> = ({
                             : 'SKIP TRANSACTION'
                           : 'FINISH TURN'}
                         <ArrowRight size={20} />
-                      </button>
+                      </motion.button>
                     )}
                   </div>
                 </motion.div>
