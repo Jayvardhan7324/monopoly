@@ -267,7 +267,13 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static("dist"));
+    const path = await import("path");
+    const distPath = path.default.resolve(process.cwd(), "dist");
+    app.use(express.static(distPath));
+    // SPA fallback: serve index.html for all non-API routes
+    app.get("*", (req, res) => {
+      res.sendFile(path.default.resolve(distPath, "index.html"));
+    });
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
