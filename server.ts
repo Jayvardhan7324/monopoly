@@ -24,98 +24,159 @@ async function startServer() {
     }
   });
 
+  app.use(express.json());
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
 
-  // Socket.io logic
   const rooms = new Map<string, RoomData>();
 
-  io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+  function getPublicRoomsList() {
+    const publicRooms: any[] = [];
+    for (const [id, room] of rooms.entries()) {
+      // Only list rooms that are: public, not started, and not full
+      if (!room.isPrivate && !room.state) {
+        publicRooms.push({
+          roomId: id,
+          hostName: room.hostName,
+          playerCount: room.players.length,
+          maxPlayers: room.maxPlayers,
+          createdAt: room.createdAt,
+        });
+      }
+    }
+    // Sort by newest first
+    publicRooms.sort((a, b) => b.createdAt - a.createdAt);
+    return publicRooms;
+  }
 
-    socket.on("create_room", (data, callback) => {
+  // REST API: List active public rooms
+  app.get("/api/rooms", (req, res) => {
+    res.json(getPublicRoomsList());
+  });
+
+  // REST API: Create a room
+  app.post("/api/rooms", (req, res) => {
+    const data = req.body;
+    const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+    const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: true };
+    rooms.set(roomId, {
+      host: playerId, // Will be updated to socket.id when they connect
+      hostName: data.name || 'Player',
+      players: [player],
+      state: null,
+      isPrivate: data.isPrivate || false,
+      maxPlayers: data.maxPlayers || 5,
+      createdAt: Date.now(),
+    });
+
+    // Broadcast updated room list to everyone (via socket)
+    io.emit("rooms_list", getPublicRoomsList());
+    res.json({ success: true, roomId, playerId, players: [player] });
+  });
+
+  // REST API: Join a random room
+  app.post("/api/rooms/random", (req, res) => {
+    const data = req.body;
+    // Find a room that is not full, not private, and hasn't started
+    let targetRoomId = null;
+    for (const [id, room] of rooms.entries()) {
+      if (!room.state && !room.isPrivate && room.players.length < room.maxPlayers) {
+        targetRoomId = id;
+        break;
+      }
+    }
+
+    if (targetRoomId) {
+      const room = rooms.get(targetRoomId)!;
+      const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+      const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: false };
+      room.players.push(player);
+      // We don't broadcast room_updated here because socket isn't connected yet.
+      // We will broadcast when they actually connect their socket.
+      res.json({ success: true, roomId: targetRoomId, playerId, players: room.players });
+    } else {
+      // Create a new room
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: true };
+      const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+      const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: true };
       rooms.set(roomId, {
-        host: socket.id,
+        host: playerId,
         hostName: data.name || 'Player',
         players: [player],
         state: null,
-        isPrivate: data.isPrivate || false,
-        maxPlayers: data.maxPlayers || 5,
+        isPrivate: false,
+        maxPlayers: 5,
         createdAt: Date.now(),
       });
-      socket.join(roomId);
-      callback({ success: true, roomId, players: [player] });
-
-      // Broadcast updated room list to everyone
       io.emit("rooms_list", getPublicRoomsList());
-    });
+      res.json({ success: true, roomId, playerId, players: [player] });
+    }
+  });
 
-    socket.on("list_rooms", (callback) => {
-      if (typeof callback === 'function') {
-        callback(getPublicRoomsList());
-      }
-    });
+  // REST API: Join a specific room
+  app.post("/api/rooms/:id/join", (req, res) => {
+    const roomId = req.params.id;
+    const data = req.body;
+    const room = rooms.get(roomId);
 
-    socket.on("join_random_room", (data, callback) => {
-      // Find a room that is not full, not private, and hasn't started
-      let targetRoomId = null;
-      for (const [id, room] of rooms.entries()) {
-        if (!room.state && !room.isPrivate && room.players.length < room.maxPlayers) {
-          targetRoomId = id;
-          break;
-        }
-      }
+    if (!room) {
+      return res.status(404).json({ success: false, error: "Room not found" });
+    }
+    if (room.state) {
+      return res.status(400).json({ success: false, error: "Game already started" });
+    }
+    if (room.players.length >= room.maxPlayers) {
+      return res.status(400).json({ success: false, error: "Room is full" });
+    }
 
-      if (targetRoomId) {
-        const room = rooms.get(targetRoomId)!;
-        const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: false };
-        room.players.push(player);
-        socket.join(targetRoomId);
-        io.to(targetRoomId).emit("room_updated", { players: room.players });
-        callback({ success: true, roomId: targetRoomId, players: room.players });
-      } else {
-        // Create a new room
-        const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-        const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: true };
-        rooms.set(roomId, {
-          host: socket.id,
-          hostName: data.name || 'Player',
-          players: [player],
-          state: null,
-          isPrivate: false,
-          maxPlayers: 5,
-          createdAt: Date.now(),
-        });
-        socket.join(roomId);
-        callback({ success: true, roomId, players: [player] });
-      }
+    const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+    const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: false };
+    room.players.push(player);
 
-      // Broadcast updated room list
-      io.emit("rooms_list", getPublicRoomsList());
-    });
+    io.emit("rooms_list", getPublicRoomsList());
+    res.json({ success: true, roomId: roomId, playerId, players: room.players });
+  });
 
-    socket.on("join_room", (data, callback) => {
-      const room = rooms.get(data.roomId);
+  // Socket.io logic
+  io.on("connection", (socket) => {
+    console.log("Client connected:", socket.id);
+
+    // Initial connection linking REST session to Socket
+    socket.on("join_session", (data, callback) => {
+      const { roomId, playerId } = data;
+      const room = rooms.get(roomId);
+
       if (!room) {
-        return callback({ success: false, error: "Room not found" });
+        if (callback) callback({ success: false, error: "Room not found" });
+        return;
       }
-      if (room.state) {
-        return callback({ success: false, error: "Game already started" });
-      }
-      if (room.players.length >= room.maxPlayers) {
-        return callback({ success: false, error: "Room is full" });
-      }
-      const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: false };
-      room.players.push(player);
-      socket.join(data.roomId);
-      io.to(data.roomId).emit("room_updated", { players: room.players });
-      callback({ success: true, roomId: data.roomId, players: room.players });
 
-      // Broadcast updated room list
-      io.emit("rooms_list", getPublicRoomsList());
+      // Find the player placeholder created by the REST API
+      const playerIndex = room.players.findIndex(p => p.id === playerId);
+
+      if (playerIndex === -1) {
+        if (callback) callback({ success: false, error: "Player session not found in room" });
+        return;
+      }
+
+      // Update the placeholder player ID to the actual socket ID
+      const oldPlayerId = room.players[playerIndex].id;
+      room.players[playerIndex].id = socket.id;
+
+      // If they were the host, update the room host reference
+      if (room.host === oldPlayerId) {
+        room.host = socket.id;
+      }
+
+      socket.join(roomId);
+
+      // Tell everyone in the room there's an update (like someone actually appeared online)
+      io.to(roomId).emit("room_updated", { players: room.players });
+
+      if (callback) callback({ success: true, players: room.players });
     });
 
     socket.on("update_player", (data, callback) => {
@@ -240,25 +301,6 @@ async function startServer() {
       io.emit("rooms_list", getPublicRoomsList());
     });
   });
-
-  function getPublicRoomsList() {
-    const publicRooms: any[] = [];
-    for (const [id, room] of rooms.entries()) {
-      // Only list rooms that are: public, not started, and not full
-      if (!room.isPrivate && !room.state) {
-        publicRooms.push({
-          roomId: id,
-          hostName: room.hostName,
-          playerCount: room.players.length,
-          maxPlayers: room.maxPlayers,
-          createdAt: room.createdAt,
-        });
-      }
-    }
-    // Sort by newest first
-    publicRooms.sort((a, b) => b.createdAt - a.createdAt);
-    return publicRooms;
-  }
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

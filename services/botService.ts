@@ -3,7 +3,7 @@
  * IMP-11: All bot decision logic extracted from App.tsx into a dedicated service.
  * Enhanced with strategic buying, smarter trade proposals, and personality-driven decisions.
  */
-import { GameState, AuctionState, BotPersonalityType, TileType, ColorGroup } from '../types';
+import { GameState, AuctionState, BotPersonalityType, TileType, ColorGroup, Tile } from '../types';
 import { GAME_CONSTANTS } from '../constants';
 
 export type BotAction =
@@ -515,9 +515,9 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
 /**
  * Get all monopoly groups for a player
  */
-function getPlayerMonopolies(playerId: number, gameState: GameState): typeof gameState.tiles[][] {
+function getPlayerMonopolies(playerId: number, gameState: GameState): Tile[][] {
   const myTiles = gameState.tiles.filter(t => t.ownerId === playerId && t.type === TileType.PROPERTY);
-  const groups = new Map<string, typeof gameState.tiles>();
+  const groups = new Map<string, Tile[]>();
 
   for (const tile of myTiles) {
     if (tile.group === ColorGroup.NONE) continue;

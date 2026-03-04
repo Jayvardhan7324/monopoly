@@ -43,6 +43,7 @@ const App: React.FC = () => {
   // Multiplayer state
   const [isOnline, setIsOnline] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
+  const [sessionPlayerId, setSessionPlayerId] = useState<string | null>(null);
   const [isHost, setIsHost] = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
@@ -94,7 +95,8 @@ const App: React.FC = () => {
 
   // ── Multiplayer Socket Setup ───────────────────────────────────────────────
   useEffect(() => {
-    const socket = initSocket();
+    if (!roomId || !sessionPlayerId) return;
+    const socket = initSocket(roomId, sessionPlayerId);
 
     const handleRoomUpdated = (data: any) => {
       setLobbyPlayers(data.players);
@@ -160,7 +162,7 @@ const App: React.FC = () => {
       socket.off("chat_message", handleChatMessage);
       socket.off("rooms_list");
     };
-  }, [isHost]);
+  }, [isHost, roomId, sessionPlayerId]);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -305,63 +307,82 @@ const App: React.FC = () => {
     }
   };
 
-  const createRoom = (isPrivate = false) => {
-    const socket = getSocket();
-    if (socket) {
-      socket.emit("create_room", { name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }, (res: any) => {
-        if (res.success) {
-          setIsOnline(true);
-          setRoomId(res.roomId);
-          setIsHost(true);
-          setLobbyPlayers(res.players);
-          setShowRoomBrowser(false);
-          if (isPrivate) {
-            setSettings(prev => ({ ...prev, isPrivate: true }));
-          }
+  const createRoom = async (isPrivate = false) => {
+    try {
+      const res = await fetch("/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }),
+      }).then(r => r.json());
+
+      if (res.success) {
+        setIsOnline(true);
+        setRoomId(res.roomId);
+        setSessionPlayerId(res.playerId);
+        setIsHost(true);
+        setLobbyPlayers(res.players);
+        setShowRoomBrowser(false);
+        if (isPrivate) {
+          setSettings(prev => ({ ...prev, isPrivate: true }));
         }
-      });
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const joinRoom = () => {
-    if (!joinRoomId) return;
-    const socket = getSocket();
-    if (socket) {
-      socket.emit("join_room", { roomId: joinRoomId, name: humanName, avatar: selectedAvatar }, (res: any) => {
-        if (res.success) {
-          setIsOnline(true);
-          setRoomId(res.roomId);
-          setIsHost(false);
-          setLobbyPlayers(res.players);
-        } else {
-          alert(res.error);
-        }
-      });
+  const joinRoom = async (specificRoomId: string = joinRoomId) => {
+    if (!specificRoomId) return;
+    try {
+      const res = await fetch(`/api/rooms/${specificRoomId}/join`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
+      }).then(r => r.json());
+
+      if (res.success) {
+        setIsOnline(true);
+        setRoomId(res.roomId);
+        setSessionPlayerId(res.playerId);
+        setIsHost(false);
+        setLobbyPlayers(res.players);
+        setShowRoomBrowser(false);
+      } else {
+        alert(res.error || "Failed to join room");
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const joinRandomRoom = () => {
-    const socket = getSocket();
-    if (socket) {
-      socket.emit("join_random_room", { name: humanName, avatar: selectedAvatar }, (res: any) => {
-        if (res.success) {
-          setIsOnline(true);
-          setRoomId(res.roomId);
-          setIsHost(res.players.find((p: any) => p.id === socket.id)?.isHost || false);
-          setLobbyPlayers(res.players);
-        } else {
-          alert(res.error);
-        }
-      });
+  const joinRandomRoom = async () => {
+    try {
+      const res = await fetch("/api/rooms/random", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
+      }).then(r => r.json());
+
+      if (res.success) {
+        setIsOnline(true);
+        setRoomId(res.roomId);
+        setSessionPlayerId(res.playerId);
+        setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
+        setLobbyPlayers(res.players);
+      } else {
+        alert(res.error || "Failed to join random room");
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
-  const fetchRooms = () => {
-    const socket = getSocket();
-    if (socket) {
-      socket.emit("list_rooms", (rooms: any[]) => {
-        setActiveRooms(rooms);
-      });
+  const fetchRooms = async () => {
+    try {
+      const rooms = await fetch("/api/rooms").then(r => r.json());
+      setActiveRooms(rooms);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -857,22 +878,7 @@ const App: React.FC = () => {
                           <button
                             onClick={() => {
                               setJoinRoomId(room.roomId);
-                              setTimeout(() => {
-                                const socket = getSocket();
-                                if (socket) {
-                                  socket.emit("join_room", { roomId: room.roomId, name: humanName, avatar: selectedAvatar }, (res: any) => {
-                                    if (res.success) {
-                                      setIsOnline(true);
-                                      setRoomId(res.roomId);
-                                      setIsHost(false);
-                                      setLobbyPlayers(res.players);
-                                      setShowRoomBrowser(false);
-                                    } else {
-                                      alert(res.error);
-                                    }
-                                  });
-                                }
-                              }, 0);
+                              joinRoom(room.roomId);
                             }}
                             className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-sm transition-all active:scale-95 shrink-0 shadow-lg shadow-indigo-500/20"
                           >
