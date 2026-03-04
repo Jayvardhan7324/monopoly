@@ -3,6 +3,16 @@ import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { createServer as createViteServer } from "vite";
 
+interface RoomData {
+  host: string;
+  hostName: string;
+  players: any[];
+  state: any;
+  isPrivate: boolean;
+  maxPlayers: number;
+  createdAt: number;
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -19,7 +29,7 @@ async function startServer() {
   });
 
   // Socket.io logic
-  const rooms = new Map<string, { host: string; players: any[]; state: any }>();
+  const rooms = new Map<string, RoomData>();
 
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
@@ -27,16 +37,33 @@ async function startServer() {
     socket.on("create_room", (data, callback) => {
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: true };
-      rooms.set(roomId, { host: socket.id, players: [player], state: null });
+      rooms.set(roomId, {
+        host: socket.id,
+        hostName: data.name || 'Player',
+        players: [player],
+        state: null,
+        isPrivate: data.isPrivate || false,
+        maxPlayers: data.maxPlayers || 5,
+        createdAt: Date.now(),
+      });
       socket.join(roomId);
       callback({ success: true, roomId, players: [player] });
+
+      // Broadcast updated room list to everyone
+      io.emit("rooms_list", getPublicRoomsList());
+    });
+
+    socket.on("list_rooms", (callback) => {
+      if (typeof callback === 'function') {
+        callback(getPublicRoomsList());
+      }
     });
 
     socket.on("join_random_room", (data, callback) => {
-      // Find a room that is not full and hasn't started
+      // Find a room that is not full, not private, and hasn't started
       let targetRoomId = null;
       for (const [id, room] of rooms.entries()) {
-        if (!room.state && room.players.length < 5) {
+        if (!room.state && !room.isPrivate && room.players.length < room.maxPlayers) {
           targetRoomId = id;
           break;
         }
@@ -53,10 +80,21 @@ async function startServer() {
         // Create a new room
         const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
         const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: true };
-        rooms.set(roomId, { host: socket.id, players: [player], state: null });
+        rooms.set(roomId, {
+          host: socket.id,
+          hostName: data.name || 'Player',
+          players: [player],
+          state: null,
+          isPrivate: false,
+          maxPlayers: 5,
+          createdAt: Date.now(),
+        });
         socket.join(roomId);
         callback({ success: true, roomId, players: [player] });
       }
+
+      // Broadcast updated room list
+      io.emit("rooms_list", getPublicRoomsList());
     });
 
     socket.on("join_room", (data, callback) => {
@@ -67,7 +105,7 @@ async function startServer() {
       if (room.state) {
         return callback({ success: false, error: "Game already started" });
       }
-      if (room.players.length >= 5) {
+      if (room.players.length >= room.maxPlayers) {
         return callback({ success: false, error: "Room is full" });
       }
       const player = { id: socket.id, name: data.name, avatar: data.avatar, isHost: false };
@@ -75,6 +113,9 @@ async function startServer() {
       socket.join(data.roomId);
       io.to(data.roomId).emit("room_updated", { players: room.players });
       callback({ success: true, roomId: data.roomId, players: room.players });
+
+      // Broadcast updated room list
+      io.emit("rooms_list", getPublicRoomsList());
     });
 
     socket.on("update_player", (data, callback) => {
@@ -100,6 +141,9 @@ async function startServer() {
         if (room && room.host === socket.id) {
           room.state = data.initialState;
           io.to(roomId).emit("game_started", { state: data.initialState });
+
+          // Room is now in-game, remove from public list
+          io.emit("rooms_list", getPublicRoomsList());
         }
       }
     });
@@ -116,6 +160,9 @@ async function startServer() {
             io.sockets.sockets.get(kickedPlayer.id)?.leave(roomId);
             io.to(kickedPlayer.id).emit("kicked");
             io.to(roomId).emit("room_updated", { players: room.players });
+
+            // Broadcast updated room list
+            io.emit("rooms_list", getPublicRoomsList());
           }
         }
       }
@@ -126,7 +173,17 @@ async function startServer() {
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id && !room.state) {
+          // Update room-level settings
+          if (data.settings?.isPrivate !== undefined) {
+            room.isPrivate = data.settings.isPrivate;
+          }
+          if (data.settings?.maxPlayers !== undefined) {
+            room.maxPlayers = data.settings.maxPlayers;
+          }
           socket.to(roomId).emit("settings_updated", data.settings);
+
+          // Broadcast updated room list (privacy might have changed)
+          io.emit("rooms_list", getPublicRoomsList());
         }
       }
     });
@@ -173,13 +230,35 @@ async function startServer() {
             if (room.host === socket.id) {
               room.host = room.players[0].id;
               room.players[0].isHost = true;
+              room.hostName = room.players[0].name || 'Player';
             }
             io.to(roomId).emit("room_updated", { players: room.players });
           }
         }
       }
+      // Broadcast updated room list
+      io.emit("rooms_list", getPublicRoomsList());
     });
   });
+
+  function getPublicRoomsList() {
+    const publicRooms: any[] = [];
+    for (const [id, room] of rooms.entries()) {
+      // Only list rooms that are: public, not started, and not full
+      if (!room.isPrivate && !room.state) {
+        publicRooms.push({
+          roomId: id,
+          hostName: room.hostName,
+          playerCount: room.players.length,
+          maxPlayers: room.maxPlayers,
+          createdAt: room.createdAt,
+        });
+      }
+    }
+    // Sort by newest first
+    publicRooms.sort((a, b) => b.createdAt - a.createdAt);
+    return publicRooms;
+  }
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

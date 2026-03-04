@@ -50,6 +50,8 @@ const App: React.FC = () => {
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(11);
   const [showJoinInput, setShowJoinInput] = useState(false);
+  const [showRoomBrowser, setShowRoomBrowser] = useState(false);
+  const [activeRooms, setActiveRooms] = useState<any[]>([]);
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [activeSidebarTab, setActiveSidebarTab] = useState<'logs' | 'chat'>('logs');
@@ -146,6 +148,7 @@ const App: React.FC = () => {
     socket.on("settings_updated", handleSettingsUpdated);
     socket.on("kicked", handleKicked);
     socket.on("chat_message", handleChatMessage);
+    socket.on("rooms_list", (rooms: any[]) => setActiveRooms(rooms));
 
     return () => {
       socket.off("room_updated", handleRoomUpdated);
@@ -155,6 +158,7 @@ const App: React.FC = () => {
       socket.off("settings_updated", handleSettingsUpdated);
       socket.off("kicked", handleKicked);
       socket.off("chat_message", handleChatMessage);
+      socket.off("rooms_list");
     };
   }, [isHost]);
 
@@ -301,15 +305,19 @@ const App: React.FC = () => {
     }
   };
 
-  const createRoom = () => {
+  const createRoom = (isPrivate = false) => {
     const socket = getSocket();
     if (socket) {
-      socket.emit("create_room", { name: humanName, avatar: selectedAvatar }, (res: any) => {
+      socket.emit("create_room", { name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }, (res: any) => {
         if (res.success) {
           setIsOnline(true);
           setRoomId(res.roomId);
           setIsHost(true);
           setLobbyPlayers(res.players);
+          setShowRoomBrowser(false);
+          if (isPrivate) {
+            setSettings(prev => ({ ...prev, isPrivate: true }));
+          }
         }
       });
     }
@@ -347,6 +355,23 @@ const App: React.FC = () => {
       });
     }
   };
+
+  const fetchRooms = () => {
+    const socket = getSocket();
+    if (socket) {
+      socket.emit("list_rooms", (rooms: any[]) => {
+        setActiveRooms(rooms);
+      });
+    }
+  };
+
+  // Auto-refresh rooms when browser is open
+  useEffect(() => {
+    if (!showRoomBrowser) return;
+    fetchRooms();
+    const interval = setInterval(fetchRooms, 5000);
+    return () => clearInterval(interval);
+  }, [showRoomBrowser]);
 
   const updateRule = (key: keyof typeof settings.rules, value: any) => {
     const newSettings = { ...settings, rules: { ...settings.rules, [key]: value } };
@@ -709,47 +734,175 @@ const App: React.FC = () => {
 
               <button
                 onClick={joinRandomRoom}
-                className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)]"
+                className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)] relative overflow-hidden group"
               >
-                <ChevronsRight size={24} /> Play
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                <ChevronsRight size={24} className="relative z-10" /> <span className="relative z-10">Play</span>
               </button>
 
               <div className="flex gap-4 pt-2">
                 <button
-                  onClick={() => setShowJoinInput(!showJoinInput)}
+                  onClick={() => { setShowRoomBrowser(true); fetchRooms(); }}
                   className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Users size={18} /> All rooms
                 </button>
                 <button
-                  onClick={createRoom}
+                  onClick={() => createRoom(true)}
                   className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
                 >
                   <Key size={18} /> Create a private game
                 </button>
               </div>
 
-              {showJoinInput && (
-                <div className="flex gap-2 pt-2 animate-in fade-in slide-in-from-top-2">
-                  <input
-                    type="text"
-                    value={joinRoomId}
-                    onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                    placeholder="ROOM CODE"
-                    maxLength={6}
-                    className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase"
-                  />
-                  <button
-                    onClick={joinRoom}
-                    disabled={!joinRoomId}
-                    className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors"
-                  >
-                    Join
-                  </button>
-                </div>
-              )}
+              <div className="flex gap-2 pt-2">
+                <input
+                  type="text"
+                  value={joinRoomId}
+                  onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                  placeholder="ROOM CODE"
+                  maxLength={6}
+                  className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em]"
+                />
+                <button
+                  onClick={joinRoom}
+                  disabled={!joinRoomId}
+                  className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors"
+                >
+                  Join
+                </button>
+              </div>
             </div>
           </div>
+
+          {/* Room Browser Modal */}
+          <AnimatePresence>
+            {showRoomBrowser && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                onClick={(e) => { if (e.target === e.currentTarget) setShowRoomBrowser(false); }}
+              >
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                  animate={{ scale: 1, opacity: 1, y: 0 }}
+                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  className="bg-[#1e1e24] rounded-2xl border border-slate-800 w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh] overflow-hidden"
+                >
+                  {/* Header */}
+                  <div className="p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
+                        <Globe size={20} className="text-indigo-400" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-white">Active Rooms</h3>
+                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
+                          {activeRooms.length} room{activeRooms.length !== 1 ? 's' : ''} available
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setShowRoomBrowser(false)}
+                      className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {/* Room List */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700">
+                    {activeRooms.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+                          <Users size={28} className="text-slate-600" />
+                        </div>
+                        <h4 className="text-slate-400 font-bold text-lg mb-1">No Active Rooms</h4>
+                        <p className="text-slate-600 text-sm max-w-xs">
+                          No public rooms available right now. Create your own or hit Play to start one automatically!
+                        </p>
+                      </div>
+                    ) : (
+                      activeRooms.map((room, idx) => (
+                        <motion.div
+                          key={room.roomId}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.05 }}
+                          className="bg-[#111116] border border-slate-800 rounded-xl p-4 flex items-center gap-4 hover:border-slate-700 transition-all group"
+                        >
+                          <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400 font-mono font-black text-sm shrink-0">
+                            {room.roomId.slice(0, 2)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-bold text-white truncate">{room.hostName}'s Room</span>
+                              <span className="text-[9px] font-mono text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">{room.roomId}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+                                  style={{ width: `${(room.playerCount / room.maxPlayers) * 100}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-bold text-slate-500 shrink-0">
+                                {room.playerCount}/{room.maxPlayers}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setJoinRoomId(room.roomId);
+                              setTimeout(() => {
+                                const socket = getSocket();
+                                if (socket) {
+                                  socket.emit("join_room", { roomId: room.roomId, name: humanName, avatar: selectedAvatar }, (res: any) => {
+                                    if (res.success) {
+                                      setIsOnline(true);
+                                      setRoomId(res.roomId);
+                                      setIsHost(false);
+                                      setLobbyPlayers(res.players);
+                                      setShowRoomBrowser(false);
+                                    } else {
+                                      alert(res.error);
+                                    }
+                                  });
+                                }
+                              }, 0);
+                            }}
+                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-sm transition-all active:scale-95 shrink-0 shadow-lg shadow-indigo-500/20"
+                          >
+                            Join
+                          </button>
+                        </motion.div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-4 border-t border-slate-800 flex items-center justify-between shrink-0">
+                    <button
+                      onClick={fetchRooms}
+                      className="text-xs text-slate-500 hover:text-slate-300 font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Auto-refreshing
+                    </button>
+                    <button
+                      onClick={() => { setShowRoomBrowser(false); createRoom(false); }}
+                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+                    >
+                      <Play size={14} /> Create Public Room
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       );
     }
