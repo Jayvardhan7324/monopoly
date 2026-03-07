@@ -876,7 +876,7 @@ const App: React.FC = () => {
                   className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em]"
                 />
                 <button
-                  onClick={joinRoom}
+                  onClick={() => joinRoom()}
                   disabled={!joinRoomId}
                   className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors"
                 >

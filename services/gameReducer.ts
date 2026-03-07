@@ -189,7 +189,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
   switch (action.type) {
     // ─── START_GAME ────────────────────────────────────────────────────────────
     case 'SYNC_STATE': {
-      return action.payload;
+      // Defensively ensure votekicks is always an array even if synced state is from an older client
+      return { votekicks: [], ...action.payload };
     }
 
     case 'START_GAME': {
