@@ -46,7 +46,7 @@ const App: React.FC = () => {
   // FEAT-06: Spectator mode (all bots, no human)
   const [spectatorMode, setSpectatorMode] = useState(false);
 
-  const [humanName, setHumanName] = useState('Player 1');
+  const [humanName, setHumanName] = useState('');
 
   // Multiplayer state
   const [isOnline, setIsOnline] = useState(false);
@@ -839,8 +839,8 @@ const App: React.FC = () => {
                 type="text"
                 value={humanName}
                 onChange={(e) => setHumanName(e.target.value)}
-                className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors"
-                placeholder="Player 1"
+                className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
+                placeholder="Enter name"
               />
 
               <button

@@ -82,8 +82,8 @@ async function startServer() {
 
   function getUniqueName(baseName: string, players: any[]) {
     const stripped = (baseName || '').trim();
-    // Use a gamertag when the player hasn't set a real name
-    let name = (!stripped || stripped.toLowerCase() === 'player') ? generateGamertag() : stripped;
+    // Use a gamertag when the player hasn't set a real name (empty, or default "Player 1", "Player 2", etc.)
+    let name = (!stripped || stripped.toLowerCase().startsWith('player')) ? generateGamertag() : stripped;
     let suffix = 1;
     let finalName = name;
     while (players.some(p => p.name === finalName)) {
