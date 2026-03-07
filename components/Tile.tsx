@@ -17,18 +17,6 @@ interface TileProps {
   taxPool?: number;
 }
 
-const colorMap: Record<ColorGroup, string> = {
-  [ColorGroup.BROWN]: '#78350f',
-  [ColorGroup.LIGHT_BLUE]: '#3b82f6',
-  [ColorGroup.PINK]: '#a855f7',
-  [ColorGroup.ORANGE]: '#f59e0b',
-  [ColorGroup.YELLOW]: '#fbbf24',
-  [ColorGroup.GREEN]: '#10b981',
-  [ColorGroup.DARK_BLUE]: '#1d4ed8',
-  [ColorGroup.RED]: '#ef4444',
-  [ColorGroup.NONE]: '#334155',
-};
-
 export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp = tile.type === ETileType.PROPERTY;
@@ -105,10 +93,6 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
     }
   };
 
-  const baseColor = tile.group !== ColorGroup.NONE ? colorMap[tile.group] : '#334155';
-
-  const buildingFlexDir = isTop || isBottom ? 'flex-row' : 'flex-col';
-
   const renderBuildings = () => {
     if (tile.buildingCount === 0) return null;
     if (tile.buildingCount === 5) {
@@ -120,8 +104,9 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         </div>
       );
     }
+    const flexDir = isTop || isBottom ? 'flex-row' : 'flex-col';
     return (
-      <div className={`absolute inset-0 flex ${buildingFlexDir} items-center justify-center gap-0.5 z-20 pointer-events-none p-0.5`}>
+      <div className={`absolute inset-0 flex ${flexDir} items-end justify-center gap-0.5 z-20 pointer-events-none p-0.5`}>
         {[...Array(tile.buildingCount)].map((_, i) => (
           <div
             key={i}
@@ -148,7 +133,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
       `}
     >
       <div
-        className={`relative flex-shrink-0 w-full h-full`}
+        className="relative flex-shrink-0 w-full h-full"
         style={{
           width: 'calc(100% / var(--board-scale, 1))',
           height: 'calc(100% / var(--board-scale, 1))',
@@ -169,92 +154,78 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
             <div className="absolute inset-0 bg-slate-900/70" />
             <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_4px,rgba(0,0,0,0.35)_4px,rgba(0,0,0,0.35)_8px)]" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-[8px] font-black text-rose-500 uppercase tracking-widest bg-black/80 px-1 py-0.5 rounded border border-rose-500/50 drop-shadow-2xl`} style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}>
+              <span
+                className="text-[8px] font-black text-rose-500 uppercase tracking-widest bg-black/80 px-1 py-0.5 rounded border border-rose-500/50 drop-shadow-2xl"
+                style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}
+              >
                 MRTG
               </span>
             </div>
           </div>
         )}
 
-        {/* Main Content */}
+        {/* Main Content — flat tile, no color stripe */}
         {!isCorner ? (
-          <div
-            className="absolute inset-0 grid overflow-hidden rounded-[4px]"
-            style={{
-              gridTemplateRows: isTop ? '1fr 20%' : isBottom ? '20% 1fr' : 'none',
-              gridTemplateColumns: isLeft ? '1fr 20%' : isRight ? '20% 1fr' : 'none',
-            }}
-          >
-            {/* Dynamic Content cell */}
+          <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[4px] p-0.5">
             <div
-              className="flex items-center justify-center min-h-0 min-w-0 p-0.5 overflow-hidden"
+              className="flex items-center justify-center gap-[2px] w-full h-full"
               style={{
-                gridRow: isTop ? 1 : isBottom ? 2 : 1,
-                gridColumn: isLeft ? 1 : isRight ? 2 : 1,
+                flexDirection: isBottom ? 'column-reverse' : 'column',
+                transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none'
               }}
             >
-              <div
-                className="flex items-center justify-center gap-[2px] w-full h-full"
-                style={{
-                  flexDirection: isBottom ? 'column-reverse' : 'column',
-                  transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none'
-                }}
-              >
-                {tile.name && (
-                  <span
-                    className="max-w-[55px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[7px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
-                    style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
-                  >
-                    {tile.name}
-                  </span>
-                )}
-                {tile.price > 0 && tile.type !== ETileType.TAX && (
-                  <Badge variant="secondary" className="px-1 py-0 h-[12px] min-h-[12px] mt-[1px] text-[7px] font-black font-mono tracking-tighter shadow-sm border border-slate-300/20 leading-none whitespace-nowrap">
-                    {tile.price} $
-                  </Badge>
-                )}
-                {(!tile.countryCode && getIcon() !== null) && (
-                  <div className="flex items-center justify-center shrink-0 min-h-0 min-w-0">
-                    {getIcon()}
-                  </div>
-                )}
-              </div>
+              {tile.name && (
+                <span
+                  className="max-w-[55px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[7px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+                >
+                  {tile.name}
+                </span>
+              )}
+              {(!tile.countryCode && getIcon() !== null) && (
+                <div className="flex items-center justify-center shrink-0 min-h-0 min-w-0">
+                  {getIcon()}
+                </div>
+              )}
             </div>
-
-            {/* Dynamic color stripe / buildings wrapper */}
-            <div
-              className="relative flex items-center justify-center overflow-hidden border-black/40"
-              style={{
-                gridRow: isTop ? 2 : isBottom ? 1 : 1,
-                gridColumn: isLeft ? 2 : isRight ? 1 : 1,
-                backgroundColor: baseColor,
-                borderTopWidth: isTop ? '1px' : 0,
-                borderBottomWidth: isBottom ? '1px' : 0,
-                borderLeftWidth: isLeft ? '1px' : 0,
-                borderRightWidth: isRight ? '1px' : 0,
-              }}
-            >
-              {/* Subtle gradient overlay for depth */}
-              <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-              {isProp && renderBuildings()}
-            </div>
+            {/* Buildings overlay directly on tile body */}
+            {isProp && renderBuildings()}
           </div>
         ) : (
           <div className="absolute inset-0">{getIcon()}</div>
         )}
 
-        {/* Floating Icons casually overlapping the boundary edge */}
-        {!isCorner && tile.countryCode && (
+        {/* Floating Price Badge — uniformly -8px outside on all four edges */}
+        {!isCorner && tile.price > 0 && tile.type !== ETileType.TAX && (
           <div
-            className="absolute z-40 flex items-center justify-center min-w-[22px] min-h-[22px]"
+            className="absolute z-40 flex items-center justify-center pointer-events-none"
             style={{
-              ...(isTop ? { bottom: '-11px', left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(isBottom ? { top: '-11px', left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(isLeft ? { right: '-11px', top: '50%', transform: 'translateY(-50%)' } : {}),
-              ...(isRight ? { left: '-11px', top: '50%', transform: 'translateY(-50%)' } : {})
+              ...(isTop ? { top: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
+              ...(isBottom ? { bottom: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
+              ...(isLeft ? { left: '-8px', top: '50%', transform: 'translateY(-50%)' } : {}),
+              ...(isRight ? { right: '-8px', top: '50%', transform: 'translateY(-50%)' } : {})
             }}
           >
-            <div style={{ transform: isLeft || isRight ? (isLeft ? 'rotate(-90deg)' : 'rotate(90deg)') : 'none' }}>
+            <div style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}>
+              <Badge variant="secondary" className="px-1.5 py-0 h-[15px] min-h-[15px] text-[8.5px] font-black font-mono tracking-tighter shadow-md border border-slate-700/50 leading-none whitespace-nowrap bg-[#1a1f2e] text-slate-200 hover:bg-[#1a1f2e] cursor-default">
+                ${tile.price}
+              </Badge>
+            </div>
+          </div>
+        )}
+
+        {/* Floating Flag Icons — uniformly -8px inside the board on all four edges */}
+        {!isCorner && tile.countryCode && (
+          <div
+            className="absolute z-40 flex items-center justify-center pointer-events-none"
+            style={{
+              ...(isTop ? { bottom: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
+              ...(isBottom ? { top: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
+              ...(isLeft ? { right: '-8px', top: '50%', transform: 'translateY(-50%)' } : {}),
+              ...(isRight ? { left: '-8px', top: '50%', transform: 'translateY(-50%)' } : {})
+            }}
+          >
+            <div style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}>
               <img
                 src={`https://flagcdn.com/w40/${tile.countryCode}.png`}
                 srcSet={`https://flagcdn.com/w80/${tile.countryCode}.png 2x`}
@@ -266,11 +237,19 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           </div>
         )}
 
-        {/* Owner Color Overlay */}
+        {/* Owner Color Strip — 4px inset on the inner board-facing edge */}
         {ownerColor && !tile.isMortgaged && (
           <div
-            className="absolute pointer-events-none opacity-25 inset-0 z-0 transition-opacity duration-300"
-            style={{ backgroundColor: ownerColor }}
+            className="absolute pointer-events-none z-10 inset-0 rounded-[4px] transition-all duration-300"
+            style={{
+              boxShadow: isTop
+                ? `inset 0 -4px 0 0 ${ownerColor}`
+                : isBottom
+                  ? `inset 0 4px 0 0 ${ownerColor}`
+                  : isLeft
+                    ? `inset -4px 0 0 0 ${ownerColor}`
+                    : `inset 4px 0 0 0 ${ownerColor}`
+            }}
           />
         )}
 
@@ -278,39 +257,34 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
         {players.length > 0 && (
           <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none p-1">
             <div className="flex flex-wrap gap-0.5 justify-center max-w-full">
-              {players.map(p => {
-                const isCurrentPiece = isCurrent;
-                return (
-                  <motion.div
-                    layoutId={`player-${p.id}`}
-                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                    key={p.id}
-                    className={`relative ${isCurrentPiece ? '' : ''}`}
-                  >
-                    {isCurrentPiece && (
-                      <motion.div
-                        className="absolute inset-0 bg-white/40 blur-md rounded-full scale-150"
-                        animate={{ opacity: [0.3, 0.6, 0.3] }}
-                        transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-                      />
+              {players.map(p => (
+                <motion.div
+                  layoutId={`player-${p.id}`}
+                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  key={p.id}
+                  className="relative"
+                >
+                  {isCurrent && (
+                    <motion.div
+                      className="absolute inset-0 bg-white/40 blur-md rounded-full scale-150"
+                      animate={{ opacity: [0.3, 0.6, 0.3] }}
+                      transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                    />
+                  )}
+                  <div className="relative">
+                    <Avatar
+                      avatarId={p.avatarId}
+                      color={p.color}
+                      isBankrupt={p.isBankrupt}
+                      inJail={p.inJail}
+                      className="w-6 h-6 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10"
+                    />
+                    {p.inJail && tile.id === 10 && (
+                      <div className="absolute -inset-0.5 rounded-full border-2 border-rose-500 animate-pulse z-20 pointer-events-none" />
                     )}
-                    {/* BUG-10: Jailed players show lock badge to distinguish from just-visiting */}
-                    <div className="relative">
-                      <Avatar
-                        avatarId={p.avatarId}
-                        color={p.color}
-                        isBankrupt={p.isBankrupt}
-                        inJail={p.inJail}
-                        className="w-6 h-6 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10"
-                      />
-                      {/* BUG-10: Extra ring for jailed players so they stand out from visitors */}
-                      {p.inJail && tile.id === 10 && (
-                        <div className="absolute -inset-0.5 rounded-full border-2 border-rose-500 animate-pulse z-20 pointer-events-none" />
-                      )}
-                    </div>
-                  </motion.div>
-                );
-              })}
+                  </div>
+                </motion.div>
+              ))}
             </div>
           </div>
         )}

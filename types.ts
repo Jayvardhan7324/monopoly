@@ -113,6 +113,12 @@ export interface TradeOffer {
   requestCash: number;
 }
 
+export interface VotekickState {
+  targetId: number;
+  voterIds: number[];
+  expiresAt: number;
+}
+
 export interface GameState {
   players: Player[];
   tiles: Tile[];
@@ -130,6 +136,7 @@ export interface GameState {
   settings: GameSettings;
   auction: AuctionState | null;
   pendingTrade: TradeOffer | null;
+  votekicks: VotekickState[];
 }
 
 export interface LogEntry {

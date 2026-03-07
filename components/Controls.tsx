@@ -13,6 +13,7 @@ import { GAME_CONSTANTS } from '../constants';
 interface ControlsProps {
   gameState: GameState;
   myPlayerId: number;
+  logs?: string[];
   onRoll: () => void;
   onBuy: () => void;
   onEndTurn: () => void;
@@ -36,7 +37,7 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const Controls: React.FC<ControlsProps> = ({
-  gameState, myPlayerId, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer,
+  gameState, myPlayerId, logs, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer,
 }) => {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
@@ -347,6 +348,28 @@ export const Controls: React.FC<ControlsProps> = ({
                 </motion.div>
               )}
             </>
+          )}
+          {/* Activity Feed — board center overlay; hidden when Roll Dice button is showing */}
+          {logs && logs.length > 0 && !(gameState.phase === 'ROLL' && !currentPlayer.isBot) && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[80%] max-w-[380px] z-50 pointer-events-none space-y-1">
+              <AnimatePresence mode="popLayout">
+                {logs.slice(0, 6).map((log, i) => (
+                  <motion.div
+                    key={`${i}-${log}`}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1 - i * 0.15, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.3 }}
+                    className={`text-[9px] font-semibold text-center px-3 py-1 rounded-full backdrop-blur-sm shadow-md border
+                    ${i === 0
+                        ? 'text-indigo-200 bg-indigo-950/80 border-indigo-500/30'
+                        : 'text-slate-400 bg-slate-950/70 border-slate-700/30'}`}
+                  >
+                    {log}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           )}
         </div>
       </div>

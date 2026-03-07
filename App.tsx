@@ -11,7 +11,7 @@ import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag
 } from 'lucide-react';
 import { playSound } from './services/audioService';
 import {
@@ -21,6 +21,14 @@ import {
 import { Avatar, APPEARANCE_COLORS } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
 import { Label } from './components/ui/label';
+import { Button } from './components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket } from './services/socketService';
 
@@ -188,6 +196,7 @@ const App: React.FC = () => {
 
   // Intercept dispatch for online play
   const handleDispatch = (action: any) => {
+    if (action.type === 'BUY_PROPERTY') sfx('buy');
     if (isOnline && !isHost) {
       const socket = getSocket();
       if (socket) {
@@ -214,6 +223,16 @@ const App: React.FC = () => {
     }
     return () => clearTimeout(timer);
   }, [gameState.phase, gameStarted, gameState.winnerId, gameState.currentPlayerIndex]);
+
+  // ── Timer loop for active Votekicks ─────────────────────────────────────────
+  useEffect(() => {
+    if (gameState.votekicks && gameState.votekicks.length > 0) {
+      const interval = setInterval(() => {
+        handleDispatch({ type: 'CHECK_VOTEKICKS' });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [gameState.votekicks?.length, gameStarted]);
 
   // ── Auction timer ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -342,8 +361,9 @@ const App: React.FC = () => {
 
   const joinRoom = async (specificRoomId: string = joinRoomId) => {
     if (!specificRoomId) return;
+    const cleanId = specificRoomId.trim().toUpperCase();
     try {
-      const res = await fetch(`/api/rooms/${specificRoomId}/join`, {
+      const res = await fetch(`/api/rooms/${cleanId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
@@ -509,13 +529,40 @@ const App: React.FC = () => {
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
-          https://richup.io/{roomId}
+          {window.location.origin}?room={roomId}
         </div>
         <button
           onClick={() => {
             const url = new URL(window.location.href);
             url.searchParams.set('room', roomId || '');
-            navigator.clipboard.writeText(url.toString());
+            const textToCopy = url.toString();
+
+            if (navigator.clipboard && window.isSecureContext) {
+              navigator.clipboard.writeText(textToCopy)
+                .then(() => alert("Copied room link to clipboard!"))
+                .catch(() => alert("Failed to copy link via clipboard API."));
+            } else {
+              // Fallback for non-HTTPS (like local network IP testing)
+              try {
+                const textArea = document.createElement("textarea");
+                textArea.value = textToCopy;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                textArea.style.top = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                const successful = document.execCommand('copy');
+                textArea.remove();
+                if (successful) {
+                  alert("Copied room link to clipboard!");
+                } else {
+                  alert("Failed to copy link using fallback.");
+                }
+              } catch (err) {
+                alert("Failed to copy link. Please select the text and copy manually.");
+              }
+            }
           }}
           className="bg-indigo-500 hover:bg-indigo-400 p-2 rounded-xl text-white transition-colors flex items-center gap-2 px-3 text-sm font-bold shadow-lg shadow-indigo-500/20"
         >
@@ -540,14 +587,31 @@ const App: React.FC = () => {
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Maximum players</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Player capacity</div>
-          <select
-            disabled={!isHost || gameStarted}
-            value={settings.maxPlayers}
-            onChange={(e) => updateGeneralSetting('maxPlayers', parseInt(e.target.value))}
-            className="w-full bg-[#111116] border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 disabled:opacity-50 font-bold"
-          >
-            {[2, 3, 4, 5, 6, 7, 8].map(n => <option key={n} value={n}>{n} Players</option>)}
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={!isHost || gameStarted}
+                className="w-full bg-[#111116] border-slate-700 rounded-xl px-3 py-4 text-sm text-slate-300 font-bold justify-between hover:bg-slate-800 hover:text-white"
+              >
+                {settings.maxPlayers} Players
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-full min-w-[200px] bg-[#111116] border-slate-700 text-slate-300 rounded-xl">
+              <DropdownMenuGroup>
+                {[2, 3, 4, 5, 6, 7, 8].map(n => (
+                  <DropdownMenuItem
+                    key={n}
+                    disabled={!isHost || gameStarted}
+                    onClick={() => updateGeneralSetting('maxPlayers', n)}
+                    className="focus:bg-slate-800 focus:text-slate-200 cursor-pointer rounded-lg m-1 font-bold"
+                  >
+                    {n} Players
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -588,14 +652,31 @@ const App: React.FC = () => {
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Starting cash</div>
           <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Initial funds</div>
-          <select
-            disabled={!isHost || gameStarted}
-            value={settings.rules.startingCash}
-            onChange={(e) => updateRule('startingCash', parseInt(e.target.value))}
-            className="w-full bg-[#111116] border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-300 focus:outline-none focus:border-indigo-500 disabled:opacity-50 font-bold"
-          >
-            {[1000, 1500, 2000, 2500, 3000].map(n => <option key={n} value={n}>${n}</option>)}
-          </select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={!isHost || gameStarted}
+                className="w-full bg-[#111116] border-slate-700 rounded-xl px-3 py-4 text-sm text-slate-300 font-bold justify-between hover:bg-slate-800 hover:text-white"
+              >
+                ${settings.rules.startingCash}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-full min-w-[200px] bg-[#111116] border-slate-700 text-slate-300 rounded-xl">
+              <DropdownMenuGroup>
+                {[1000, 1500, 2000, 2500, 3000].map(n => (
+                  <DropdownMenuItem
+                    key={n}
+                    disabled={!isHost || gameStarted}
+                    onClick={() => updateRule('startingCash', n)}
+                    className="focus:bg-slate-800 focus:text-slate-200 cursor-pointer rounded-lg m-1 font-bold"
+                  >
+                    ${n}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -1095,6 +1176,7 @@ const App: React.FC = () => {
             <Controls
               gameState={gameState}
               myPlayerId={myPlayerId}
+              logs={gameState.logs}
               onRoll={() => handleDispatch({ type: 'ROLL_DICE' })}
               onBuy={() => handleDispatch({ type: 'BUY_PROPERTY' })}
               onEndTurn={() => handleDispatch({ type: 'END_TURN' })}
@@ -1110,10 +1192,11 @@ const App: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Right Column: Players & Logs */}
-      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
+      {/* Right Column: Players, Actions & Properties */}
+      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-3 shrink-0 z-10 group-data-[layout=row]:h-full order-3 group-data-[layout=row]:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+
         {/* Players List */}
-        <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-4 flex flex-col gap-3 shadow-lg shrink-0 max-h-[40vh] group-data-[layout=row]:max-h-[50%] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+        <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex flex-col gap-2 shadow-lg shrink-0">
           {gameState.players.map(player => {
             const isActive = gameState.currentPlayerIndex === gameState.players.indexOf(player);
             return (
@@ -1124,82 +1207,186 @@ const App: React.FC = () => {
                 whileHover={{ scale: 1.02 }}
                 onClick={() => setViewingPlayerId(player.id)}
                 className={`
-                  relative flex items-center gap-3 bg-[#111116] border p-3 rounded-xl shadow-md cursor-pointer transition-all duration-300
+                  relative flex items-center gap-2 bg-[#111116] border p-2.5 rounded-xl shadow-md cursor-pointer transition-all duration-300
                   ${isActive ? 'border-indigo-500/50 ring-1 ring-indigo-500/20' : 'border-slate-800 hover:border-slate-700'}
                   ${player.isBankrupt ? 'opacity-40 grayscale' : ''}
                 `}
               >
-                {isActive && (
-                  <motion.div
-                    layoutId="active-indicator"
-                    className="absolute -top-1 -right-1 w-3 h-3 bg-indigo-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.8)] z-30"
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ repeat: Infinity, duration: 2 }}
-                  />
-                )}
-
                 <div className="relative">
                   <Avatar
                     avatarId={player.avatarId}
                     color={player.color}
                     isBankrupt={player.isBankrupt}
                     inJail={player.inJail}
-                    className={`w-10 h-10 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''}`}
+                    className={`w-9 h-9 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''}`}
                   />
                   {player.isBankrupt && (
                     <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
-                      <X size={14} className="text-rose-500" strokeWidth={3} />
+                      <X size={12} className="text-rose-500" strokeWidth={3} />
                     </div>
                   )}
                 </div>
-
                 <div className="flex flex-col flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1">
                     <span className={`text-xs font-black uppercase truncate ${isActive ? 'text-indigo-300' : 'text-slate-200'}`}>
                       {player.name}
                     </span>
                     {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
                   </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <span className={`font-mono text-sm font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
-                      ${player.money}
-                    </span>
-                    <div className="flex gap-0.5">
-                      {gameState.tiles.filter(t => t.ownerId === player.id).length > 0 && (
-                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400/40" />
-                      )}
-                    </div>
-                  </div>
+                  <span className={`font-mono text-sm font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
+                    ${player.money}
+                  </span>
                 </div>
+                <span className="text-[9px] text-slate-600 font-mono shrink-0">
+                  {gameState.tiles.filter(t => t.ownerId === player.id).length} props
+                </span>
               </motion.div>
             );
           })}
         </div>
 
-        {/* Protocol Feed (Logs) */}
-        <div className="flex-1 bg-[#1e1e24] rounded-2xl border border-slate-800 flex flex-col overflow-hidden min-h-[300px] group-data-[layout=row]:min-h-0 shadow-lg">
-          <div className="p-4 border-b border-slate-800 flex items-center justify-between text-slate-300 shrink-0">
-            <div className="flex items-center gap-2 font-medium">
-              <TrendingUp size={16} className="text-indigo-400" />
-              <span className="font-bold uppercase tracking-widest text-xs">Protocol Feed</span>
-            </div>
-            <span className="font-mono text-[10px] text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">T-{gameState.turnCount}</span>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-thumb-slate-700">
-            {gameState.logs.map((log, i) => (
-              <motion.div
-                key={`${i}-${log}`}
-                initial={i === 0 ? { opacity: 0, x: -8 } : false}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.3, ease: 'easeOut' }}
-                className={`text-xs font-bold leading-relaxed rounded-lg px-3 py-1.5 transition-all duration-300 ${i === 0 ? 'text-indigo-200 bg-indigo-500/10 border border-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.1)]' : i < 3 ? 'text-slate-400 border-l-2 border-slate-700 opacity-80' : 'text-slate-500 pl-3 opacity-50'}`}
-              >
-                {log}
-              </motion.div>
-            ))}
-          </div>
+        {/* Votekick & Bankrupt */}
+        <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex gap-2 shadow-lg shrink-0">
+          {/* Votekick dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="flex-1 text-xs border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 gap-1.5 flex items-center justify-center">
+                <UserX size={13} className="text-rose-400" /> Votekick
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="bg-slate-900 border-slate-700 w-44">
+              <DropdownMenuGroup>
+                {gameState.players
+                  .filter(p => !p.isBankrupt && p.id !== myPlayerId)
+                  .map(p => (
+                    <DropdownMenuItem
+                      key={p.id}
+                      onClick={() => {
+                        handleDispatch({ type: 'VOTE_KICK', payload: { targetId: p.id, voterId: myPlayerId } });
+                      }}
+                      className="text-slate-200 hover:bg-slate-800 cursor-pointer text-xs"
+                    >
+                      {p.name}
+                    </DropdownMenuItem>
+                  ))}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {/* Self-bankrupt */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { if (window.confirm('Declare yourself bankrupt? All assets will be forfeited.')) handleDispatch({ type: 'DECLARE_BANKRUPT' }); }}
+            className="flex-1 text-xs border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 gap-1.5 flex items-center justify-center"
+          >
+            <Flag size={13} /> Bankrupt
+          </Button>
         </div>
+
+        {/* Active Votekicks */}
+        {gameState.votekicks && gameState.votekicks.length > 0 && (
+          <div className="bg-[#1e1e24] rounded-2xl border border-rose-900/50 p-3 flex flex-col gap-2 shadow-lg shrink-0">
+            <span className="text-[10px] font-black uppercase tracking-widest text-rose-400 flex items-center gap-1.5">
+              <UserX size={11} /> Active Votekicks
+            </span>
+            {gameState.votekicks.map(vote => {
+              const target = gameState.players.find(p => p.id === vote.targetId);
+              if (!target) return null;
+              const activeCount = gameState.players.filter(p => !p.isBankrupt).length;
+              const requiredVotes = activeCount - 1;
+              const secondsLeft = Math.max(0, Math.ceil((vote.expiresAt - Date.now()) / 1000));
+              const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+
+              return (
+                <div key={vote.targetId} className="flex flex-col gap-1 bg-rose-950/20 p-2 rounded-xl border border-rose-900/40">
+                  <div className="flex items-center justify-between text-[10px] text-slate-300">
+                    <span className="truncate max-w-[100px]">Target: <strong className="text-white">{target.name}</strong></span>
+                    <span className="text-rose-400 font-mono font-bold shrink-0">{formatTime(secondsLeft)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[9px] text-slate-400 mt-0.5">
+                    <span>Votes: <strong className="text-emerald-400">{vote.voterIds.length}</strong> / {requiredVotes}</span>
+                    {vote.voterIds.includes(myPlayerId) ? (
+                      <span className="text-emerald-500 font-bold italic">You voted</span>
+                    ) : (
+                      <span className="italic">Voting counts!</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Trades */}
+        <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex flex-col gap-2 shadow-lg shrink-0">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-widest text-slate-300 flex items-center gap-1.5">
+              <Handshake size={13} className="text-indigo-400" /> Trades
+            </span>
+            <Button
+              size="sm"
+              onClick={() => setSelectedTileId(myProperties[0]?.id ?? null)}
+              className="h-6 px-2 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white"
+            >
+              Create
+            </Button>
+          </div>
+          {gameState.pendingTrade ? (
+            <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 space-y-2">
+              <div className="text-[10px] text-indigo-300 font-bold">
+                Trade offer from {gameState.players.find(p => p.id === gameState.pendingTrade?.proposerId)?.name}
+              </div>
+              <div className="text-[9px] text-slate-400">
+                {gameState.pendingTrade.offerCash > 0 && <span className="text-emerald-400">+${gameState.pendingTrade.offerCash} cash</span>}
+                {gameState.pendingTrade.requestCash > 0 && <span className="text-rose-400 ml-1">-${gameState.pendingTrade.requestCash} cash</span>}
+              </div>
+              <div className="flex gap-1.5">
+                <Button size="sm" onClick={() => handleDispatch({ type: 'ACCEPT_TRADE' })} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] h-7">
+                  Accept
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleDispatch({ type: 'DECLINE_TRADE' })} className="flex-1 border-slate-700 text-slate-300 text-[10px] h-7">
+                  Decline
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[10px] text-slate-500 text-center py-1">No pending trades. Open a property to propose one.</p>
+          )}
+        </div>
+
+        {/* My Properties */}
+        <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex flex-col gap-2 shadow-lg">
+          <span className="text-xs font-black uppercase tracking-widest text-slate-300 flex items-center gap-1.5">
+            <Landmark size={13} className="text-indigo-400" /> My Properties ({myProperties.length})
+          </span>
+          {myProperties.length === 0 ? (
+            <p className="text-[10px] text-slate-500 text-center py-1">No properties yet.</p>
+          ) : (
+            <div className="flex flex-col gap-1 max-h-[200px] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+              {myProperties.map(prop => (
+                <button
+                  key={prop.id}
+                  onClick={() => setSelectedTileId(prop.id)}
+                  className="flex items-center gap-2 p-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-800/60 text-left transition-colors border border-slate-800 hover:border-slate-700"
+                >
+                  <div
+                    className="w-1 h-5 rounded-full shrink-0"
+                    style={{ backgroundColor: gameState.players.find(p => p.id === myPlayerId)?.color || '#888' }}
+                  />
+                  <span className="flex-1 text-[10px] font-bold text-slate-200 truncate">{prop.name}</span>
+                  <span className="text-[9px] font-mono text-slate-500 shrink-0">${prop.price}</span>
+                  {prop.buildingCount > 0 && (
+                    <span className="text-[9px] text-emerald-400 font-bold shrink-0">
+                      {prop.buildingCount === 5 ? '🏨' : `🏠×${prop.buildingCount}`}
+                    </span>
+                  )}
+                  {prop.isMortgaged && <span className="text-[9px] text-rose-400 font-bold shrink-0">MRTG</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* Mobile Chat Button & Popup */}

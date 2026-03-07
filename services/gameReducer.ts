@@ -57,6 +57,10 @@ export type Action =
   | { type: 'PLACE_BID'; payload: { playerId: number; amount: number } }
   | { type: 'DECREMENT_AUCTION_TIMER' }
   | { type: 'END_AUCTION' }
+  | { type: 'KICK_PLAYER'; payload: { playerId: number } }
+  | { type: 'DECLARE_BANKRUPT' }
+  | { type: 'VOTE_KICK'; payload: { targetId: number; voterId: number } }
+  | { type: 'CHECK_VOTEKICKS' }
   | { type: 'SYNC_STATE'; payload: GameState };
 
 export const initialState: GameState = {
@@ -75,6 +79,7 @@ export const initialState: GameState = {
   taxPool: 0,
   auction: null,
   pendingTrade: null,
+  votekicks: [],
   settings: {
     maxPlayers: 4,
     isPrivate: false,
@@ -190,10 +195,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'START_GAME': {
       if (!action.payload) return state;
       const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
-      
+
       let players: Player[] = [];
       const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
-      
+
       if (lobbyPlayers && lobbyPlayers.length > 0) {
         // Online multiplayer setup
         players = lobbyPlayers.map((p, i) => ({
@@ -231,7 +236,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Epsilon', 'Bot Zeta', 'Bot Eta', 'Bot Theta'];
       // Randomize bot names
       const shuffledBotNames = [...botNames].sort(() => Math.random() - 0.5);
-      
+
       const botPersonalities = [
         BotPersonalityType.AGGRESSIVE,
         BotPersonalityType.CONSERVATIVE,
@@ -1050,7 +1055,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'ACCEPT_TRADE': {
       if (!state.pendingTrade) return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
-      
+
       const proposer = state.players.find(p => p.id === proposerId)!;
       const target = state.players.find(p => p.id === targetId)!;
 
@@ -1152,6 +1157,95 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         },
         'turn_switch'
       );
+    }
+
+    // ─── KICK_PLAYER ────────────────────────────────────────────────────────────
+    case 'KICK_PLAYER': {
+      const { playerId } = action.payload;
+      const kicked = state.players.find(p => p.id === playerId);
+      if (!kicked || kicked.isBankrupt) return state;
+      const { players, tiles, logs } = declareBankruptcy(state, playerId, null);
+      return withSound({ ...state, players, tiles, logs }, 'pay');
+    }
+
+    // ─── DECLARE_BANKRUPT ──────────────────────────────────────────────────────
+    case 'DECLARE_BANKRUPT': {
+      const player = state.players[state.currentPlayerIndex];
+      if (player.isBankrupt) return state;
+      const { players, tiles, logs } = declareBankruptcy(state, player.id, null);
+      return withSound({ ...state, players, tiles, logs, phase: 'TURN_END' }, 'pay');
+    }
+
+    // ─── VOTE_KICK ──────────────────────────────────────────────────────────────
+    case 'VOTE_KICK': {
+      const { targetId, voterId } = action.payload;
+      const target = state.players.find(p => p.id === targetId);
+      const voter = state.players.find(p => p.id === voterId);
+      if (!target || target.isBankrupt || !voter || voter.isBankrupt) return state;
+
+      let newVotekicks = [...state.votekicks];
+      let existingVote = newVotekicks.find(v => v.targetId === targetId);
+
+      if (!existingVote) {
+        existingVote = {
+          targetId,
+          voterIds: [voterId],
+          expiresAt: Date.now() + 2 * 60 * 1000 // 2 minutes from now
+        };
+        newVotekicks.push(existingVote);
+      } else {
+        if (!existingVote.voterIds.includes(voterId)) {
+          existingVote = { ...existingVote, voterIds: [...existingVote.voterIds, voterId] };
+          newVotekicks = newVotekicks.map(v => v.targetId === targetId ? existingVote! : v);
+        }
+      }
+
+      // Check unanimous vote
+      const activePlayersCount = state.players.filter(p => !p.isBankrupt).length;
+      const requiredVotes = activePlayersCount - 1;
+
+      if (existingVote!.voterIds.length >= requiredVotes && requiredVotes > 0) {
+        const { players, tiles, logs } = declareBankruptcy(state, targetId, null);
+        newVotekicks = newVotekicks.filter(v => v.targetId !== targetId);
+        const winCheckState = { ...state, players, tiles, votekicks: newVotekicks, logs: [`${target.name} was kicked by unanimous vote.`, ...logs] };
+        return withSound(winCheckState, 'error');
+      }
+
+      const logMsg = existingVote!.voterIds.length === 1
+        ? `${voter.name} started a votekick against ${target.name}.`
+        : `${voter.name} voted to kick ${target.name} (${existingVote!.voterIds.length}/${requiredVotes}).`;
+
+      return withSound({ ...state, votekicks: newVotekicks, logs: [logMsg, ...state.logs] }, 'notification');
+    }
+
+    // ─── CHECK_VOTEKICKS ────────────────────────────────────────────────────────
+    case 'CHECK_VOTEKICKS': {
+      const now = Date.now();
+      let nextState = { ...state };
+      const expiredTargetIds: number[] = [];
+
+      for (const vote of state.votekicks) {
+        if (now >= vote.expiresAt) {
+          expiredTargetIds.push(vote.targetId);
+        }
+      }
+
+      if (expiredTargetIds.length > 0) {
+        let currentLogs = [...state.logs];
+        for (const tid of expiredTargetIds) {
+          const target = nextState.players.find(p => p.id === tid);
+          if (target && !target.isBankrupt) {
+            const { players, tiles, logs } = declareBankruptcy(nextState, tid, null);
+            nextState = { ...nextState, players, tiles };
+            // Append the bankruptcy logs, plus the kick notification
+            currentLogs = [`${target.name} was kicked (timer expired).`, ...logs, ...currentLogs];
+          }
+        }
+        nextState.logs = currentLogs;
+        nextState.votekicks = nextState.votekicks.filter(v => !expiredTargetIds.includes(v.targetId));
+        return withSound(nextState, 'error');
+      }
+      return state;
     }
 
     default:

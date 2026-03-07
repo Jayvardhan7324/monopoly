@@ -18,11 +18,11 @@ interface AvatarProps {
 
 export const Avatar: React.FC<AvatarProps> = ({ avatarId = 0, color, className = "w-6 h-6", isBankrupt, inJail }) => {
   const bgColor = color || APPEARANCE_COLORS[avatarId % APPEARANCE_COLORS.length];
-  
+
   return (
-    <div 
+    <div
       className={`
-        ${className} rounded-full flex items-center justify-center shrink-0 relative overflow-hidden transition-all
+        ${className} rounded-full flex items-center justify-center shrink-0 relative overflow-hidden transition-all scale-80
         ${isBankrupt ? 'opacity-50 grayscale' : 'shadow-md'}
       `}
       style={{ backgroundColor: bgColor }}

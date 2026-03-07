@@ -117,7 +117,7 @@ async function startServer() {
 
   // REST API: Join a specific room
   app.post("/api/rooms/:id/join", (req, res) => {
-    const roomId = req.params.id;
+    const roomId = req.params.id.trim().toUpperCase();
     const data = req.body;
     const room = rooms.get(roomId);
 
@@ -145,7 +145,8 @@ async function startServer() {
 
     // Initial connection linking REST session to Socket
     socket.on("join_session", (data, callback) => {
-      const { roomId, playerId } = data;
+      const { playerId } = data;
+      const roomId = data.roomId?.trim().toUpperCase();
       const room = rooms.get(roomId);
 
       if (!room) {
