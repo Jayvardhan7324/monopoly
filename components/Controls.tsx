@@ -351,19 +351,19 @@ export const Controls: React.FC<ControlsProps> = ({
           )}
           {/* Activity Feed — board center overlay; hidden when Roll Dice button is showing */}
           {logs && logs.length > 0 && !(gameState.phase === 'ROLL' && !currentPlayer.isBot) && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[80%] max-w-[380px] z-50 pointer-events-none space-y-1">
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-[85%] max-w-[400px] z-50 pointer-events-none space-y-1">
               <AnimatePresence mode="popLayout">
-                {logs.slice(0, 6).map((log, i) => (
+                {logs.slice(0, 3).map((log, i) => (
                   <motion.div
                     key={`${i}-${log}`}
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1 - i * 0.15, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.3 }}
-                    className={`text-[9px] font-semibold text-center px-3 py-1 rounded-full backdrop-blur-sm shadow-md border
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1 - i * 0.25, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ duration: 0.2 }}
+                    className={`text-[9.5px] font-bold text-center px-4 py-0.5 rounded-full backdrop-blur-md shadow-lg border tracking-tight
                     ${i === 0
-                        ? 'text-indigo-200 bg-indigo-950/80 border-indigo-500/30'
-                        : 'text-slate-400 bg-slate-950/70 border-slate-700/30'}`}
+                        ? 'text-indigo-100 bg-indigo-950/90 border-indigo-500/40'
+                        : 'text-slate-400 bg-slate-950/80 border-slate-700/40'}`}
                   >
                     {log}
                   </motion.div>
