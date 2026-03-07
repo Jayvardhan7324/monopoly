@@ -30,6 +30,36 @@ async function startServer() {
   });
 
   const rooms = new Map<string, RoomData>();
+  const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
+  const RECONNECT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Permanently removes a player after the reconnect window expires
+  function permanentlyRemovePlayer(roomId: string, originalPlayerId: string) {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const idx = room.players.findIndex((p: any) => (p.originalId || p.id) === originalPlayerId);
+    if (idx === -1) return;
+    const player = room.players[idx];
+    // If they reconnected before the timer fired, don't remove them
+    if (!player.disconnected) return;
+    room.players.splice(idx, 1);
+    disconnectTimers.delete(originalPlayerId);
+    if (room.players.length === 0) {
+      rooms.delete(roomId);
+    } else {
+      // Transfer host if the removed player was host
+      if (room.host === player.id) {
+        const next = room.players.find((p: any) => !p.disconnected);
+        const heir = next || room.players[0];
+        room.host = heir.id;
+        heir.isHost = true;
+        room.hostName = heir.name || 'Player';
+      }
+      io.to(roomId).emit("room_updated", { players: room.players });
+    }
+    io.emit("rooms_list", getPublicRoomsList());
+    console.log(`Player ${originalPlayerId} permanently removed from room ${roomId} (reconnect window expired).`);
+  }
 
   function getUniqueName(baseName: string, players: any[]) {
     let name = (baseName || 'Player').trim();
@@ -72,7 +102,7 @@ async function startServer() {
     const data = req.body;
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-    const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: true };
+    const player = { id: playerId, originalId: playerId, name: data.name, avatar: data.avatar, isHost: true };
     rooms.set(roomId, {
       host: playerId, // Will be updated to socket.id when they connect
       hostName: data.name || 'Player',
@@ -104,7 +134,7 @@ async function startServer() {
       const room = rooms.get(targetRoomId)!;
       const playerId = "p_" + Math.random().toString(36).substring(2, 10);
       const uniqueName = getUniqueName(data.name, room.players);
-      const player = { id: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
+      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
       room.players.push(player);
       // We don't broadcast room_updated here because socket isn't connected yet.
       // We will broadcast when they actually connect their socket.
@@ -113,7 +143,7 @@ async function startServer() {
       // Create a new room
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-      const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: true };
+      const player = { id: playerId, originalId: playerId, name: data.name, avatar: data.avatar, isHost: true };
       rooms.set(roomId, {
         host: playerId,
         hostName: data.name || 'Player',
@@ -146,7 +176,7 @@ async function startServer() {
 
     const playerId = "p_" + Math.random().toString(36).substring(2, 10);
     const uniqueName = getUniqueName(data.name, room.players);
-    const player = { id: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
+    const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
     room.players.push(player);
 
     io.emit("rooms_list", getPublicRoomsList());
@@ -168,29 +198,50 @@ async function startServer() {
         return;
       }
 
-      // Find the player placeholder created by the REST API
-      const playerIndex = room.players.findIndex(p => p.id === playerId);
+      // Search by originalId first (handles reconnects after socket ID change)
+      // then fall back to current id (first-time connection)
+      const playerIndex = room.players.findIndex((p: any) =>
+        p.originalId === playerId || p.id === playerId
+      );
 
       if (playerIndex === -1) {
         if (callback) callback({ success: false, error: "Player session not found in room" });
         return;
       }
 
-      // Update the placeholder player ID to the actual socket ID
-      const oldPlayerId = room.players[playerIndex].id;
-      room.players[playerIndex].id = socket.id;
+      const player = room.players[playerIndex];
+      const oldId = player.id;
 
-      // If they were the host, update the room host reference
-      if (room.host === oldPlayerId) {
+      // Clear any active disconnect timer for this player
+      const timerKey = player.originalId || playerId;
+      if (disconnectTimers.has(timerKey)) {
+        clearTimeout(disconnectTimers.get(timerKey)!);
+        disconnectTimers.delete(timerKey);
+        console.log(`Player ${timerKey} reconnected to room ${roomId}. Disconnect timer cleared.`);
+      }
+
+      // Update socket ID and clear disconnected flag
+      player.id = socket.id;
+      player.disconnected = false;
+      if (!player.originalId) player.originalId = playerId;
+
+      // Transfer host reference if this player was host
+      if (room.host === oldId) {
         room.host = socket.id;
       }
 
       socket.join(roomId);
 
-      // Tell everyone in the room there's an update (like someone actually appeared online)
+      // Notify everyone else that player is back
       io.to(roomId).emit("room_updated", { players: room.players });
 
-      if (callback) callback({ success: true, players: room.players });
+      // If game is already in progress, send current state to the rejoining player
+      if (room.state) {
+        socket.emit("sync_state", { state: room.state });
+        console.log(`Sent live game state to reconnecting player ${timerKey} in room ${roomId}.`);
+      }
+
+      if (callback) callback({ success: true, players: room.players, gameInProgress: !!room.state });
     });
 
     socket.on("update_player", (data, callback) => {
@@ -299,22 +350,29 @@ async function startServer() {
     socket.on("disconnect", () => {
       console.log("Client disconnected:", socket.id);
       for (const [roomId, room] of rooms.entries()) {
-        const playerIndex = room.players.findIndex(p => p.id === socket.id);
+        const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
         if (playerIndex !== -1) {
-          room.players.splice(playerIndex, 1);
-          if (room.players.length === 0) {
-            rooms.delete(roomId);
-          } else {
-            if (room.host === socket.id) {
-              room.host = room.players[0].id;
-              room.players[0].isHost = true;
-              room.hostName = room.players[0].name || 'Player';
-            }
-            io.to(roomId).emit("room_updated", { players: room.players });
-          }
+          const player = room.players[playerIndex];
+          const timerKey = player.originalId || player.id;
+
+          // Soft-disconnect: mark as disconnected and start the reconnect timer
+          player.disconnected = true;
+          console.log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
+
+          // Notify others that this player temporarily disconnected
+          io.to(roomId).emit("room_updated", { players: room.players });
+          io.emit("rooms_list", getPublicRoomsList());
+
+          // Schedule permanent removal after the reconnect window
+          const timer = setTimeout(() => {
+            permanentlyRemovePlayer(roomId, timerKey);
+          }, RECONNECT_WINDOW_MS);
+          disconnectTimers.set(timerKey, timer);
+
+          return; // player found in a room — done
         }
       }
-      // Broadcast updated room list
+      // Not in any room — just update the list
       io.emit("rooms_list", getPublicRoomsList());
     });
   });
