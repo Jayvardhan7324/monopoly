@@ -46,7 +46,15 @@ const App: React.FC = () => {
   // FEAT-06: Spectator mode (all bots, no human)
   const [spectatorMode, setSpectatorMode] = useState(false);
 
-  const [humanName, setHumanName] = useState('');
+  const [humanName, setHumanName] = useState(() => {
+    const adjs = ['Swift', 'Brave', 'Fierce', 'Bold', 'Dark', 'Iron', 'Stone', 'Silent', 'Shadow', 'Crimson',
+      'Silver', 'Golden', 'Arctic', 'Cosmic', 'Neon', 'Phantom', 'Rogue', 'Thunder', 'Velvet', 'Blazing',
+      'Crystal', 'Electric', 'Sacred', 'Frozen', 'Obsidian', 'Scarlet', 'Astral', 'Hollow', 'Ember', 'Void'];
+    const nouns = ['Falcon', 'Wolf', 'Panther', 'Dragon', 'Phoenix', 'Hawk', 'Blade', 'Shield', 'Ghost',
+      'Viper', 'Tiger', 'Lion', 'Fox', 'Raven', 'Eagle', 'Cobra', 'Titan', 'Ranger', 'Knight', 'Wizard',
+      'Ninja', 'Viking', 'Warrior', 'Samurai', 'Mage', 'Archer', 'Scout', 'Cipher', 'Wraith', 'Oracle'];
+    return adjs[Math.floor(Math.random() * adjs.length)] + nouns[Math.floor(Math.random() * nouns.length)];
+  });
 
   // Multiplayer state
   const [isOnline, setIsOnline] = useState(false);
