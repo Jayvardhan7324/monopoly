@@ -54,6 +54,10 @@ async function startServer() {
         room.host = heir.id;
         heir.isHost = true;
         room.hostName = heir.name || 'Player';
+        // BUG-11 FIX: Log warning if heir is also disconnected
+        if (heir.disconnected) {
+          console.log(`WARNING: Host transferred to disconnected player ${heir.id} in room ${roomId}. Waiting for reconnect.`);
+        }
       }
       io.to(roomId).emit("room_updated", { players: room.players });
     }
@@ -337,7 +341,23 @@ async function startServer() {
       }
     });
 
+    // BUG-14 FIX: Simple per-socket rate limiter
+    const rateLimitMap = new Map<string, number[]>();
+    const RATE_LIMIT_MAX = 10;
+    const RATE_LIMIT_WINDOW_MS = 1000;
+    function isRateLimited(eventKey: string): boolean {
+      const now = Date.now();
+      const key = `${socket.id}:${eventKey}`;
+      const timestamps = rateLimitMap.get(key) || [];
+      const filtered = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+      if (filtered.length >= RATE_LIMIT_MAX) return true;
+      filtered.push(now);
+      rateLimitMap.set(key, filtered);
+      return false;
+    }
+
     socket.on("send_chat", (data) => {
+      if (isRateLimited('chat')) return;
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         io.to(roomId).emit("chat_message", data);
@@ -345,6 +365,7 @@ async function startServer() {
     });
 
     socket.on("game_action", (data) => {
+      if (isRateLimited('action')) return;
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);

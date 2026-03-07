@@ -30,7 +30,7 @@ import {
   DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'motion/react';
-import { initSocket, getSocket } from './services/socketService';
+import { initSocket, getSocket, resetSocket } from './services/socketService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
@@ -148,10 +148,12 @@ const App: React.FC = () => {
     };
 
     const handleKicked = () => {
+      resetSocket(); // BUG-7 FIX: Reset socket singleton so player can join another room
       setIsOnline(false);
       setRoomId("");
       setLobbyPlayers([]);
       setIsHost(false);
+      setGameStarted(false);
       alert("You have been kicked from the room.");
     };
 
@@ -384,6 +386,8 @@ const App: React.FC = () => {
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
+        // BUG-19 FIX: Clean stale ?room= parameter from URL
+        window.history.replaceState({}, '', window.location.pathname);
       } else {
         alert(res.error || "Failed to join room");
       }

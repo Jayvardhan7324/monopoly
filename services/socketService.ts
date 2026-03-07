@@ -23,3 +23,12 @@ export const initSocket = (roomId: string, playerId: string) => {
 };
 
 export const getSocket = () => socket;
+
+// BUG-7 FIX: Reset socket so player can join a different room
+export const resetSocket = () => {
+  if (socket) {
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+  }
+};

@@ -1,9 +1,15 @@
 /**
  * botService.ts
  * IMP-11: All bot decision logic extracted from App.tsx into a dedicated service.
- * Enhanced with strategic buying, smarter trade proposals, and personality-driven decisions.
+ * Enhanced with:
+ *  - Probabilistic decision-making (weighted randomness, risk assessment)
+ *  - Board position awareness (danger zones, safe havens)
+ *  - Adaptive strategy based on game phase (early/mid/late)
+ *  - Smarter building: target 3-house sweet-spot for ROI
+ *  - Mortgage prioritization and cash management
+ *  - BUG-9 FIX: Bot no longer proposes trades with itself
  */
-import { GameState, AuctionState, BotPersonalityType, TileType, ColorGroup, Tile } from '../types';
+import { GameState, AuctionState, BotPersonalityType, TileType, ColorGroup, Tile, Player } from '../types';
 import { GAME_CONSTANTS } from '../constants';
 
 export type BotAction =
@@ -20,6 +26,55 @@ export type BotAction =
   | { type: 'PROPOSE_TRADE'; payload: { offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
   | null;
 
+// ─── Constants for game phase detection ────────────────────────────────────
+const EARLY_GAME_THRESHOLD = 30;
+const MID_GAME_THRESHOLD = 80;
+
+function getGamePhase(turnCount: number): 'early' | 'mid' | 'late' {
+  if (turnCount < EARLY_GAME_THRESHOLD) return 'early';
+  if (turnCount < MID_GAME_THRESHOLD) return 'mid';
+  return 'late';
+}
+
+// ─── Probabilistic helper: weighted random decision ────────────────────────
+function decide(probability: number): boolean {
+  return Math.random() < Math.min(1, Math.max(0, probability));
+}
+
+// ─── Helper: Net worth of a player ──────────────────────────────────────────
+function getNetWorth(player: Player, tiles: Tile[]): number {
+  const propertyValue = tiles
+    .filter(t => t.ownerId === player.id)
+    .reduce((sum, t) => {
+      let val = t.price;
+      if (t.buildingCount > 0) val += t.buildingCount * t.houseCost;
+      if (t.isMortgaged) val *= 0.5;
+      return sum + val;
+    }, 0);
+  return player.money + propertyValue;
+}
+
+// ─── Helper: Calculate how "dangerous" a board region is ────────────────────
+function getDangerLevel(position: number, gameState: GameState): number {
+  const { tiles, players } = gameState;
+  let danger = 0;
+  // Check tiles 2-12 spaces ahead (dice roll range)
+  for (let offset = 2; offset <= 12; offset++) {
+    const tileIndex = (position + offset) % tiles.length;
+    const tile = tiles[tileIndex];
+    if (tile.ownerId !== null && !tile.isMortgaged) {
+      const owner = players.find(p => p.id === tile.ownerId);
+      if (owner && !owner.isBankrupt) {
+        // Weighted by rent and probability of landing (7 is most common)
+        const diceProb = offset <= 7 ? (offset - 1) / 36 : (13 - offset) / 36;
+        const rent = tile.rent[tile.buildingCount] || tile.rent[0] || 0;
+        danger += rent * diceProb;
+      }
+    }
+  }
+  return danger;
+}
+
 // ─── Helper: compute strategic value of a tile for a player ────────────────
 function tileStrategicValue(tileId: number, playerId: number, gameState: GameState): number {
   const tile = gameState.tiles[tileId];
@@ -28,24 +83,34 @@ function tileStrategicValue(tileId: number, playerId: number, gameState: GameSta
 
   const ownedInGroup = groupTiles.filter(t => t.ownerId === playerId).length;
   const totalInGroup = groupTiles.length;
+  const phase = getGamePhase(gameState.turnCount);
 
   let value = tile.price;
 
   // Monopoly-completing tile is extremely valuable
   if (ownedInGroup === totalInGroup - 1) {
-    value *= 5;
+    value *= phase === 'late' ? 7 : 5;
   } else if (ownedInGroup > 0) {
     value *= 2;
   }
 
   // Higher rent multipliers are more valuable
   if (tile.rent && tile.rent[5]) {
-    value += tile.rent[5] * 0.3; // Hotel rent as a bonus factor
+    value += tile.rent[5] * 0.3;
   }
 
   // Properties with buildings are more valuable
   if (tile.buildingCount > 0) {
     value += tile.buildingCount * tile.houseCost * 0.5;
+  }
+
+  // Orange and red groups are statistically most landed on
+  if (tile.group === ColorGroup.ORANGE || tile.group === ColorGroup.RED) {
+    value *= 1.25;
+  }
+  // Light blue is cheap and quick ROI
+  if (tile.group === ColorGroup.LIGHT_BLUE && phase === 'early') {
+    value *= 1.3;
   }
 
   return value;
@@ -59,8 +124,29 @@ function wouldBlockOpponent(tileId: number, playerId: number, gameState: GameSta
   return gameState.players.some(p => {
     if (p.id === playerId || p.isBankrupt) return false;
     const theirCount = groupTiles.filter(t => t.ownerId === p.id).length;
-    return theirCount === groupTiles.length - 1; // They'd complete a monopoly if they get this
+    return theirCount === groupTiles.length - 1;
   });
+}
+
+// ─── Cash safety threshold ─────────────────────────────────────────────────
+function getSafetyBuffer(bot: Player, gameState: GameState): number {
+  const personality = bot.personality || BotPersonalityType.BALANCED;
+  const phase = getGamePhase(gameState.turnCount);
+  const dangerAhead = getDangerLevel(bot.position, gameState);
+
+  let baseBuffer: number;
+  switch (personality) {
+    case BotPersonalityType.AGGRESSIVE: baseBuffer = 50; break;
+    case BotPersonalityType.CONSERVATIVE: baseBuffer = 300; break;
+    case BotPersonalityType.OPPORTUNISTIC: baseBuffer = 150; break;
+    default: baseBuffer = 200;
+  }
+
+  // Scale buffer by danger and game phase
+  if (phase === 'late') baseBuffer += 100;
+  baseBuffer += Math.floor(dangerAhead * 0.5);
+
+  return baseBuffer;
 }
 
 /**
@@ -73,31 +159,36 @@ export function getBotAction(gameState: GameState): BotAction {
 
   const { phase, tiles } = gameState;
   const personality = currentPlayer.personality || BotPersonalityType.BALANCED;
+  const gPhase = getGamePhase(gameState.turnCount);
+  const safetyBuffer = getSafetyBuffer(currentPlayer, gameState);
 
   // ── ROLL phase ──────────────────────────────────────────────────────────────
   if (phase === 'ROLL') {
     if (currentPlayer.inJail) {
-      // Consider board state: if bot has monopolies and buildings matter, get out faster
       const myMonopolies = getPlayerMonopolies(currentPlayer.id, gameState);
+      const dangerOutside = getDangerLevel(GAME_CONSTANTS.JAIL_POSITION, gameState);
 
-      // Aggressive bots want out ASAP
-      if (personality === BotPersonalityType.AGGRESSIVE && currentPlayer.money > 100) {
-        return { type: 'PAY_JAIL_FINE' };
-      }
-      // Conservative bots only pay if they have lots of money or are late game
-      if (personality === BotPersonalityType.CONSERVATIVE && currentPlayer.money > 1000) {
-        return { type: 'PAY_JAIL_FINE' };
-      }
-      // If we have monopolies and can build, escaping jail is more urgent
-      if (myMonopolies.length > 0 && currentPlayer.money > 400) {
-        return { type: 'PAY_JAIL_FINE' };
-      }
-      // Balanced/Opportunistic — pay after 1 turn in jail if affordable
-      if (currentPlayer.money > 500 && currentPlayer.jailTurns >= 1) {
-        return { type: 'PAY_JAIL_FINE' };
-      }
-      // Last chance — must pay on final jail turn
+      // Probability-based jail decision
+      let payProbability = 0.2; // Base chance
+
+      // Aggressive bots want out quickly
+      if (personality === BotPersonalityType.AGGRESSIVE) payProbability += 0.5;
+      // Conservative bots stay in jail longer (safe from rent)
+      if (personality === BotPersonalityType.CONSERVATIVE) payProbability -= 0.15;
+      // If we have monopolies to build on, get out
+      if (myMonopolies.length > 0) payProbability += 0.4;
+      // Late game: staying in jail can be strategic if lots of danger
+      if (gPhase === 'late' && dangerOutside > 200) payProbability -= 0.3;
+      // If we have lots of money, we can afford to pay
+      if (currentPlayer.money > 800) payProbability += 0.2;
+      // Each turn in jail increases urgency
+      payProbability += currentPlayer.jailTurns * 0.15;
+      // Last turn: must decide
       if (currentPlayer.jailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS - 1 && currentPlayer.money >= GAME_CONSTANTS.JAIL_FINE) {
+        return { type: 'PAY_JAIL_FINE' };
+      }
+
+      if (currentPlayer.money >= GAME_CONSTANTS.JAIL_FINE && decide(payProbability)) {
         return { type: 'PAY_JAIL_FINE' };
       }
       return { type: 'ATTEMPT_JAIL_ROLL' };
@@ -115,44 +206,41 @@ export function getBotAction(gameState: GameState): BotAction {
     const isBlockingOpponent = wouldBlockOpponent(tile.id, currentPlayer.id, gameState);
     const isUtilityOrRailroad = tile.type === TileType.RAILROAD || tile.type === TileType.UTILITY;
 
-    // Strategic buying buffer — depends on property importance
-    let buffer = 200;
+    // Calculate buy probability based on many factors
+    let buyProbability = 0.7; // Base: bots generally want to buy
 
     if (isCompletingMonopoly) {
-      // Completing a monopoly: buy at almost any cost
-      buffer = 0;
-      // Even mortgage other properties to afford it
-      if (currentPlayer.money < tile.price && currentPlayer.money + getMortgageableValue(currentPlayer.id, gameState) >= tile.price) {
-        // Will buy — the auto-mortgage in reducer should handle it
-        buffer = 0;
-      }
+      buyProbability = 0.98; // Almost always buy to complete a set
     } else if (isBlockingOpponent) {
-      // Blocking an opponent's monopoly: slightly more aggressive
-      buffer = personality === BotPersonalityType.CONSERVATIVE ? 100 : 0;
+      buyProbability = 0.90; // Block opponents aggressively
     } else if (ownedInGroup > 0) {
-      // Building towards a set
-      buffer = personality === BotPersonalityType.AGGRESSIVE ? 50 : 150;
+      buyProbability = 0.85; // Building towards a set
     } else if (isUtilityOrRailroad) {
-      // Utilities and railroads: modest value
-      const railroads = tiles.filter(t => t.type === tile.type && t.ownerId === currentPlayer.id).length;
-      buffer = railroads > 0 ? 100 : 300; // Buy more eagerly if we already own some
+      const ownedOfType = tiles.filter(t => t.type === tile.type && t.ownerId === currentPlayer.id).length;
+      buyProbability = ownedOfType > 0 ? 0.75 : 0.50; // Utilities less exciting alone
     } else {
-      // New color group with no existing ownership
-      switch (personality) {
-        case BotPersonalityType.AGGRESSIVE: buffer = 50; break;
-        case BotPersonalityType.CONSERVATIVE: buffer = 500; break;
-        case BotPersonalityType.OPPORTUNISTIC: buffer = 200; break;
-        default: buffer = 200;
-      }
+      // Brand new color group
+      buyProbability = gPhase === 'early' ? 0.65 : 0.45;
     }
 
-    // Late game: bots should be more cautious about going broke
-    if (gameState.turnCount > 80) {
-      buffer += 100;
-      if (isCompletingMonopoly || isBlockingOpponent) buffer -= 100; // Still aggressive for key buys
+    // Personality adjustments
+    if (personality === BotPersonalityType.AGGRESSIVE) buyProbability += 0.15;
+    if (personality === BotPersonalityType.CONSERVATIVE) buyProbability -= 0.20;
+    if (personality === BotPersonalityType.OPPORTUNISTIC && isBlockingOpponent) buyProbability += 0.10;
+
+    // Cash safety: reduce probability if buying would leave us broke
+    const remainingCash = currentPlayer.money - tile.price;
+    if (remainingCash < safetyBuffer && !isCompletingMonopoly) {
+      buyProbability -= 0.3;
+    }
+    if (remainingCash < 0) buyProbability = 0; // Can't afford
+
+    // Orange/red are premium — boost
+    if ((tile.group === ColorGroup.ORANGE || tile.group === ColorGroup.RED) && gPhase !== 'late') {
+      buyProbability += 0.1;
     }
 
-    if (tile.price && currentPlayer.money >= tile.price + buffer) {
+    if (tile.price && currentPlayer.money >= tile.price && decide(buyProbability)) {
       return { type: 'BUY_PROPERTY' };
     }
 
@@ -164,30 +252,34 @@ export function getBotAction(gameState: GameState): BotAction {
 
   // ── TURN_END phase ───────────────────────────────────────────────────────────
   if (phase === 'TURN_END') {
-    // 1. Check for upgrades — prioritize highest-value monopolies
-    const myTiles = tiles.filter(t => t.ownerId === currentPlayer.id && t.type === TileType.PROPERTY);
+    // 1. Check for upgrades — target the 3-house sweet spot for return on investment
     const monopolyGroups = getPlayerMonopolies(currentPlayer.id, gameState);
 
-    // Sort monopoly groups by potential value (hotel rent)
+    // Sort by ROI: prioritize groups where 3 houses give the biggest rent jump
     const sortedGroups = monopolyGroups.sort((a, b) => {
-      const aMaxRent = Math.max(...a.map(t => t.rent[5] || 0));
-      const bMaxRent = Math.max(...b.map(t => t.rent[5] || 0));
-      return bMaxRent - aMaxRent;
+      const aROI = Math.max(...a.map(t => (t.rent[3] || 0) / (t.houseCost || 1)));
+      const bROI = Math.max(...b.map(t => (t.rent[3] || 0) / (t.houseCost || 1)));
+      return bROI - aROI;
     });
 
     for (const group of sortedGroups) {
-      // Find the tile with the lowest building count (even build rule or just balanced)
       const buildableTiles = group
         .filter(t => t.buildingCount < 5 && !t.isMortgaged)
         .sort((a, b) => a.buildingCount - b.buildingCount);
 
       for (const tile of buildableTiles) {
-        let upgradeBuffer = 200;
-        if (personality === BotPersonalityType.AGGRESSIVE) upgradeBuffer = 50;
-        if (personality === BotPersonalityType.CONSERVATIVE) upgradeBuffer = 400;
+        // Smart building: prioritize getting to 3 houses (best rent/cost ratio)
+        let upgradeProb = 0.6;
+        if (tile.buildingCount < 3) upgradeProb = 0.85; // Push to 3 houses aggressively
+        if (tile.buildingCount >= 3 && tile.buildingCount < 5) upgradeProb = 0.45; // Hotels are expensive
+        if (personality === BotPersonalityType.AGGRESSIVE) upgradeProb += 0.15;
+        if (personality === BotPersonalityType.CONSERVATIVE) upgradeProb -= 0.20;
 
-        if (currentPlayer.money >= tile.houseCost + upgradeBuffer) {
-          // Check even build rule
+        // Don't build if it leaves us dangerously low
+        const afterBuild = currentPlayer.money - tile.houseCost;
+        if (afterBuild < safetyBuffer / 2) upgradeProb -= 0.4;
+
+        if (currentPlayer.money >= tile.houseCost && decide(upgradeProb)) {
           if (gameState.settings.rules.evenBuild) {
             const minBuildings = Math.min(...group.map(t => t.buildingCount));
             if (tile.buildingCount === minBuildings) {
@@ -200,10 +292,10 @@ export function getBotAction(gameState: GameState): BotAction {
       }
     }
 
-    // 2. Check for unmortgaging — prioritize properties that could form monopolies
+    // 2. Unmortgage properties — prefer monopoly-contributing tiles
+    const myTiles = tiles.filter(t => t.ownerId === currentPlayer.id && t.type === TileType.PROPERTY);
     const mortgagedTiles = myTiles.filter(t => t.isMortgaged);
     if (mortgagedTiles.length > 0) {
-      // Prioritize: unmortgage tiles that would complete or contribute to a monopoly
       const sortedMortgaged = [...mortgagedTiles].sort((a, b) => {
         const aGroup = tiles.filter(t => t.group === a.group);
         const bGroup = tiles.filter(t => t.group === b.group);
@@ -213,20 +305,20 @@ export function getBotAction(gameState: GameState): BotAction {
       });
 
       for (const tileToUnmortgage of sortedMortgaged) {
-        const cost = Math.floor(tileToUnmortgage.price * 0.5 * 1.1);
-        const minKeepMoney = personality === BotPersonalityType.CONSERVATIVE ? 600 : 300;
-        if (currentPlayer.money > cost + minKeepMoney) {
+        const cost = Math.floor(tileToUnmortgage.price * GAME_CONSTANTS.MORTGAGE_RATE * GAME_CONSTANTS.UNMORTGAGE_FEE);
+        const minKeep = personality === BotPersonalityType.CONSERVATIVE ? 600 : 300;
+        if (currentPlayer.money > cost + minKeep && decide(0.7)) {
           return { type: 'UNMORTGAGE_PROPERTY', payload: { tileId: tileToUnmortgage.id } };
         }
       }
     }
 
-    // 3. Propose trades — more frequently and strategically
+    // 3. Propose trades — probabilistic with strategic targeting
     const tradeChance = personality === BotPersonalityType.AGGRESSIVE ? 0.35 :
       personality === BotPersonalityType.OPPORTUNISTIC ? 0.30 :
         personality === BotPersonalityType.CONSERVATIVE ? 0.15 : 0.25;
 
-    if (Math.random() < tradeChance) {
+    if (decide(tradeChance)) {
       const tradeAction = getBotTradeProposal(gameState, currentPlayer.id);
       if (tradeAction) return tradeAction;
     }
@@ -239,15 +331,14 @@ export function getBotAction(gameState: GameState): BotAction {
         .sort((a, b) => a.houseCost - b.houseCost)[0];
 
       if (cheapestUpgrade && currentPlayer.money < cheapestUpgrade.houseCost) {
-        // Find a singleton property to mortgage
         const singletons = myTiles.filter(t => {
           if (t.isMortgaged || t.buildingCount > 0) return false;
           const group = tiles.filter(g => g.group === t.group);
           const owned = group.filter(g => g.ownerId === currentPlayer.id).length;
-          return owned === 1 && group.length > 1; // Singleton in its group
+          return owned === 1 && group.length > 1;
         }).sort((a, b) => a.price - b.price);
 
-        if (singletons.length > 0) {
+        if (singletons.length > 0 && decide(0.6)) {
           return { type: 'MORTGAGE_PROPERTY', payload: { tileId: singletons[0].id } };
         }
       }
@@ -260,7 +351,7 @@ export function getBotAction(gameState: GameState): BotAction {
 }
 
 /**
- * Improved auction bidding logic with nuanced strategies and personalities
+ * Improved auction bidding logic with probabilistic sniping and bluffing
  */
 export function getBotBidAction(
   gameState: GameState,
@@ -272,20 +363,14 @@ export function getBotBidAction(
 
   const tile = gameState.tiles[auction.tileId];
   const personality = bot.personality || BotPersonalityType.BALANCED;
+  const gPhase = getGamePhase(gameState.turnCount);
 
   const groupTiles = gameState.tiles.filter(t => t.group === tile.group);
   const botOwnedInGroup = groupTiles.filter(t => t.ownerId === bot.id).length;
   const totalInGroup = groupTiles.length;
 
   // 1. Strategic Valuation
-  let valuation = tile.price;
-
-  // Multipliers based on strategic value
-  if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) {
-    valuation *= 5; // Completing a monopoly is top priority
-  } else if (botOwnedInGroup > 0) {
-    valuation *= 2.5; // Adding to an existing set
-  }
+  let valuation = tileStrategicValue(tile.id, bot.id, gameState);
 
   // Denial bidding: prevent others from completing sets
   const otherPlayers = gameState.players.filter(p => p.id !== bot.id && !p.isBankrupt);
@@ -298,14 +383,14 @@ export function getBotBidAction(
   }
   valuation *= highestThreatMultiplier;
 
-  // Late game multiplier — properties are more scarce
-  if (gameState.turnCount > 50) valuation *= 1.2;
-  if (gameState.turnCount > 100) valuation *= 1.4;
+  // Late game scarcity
+  if (gPhase === 'mid') valuation *= 1.15;
+  if (gPhase === 'late') valuation *= 1.4;
 
-  // Personality adjustments to valuation
+  // Personality fine-tuning
   if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.4;
-  if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.75;
-  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.25;
+  if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.7;
+  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.2;
 
   // 2. Financial Limits
   let moneyLimitPercent = 0.85;
@@ -318,64 +403,55 @@ export function getBotBidAction(
 
   if (nextMinBid > maxBid) return null;
 
-  // 3. Bidding Behavior & Timing
+  // 3. Bidding Probability & Timing
   const timeRemaining = auction.timer;
-  const isHumanHighest = auction.highestBidderId === 0;
+  let bidProbability = 0.35;
 
-  // Probability to bid based on timer and personality
-  let bidProbability = 0.4;
-
-  if (timeRemaining <= 2) {
-    bidProbability = 0.95; // High urgency at the end (sniping)
-  } else if (timeRemaining <= 5) {
-    bidProbability = 0.7;
-  } else if (timeRemaining > 8) {
-    // Early auction: some bots wait to see interest
-    if (personality === BotPersonalityType.CONSERVATIVE) bidProbability = 0.1;
-    if (personality === BotPersonalityType.OPPORTUNISTIC) bidProbability = 0.2;
-    if (personality === BotPersonalityType.AGGRESSIVE) bidProbability = 0.8; // Aggressive bots jump in early
+  // Sniping behavior: wait till the end
+  if (timeRemaining <= 2) bidProbability = 0.92;
+  else if (timeRemaining <= 4) bidProbability = 0.65;
+  else if (timeRemaining > 8) {
+    if (personality === BotPersonalityType.CONSERVATIVE) bidProbability = 0.08;
+    if (personality === BotPersonalityType.OPPORTUNISTIC) bidProbability = 0.15;
+    if (personality === BotPersonalityType.AGGRESSIVE) bidProbability = 0.75;
   }
 
-  // Increase probability if a human is winning (competitive)
-  if (isHumanHighest) bidProbability += 0.2;
+  // Competitive: bid more if a rival has the lead
+  if (auction.highestBidderId !== null) {
+    const leader = gameState.players.find(p => p.id === auction.highestBidderId);
+    if (leader && !leader.isBot) bidProbability += 0.15; // Compete harder vs humans
+  }
 
   // Completing monopoly: always bid
   if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) bidProbability = 1.0;
 
-  if (Math.random() > bidProbability) return null;
+  if (!decide(bidProbability)) return null;
 
-  // 4. Dynamic Increments
+  // 4. Dynamic Increments with bluffing
   let increment: number = GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
 
-  // Decide if we should "jump bid" to intimidate
-  const shouldJumpBid =
-    (personality === BotPersonalityType.AGGRESSIVE && Math.random() > 0.6) ||
-    (highestThreatMultiplier > 2 && Math.random() > 0.8) ||
-    (botOwnedInGroup === totalInGroup - 1 && Math.random() > 0.7);
+  // Bluff/intimidation bid (aggressive bots sometimes overbid to scare)
+  const shouldBluffBid =
+    (personality === BotPersonalityType.AGGRESSIVE && decide(0.25)) ||
+    (highestThreatMultiplier > 2 && decide(0.15));
 
-  if (shouldJumpBid) {
-    // Jump bid is a percentage of the remaining valuation gap
+  if (shouldBluffBid) {
     const gap = maxBid - auction.currentBid;
     if (gap > 100) {
-      increment = Math.floor(gap * (0.1 + Math.random() * 0.2));
+      increment = Math.floor(gap * (0.15 + Math.random() * 0.25));
     } else if (gap > 50) {
-      increment = 20;
+      increment = Math.floor(gap * 0.5);
     }
-  } else if (timeRemaining <= 2 && Math.random() > 0.5) {
-    // Small extra increment at the end to beat other snipers
-    increment += Math.floor(Math.random() * 15);
+  } else if (timeRemaining <= 2 && decide(0.5)) {
+    // Last-second snipe: small extra to edge ahead
+    increment += Math.floor(Math.random() * 20);
   }
 
-  // Ensure increment is at least the minimum
   increment = Math.max(increment, GAME_CONSTANTS.MIN_AUCTION_INCREMENT);
 
-  // Final bid amount
   let finalBid = Math.min(auction.currentBid + increment, maxBid);
-
-  // BUG-M3: Ensure the bid is always at least MIN_AUCTION_INCREMENT above the current bid
   finalBid = Math.max(finalBid, nextMinBid);
 
-  // Only bid if it's actually higher than current and we can afford it
   if (finalBid <= auction.currentBid || finalBid > maxBid) return null;
 
   return {
@@ -385,13 +461,14 @@ export function getBotBidAction(
 }
 
 /**
- * Enhanced trade proposal logic with strategic valuation
+ * BUG-9 FIX: Enhanced trade proposal logic — bot never trades with itself
  */
 function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
   const bot = gameState.players.find(p => p.id === botId)!;
   const personality = bot.personality || BotPersonalityType.BALANCED;
   const tiles = gameState.tiles;
   const myTiles = tiles.filter(t => t.ownerId === botId);
+  const gPhase = getGamePhase(gameState.turnCount);
 
   // Strategy 1: Try to complete a monopoly by trading for the missing piece
   const targets = tiles.filter(t =>
@@ -399,7 +476,6 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
     (t.type === TileType.PROPERTY || t.type === TileType.RAILROAD)
   );
 
-  // Sort targets by how close we are to completing their group
   const scoredTargets = targets.map(targetTile => {
     const groupTiles = tiles.filter(t => t.group === targetTile.group);
     const iOwnInGroup = groupTiles.filter(t => t.ownerId === botId).length;
@@ -410,14 +486,12 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
 
   for (const target of scoredTargets) {
     const { tile: targetTile, iOwnInGroup, totalInGroup } = target;
-
-    // Only propose trades for tiles where we own at least one other in the group
     if (iOwnInGroup === 0) continue;
 
     const targetOwner = gameState.players.find(p => p.id === targetTile.ownerId);
-    if (!targetOwner || targetOwner.isBankrupt) continue;
+    // BUG-9 FIX: Skip if target owner is the bot itself
+    if (!targetOwner || targetOwner.isBankrupt || targetOwner.id === botId) continue;
 
-    // Calculate what we're willing to offer
     const isCompletingSet = iOwnInGroup >= totalInGroup - 1;
     const baseOffer = targetTile.price;
 
@@ -431,11 +505,11 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
       return true;
     });
 
-    // Prefer offering properties that would benefit the target player
+    // Prefer offering properties the target would want
     const beneficialProps = myTradeableProps.filter(t => {
       const g = tiles.filter(g2 => g2.group === t.group);
       const targetOwnedInGroup = g.filter(g2 => g2.ownerId === targetOwner.id).length;
-      return targetOwnedInGroup > 0; // The target also has properties in this group
+      return targetOwnedInGroup > 0;
     });
 
     const propsToOffer = beneficialProps.length > 0
@@ -445,23 +519,18 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
     const offerPropertyIds = propsToOffer.map(t => t.id);
     const offeredPropertyValue = propsToOffer.reduce((sum, t) => sum + t.price, 0);
 
-    // Calculate cash offer
     let cashOffer = 0;
     if (isCompletingSet) {
-      // We really want this: offer more cash
       const premium = personality === BotPersonalityType.AGGRESSIVE ? 2.5 :
         personality === BotPersonalityType.OPPORTUNISTIC ? 2.0 : 1.5;
       cashOffer = Math.max(0, Math.floor(baseOffer * premium - offeredPropertyValue));
-      cashOffer = Math.min(cashOffer, Math.floor(bot.money * 0.6)); // Don't go broke
+      cashOffer = Math.min(cashOffer, Math.floor(bot.money * 0.6));
     } else {
       cashOffer = Math.max(0, Math.floor(baseOffer * 1.2 - offeredPropertyValue));
       cashOffer = Math.min(cashOffer, Math.floor(bot.money * 0.4));
     }
 
-    // Don't propose empty trades
     if (cashOffer === 0 && offerPropertyIds.length === 0) continue;
-
-    // Don't propose if we can't afford it
     if (cashOffer > bot.money) continue;
 
     return {
@@ -475,7 +544,8 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
     };
   }
 
-  // Strategy 2: Request cash for a property someone might want
+  // Strategy 2: Offer a singleton for cash if we're low on money
+  // BUG-9 FIX: Only propose to OTHER players (check targetOwner !== botId)
   if (bot.money < 300 && personality !== BotPersonalityType.CONSERVATIVE) {
     const singletons = myTiles.filter(t => {
       if (t.isMortgaged || t.buildingCount > 0) return false;
@@ -486,21 +556,21 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
 
     for (const singleton of singletons) {
       const g = tiles.filter(g2 => g2.group === singleton.group);
-      // Find a player who wants this
       for (const player of gameState.players) {
         if (player.id === botId || player.isBankrupt) continue;
         const theirCount = g.filter(g2 => g2.ownerId === player.id).length;
         if (theirCount >= g.length - 2 && theirCount > 0) {
-          // They might want this — ask for cash
           const askPrice = Math.floor(singleton.price * 1.5);
           if (player.money >= askPrice) {
-            // Offer our singleton for their property in a different group + cash
+            // Find a tile owned by this player to "target" for the trade
+            const theirTile = g.find(g2 => g2.ownerId === player.id);
+            if (!theirTile) continue;
             return {
               type: 'PROPOSE_TRADE',
               payload: {
                 offerCash: 0,
-                offerPropertyIds: [],
-                targetTileId: singleton.id, // This is hacky but the trade system handles it
+                offerPropertyIds: [singleton.id],
+                targetTileId: theirTile.id,
                 requestCash: askPrice
               }
             };

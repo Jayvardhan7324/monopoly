@@ -198,7 +198,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
 
       let players: Player[] = [];
-      const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7'];
+      const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ec4899', '#06b6d4', '#f97316', '#8b5cf6'];
 
       if (lobbyPlayers && lobbyPlayers.length > 0) {
         // Online multiplayer setup
@@ -493,8 +493,21 @@ const coreReducer = (state: GameState, action: Action): GameState => {
               }
               return p;
             });
+            // BUG-6 FIX: Check bankruptcy for victims who went negative from per-player card
+            let tempState = { ...state, players: updatedPlayers };
+            for (const victim of updatedPlayers) {
+              if (victim.id !== player.id && !victim.isBankrupt && victim.money < 0) {
+                const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
+                  tempState,
+                  victim.id,
+                  player.id // the card drawer is the creditor
+                );
+                tempState = { ...tempState, players: bp, tiles: bt, logs: bl };
+              }
+            }
+            updatedPlayers = tempState.players;
             logs = addLog(
-              logs,
+              tempState.logs,
               `${player.name} drew: "${card.description}" (${perPlayerAmount > 0 ? '+' : ''}$${perPlayerAmount} per player)`
             );
           } else {
@@ -618,12 +631,22 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const nextJailTurns = player.jailTurns + 1;
       if (nextJailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS) {
         // Forced exit — pay the fine
+        const newMoney = player.money - GAME_CONSTANTS.JAIL_FINE;
         newPlayers[state.currentPlayerIndex] = {
           ...player,
-          money: player.money - GAME_CONSTANTS.JAIL_FINE,
+          money: newMoney,
           inJail: false,
           jailTurns: 0,
         };
+        // BUG-1 FIX: Check for bankruptcy after forced jail fine
+        if (newMoney < 0) {
+          const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
+            { ...state, players: newPlayers, logs: addLog(state.logs, `${player.name} couldn't afford the jail fine!`) },
+            player.id,
+            null
+          );
+          return withSound({ ...state, players: bp, tiles: bt, logs: bl, phase: 'TURN_END' }, 'pay');
+        }
         return withSound(
           {
             ...state,
@@ -1003,11 +1026,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         botGainValue += tileValue;
       });
 
-      // Penalty for granting human a monopoly
-      let humanMonopolyPenalty = 0;
-      const humanOwnedInGroup = targetGroup.filter(t => t.ownerId === 0).length;
-      if (humanOwnedInGroup === targetGroup.length - 1) {
-        humanMonopolyPenalty = targetTile.price * (state.turnCount > 100 ? 5 : 3);
+      // BUG-10 FIX: Penalty for granting the proposer a monopoly (not hardcoded to player 0)
+      let proposerMonopolyPenalty = 0;
+      const proposerOwnedInGroup = targetGroup.filter(t => t.ownerId === proposer.id).length;
+      if (proposerOwnedInGroup === targetGroup.length - 1) {
+        proposerMonopolyPenalty = targetTile.price * (state.turnCount > 100 ? 5 : 3);
       }
 
       // Personality adjustments to the final decision
@@ -1024,7 +1047,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (helpsBotCompleteSet) threshold = 0.5;
       }
 
-      if (botGainValue >= (botLossValue + humanMonopolyPenalty) * threshold) {
+      if (botGainValue >= (botLossValue + proposerMonopolyPenalty) * threshold) {
         const newPlayers = state.players.map(p => {
           if (p.id === proposer.id) return { ...p, money: p.money - offerCash + requestCash };
           if (p.id === bot.id) return { ...p, money: p.money + offerCash - requestCash };
@@ -1057,8 +1080,23 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (!state.pendingTrade) return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
 
-      const proposer = state.players.find(p => p.id === proposerId)!;
-      const target = state.players.find(p => p.id === targetId)!;
+      const proposer = state.players.find(p => p.id === proposerId);
+      const target = state.players.find(p => p.id === targetId);
+      if (!proposer || !target) return { ...state, pendingTrade: null };
+
+      // BUG-2 FIX: Validate both parties can still afford the trade
+      if (proposer.money < offerCash) {
+        return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — ${proposer.name} can no longer afford the offer.`) }, 'error');
+      }
+      if (target.money < requestCash) {
+        return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — ${target.name} can no longer afford the request.`) }, 'error');
+      }
+      // Validate property ownership hasn't changed
+      const targetTileStillOwned = state.tiles[targetPropertyId]?.ownerId === targetId;
+      const offerTilesStillOwned = offerPropertyIds.every(id => state.tiles[id]?.ownerId === proposerId);
+      if (!targetTileStillOwned || !offerTilesStillOwned) {
+        return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — property ownership changed.`) }, 'error');
+      }
 
       const newPlayers = state.players.map(p => {
         if (p.id === proposerId) return { ...p, money: p.money - offerCash + requestCash };
@@ -1137,8 +1175,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       if (!state.lastDiceRollDoubles || processedPlayers[state.currentPlayerIndex].isBankrupt) {
         nextIndex = (state.currentPlayerIndex + 1) % processedPlayers.length;
-        while (processedPlayers[nextIndex].isBankrupt) {
+        // BUG-3 FIX: Loop guard to prevent infinite loop if all players are bankrupt
+        let loopGuard = 0;
+        while (processedPlayers[nextIndex].isBankrupt && loopGuard < processedPlayers.length) {
           nextIndex = (nextIndex + 1) % processedPlayers.length;
+          loopGuard++;
         }
         nextDoublesCount = 0;
       }
@@ -1166,7 +1207,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const kicked = state.players.find(p => p.id === playerId);
       if (!kicked || kicked.isBankrupt) return state;
       const { players, tiles, logs } = declareBankruptcy(state, playerId, null);
-      return withSound({ ...state, players, tiles, logs }, 'pay');
+      // BUG-4 FIX: If the kicked player is the active player, advance the turn
+      const isActivePlayer = state.players[state.currentPlayerIndex]?.id === playerId;
+      return withSound({ ...state, players, tiles, logs, phase: isActivePlayer ? 'TURN_END' : state.phase }, 'pay');
     }
 
     // ─── DECLARE_BANKRUPT ──────────────────────────────────────────────────────
@@ -1191,7 +1234,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         existingVote = {
           targetId,
           voterIds: [voterId],
-          expiresAt: Date.now() + 2 * 60 * 1000 // 2 minutes from now
+          expiresAt: state.turnCount + 20 // BUG-17 FIX: Use turn-count offset (20 turns ≈ 2 minutes) instead of Date.now()
         };
         newVotekicks.push(existingVote);
       } else {
@@ -1226,7 +1269,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const expiredTargetIds: number[] = [];
 
       for (const vote of state.votekicks) {
-        if (now >= vote.expiresAt) {
+        if (state.turnCount >= vote.expiresAt) { // BUG-17 FIX: Compare against turnCount
           expiredTargetIds.push(vote.targetId);
         }
       }
