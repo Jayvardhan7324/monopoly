@@ -31,6 +31,18 @@ async function startServer() {
 
   const rooms = new Map<string, RoomData>();
 
+  function getUniqueName(baseName: string, players: any[]) {
+    let name = (baseName || 'Player').trim();
+    if (!name) name = 'Player';
+    let suffix = 1;
+    let finalName = name;
+    while (players.some(p => p.name === finalName)) {
+      finalName = `${name} (${suffix})`;
+      suffix++;
+    }
+    return finalName;
+  }
+
   function getPublicRoomsList() {
     const publicRooms: any[] = [];
     for (const [id, room] of rooms.entries()) {
@@ -91,7 +103,8 @@ async function startServer() {
     if (targetRoomId) {
       const room = rooms.get(targetRoomId)!;
       const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-      const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: false };
+      const uniqueName = getUniqueName(data.name, room.players);
+      const player = { id: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
       room.players.push(player);
       // We don't broadcast room_updated here because socket isn't connected yet.
       // We will broadcast when they actually connect their socket.
@@ -132,7 +145,8 @@ async function startServer() {
     }
 
     const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-    const player = { id: playerId, name: data.name, avatar: data.avatar, isHost: false };
+    const uniqueName = getUniqueName(data.name, room.players);
+    const player = { id: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
     room.players.push(player);
 
     io.emit("rooms_list", getPublicRoomsList());
@@ -186,7 +200,10 @@ async function startServer() {
         if (room) {
           const player = room.players.find(p => p.id === socket.id);
           if (player) {
-            if (data.name !== undefined) player.name = data.name;
+            if (data.name !== undefined) {
+              const otherPlayers = room.players.filter(p => p.id !== socket.id);
+              player.name = getUniqueName(data.name, otherPlayers);
+            }
             if (data.avatar !== undefined) player.avatar = data.avatar;
             io.to(roomId).emit("room_updated", { players: room.players });
             if (callback) callback({ success: true });
