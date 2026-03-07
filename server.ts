@@ -61,13 +61,33 @@ async function startServer() {
     console.log(`Player ${originalPlayerId} permanently removed from room ${roomId} (reconnect window expired).`);
   }
 
+  const GAMERTAG_ADJECTIVES = [
+    'Swift', 'Brave', 'Fierce', 'Bold', 'Dark', 'Iron', 'Stone', 'Silent',
+    'Shadow', 'Crimson', 'Silver', 'Golden', 'Arctic', 'Cosmic', 'Neon',
+    'Phantom', 'Rogue', 'Thunder', 'Velvet', 'Blazing', 'Crystal', 'Electric',
+    'Sacred', 'Frozen', 'Obsidian', 'Scarlet', 'Astral', 'Hollow', 'Ember', 'Void'
+  ];
+  const GAMERTAG_NOUNS = [
+    'Falcon', 'Wolf', 'Panther', 'Dragon', 'Phoenix', 'Hawk', 'Blade', 'Shield',
+    'Ghost', 'Viper', 'Tiger', 'Lion', 'Fox', 'Raven', 'Eagle', 'Cobra',
+    'Titan', 'Ranger', 'Knight', 'Wizard', 'Ninja', 'Viking', 'Warrior',
+    'Samurai', 'Mage', 'Archer', 'Scout', 'Cipher', 'Wraith', 'Oracle'
+  ];
+
+  function generateGamertag(): string {
+    const adj = GAMERTAG_ADJECTIVES[Math.floor(Math.random() * GAMERTAG_ADJECTIVES.length)];
+    const noun = GAMERTAG_NOUNS[Math.floor(Math.random() * GAMERTAG_NOUNS.length)];
+    return `${adj}${noun}`;
+  }
+
   function getUniqueName(baseName: string, players: any[]) {
-    let name = (baseName || 'Player').trim();
-    if (!name) name = 'Player';
+    const stripped = (baseName || '').trim();
+    // Use a gamertag when the player hasn't set a real name
+    let name = (!stripped || stripped.toLowerCase() === 'player') ? generateGamertag() : stripped;
     let suffix = 1;
     let finalName = name;
     while (players.some(p => p.name === finalName)) {
-      finalName = `${name} (${suffix})`;
+      finalName = `${name}${suffix}`;   // e.g. SwiftFalcon2 (no brackets, stays clean)
       suffix++;
     }
     return finalName;
