@@ -23,7 +23,7 @@ export type BotAction =
   | { type: 'UPGRADE_PROPERTY'; payload: { tileId: number } }
   | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number } }
-  | { type: 'PROPOSE_TRADE'; payload: { offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
+  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
   | null;
 
 // ─── Constants for game phase detection ────────────────────────────────────
@@ -536,6 +536,7 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
     return {
       type: 'PROPOSE_TRADE',
       payload: {
+        proposerId: botId,
         offerCash: cashOffer,
         offerPropertyIds,
         targetTileId: targetTile.id,
@@ -568,6 +569,7 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
             return {
               type: 'PROPOSE_TRADE',
               payload: {
+                proposerId: botId,
                 offerCash: 0,
                 offerPropertyIds: [singleton.id],
                 targetTileId: theirTile.id,

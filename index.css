@@ -89,9 +89,8 @@
   }
 
   body {
-    @apply bg-[#020617] text-slate-50 antialiased min-h-screen;
+    @apply bg-background text-foreground antialiased min-h-screen;
     font-family: 'Outfit', sans-serif;
-    @apply bg-background text-foreground;
   }
 
   ::-webkit-scrollbar {

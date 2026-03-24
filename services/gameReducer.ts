@@ -47,7 +47,7 @@ export type Action =
   | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'SELL_PROPERTY'; payload: { tileId: number } }
-  | { type: 'PROPOSE_TRADE'; payload: { offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
+  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
   | { type: 'ACCEPT_TRADE' }
   | { type: 'DECLINE_TRADE' }
   | { type: 'PAY_JAIL_FINE' }
@@ -147,6 +147,16 @@ const getRent = (
     return tile.rent[tile.buildingCount];
   }
   return 0;
+};
+
+/**
+ * Check if the game has a winner (one active player remaining).
+ * Returns the winner's id or null.
+ */
+const getWinnerId = (players: Player[]): number | null => {
+  const active = players.filter(p => !p.isBankrupt);
+  if (active.length === 1 && players.length > 1) return active[0].id;
+  return null;
 };
 
 /**
@@ -958,14 +968,15 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── PROPOSE_TRADE ────────────────────────────────────────────────────────
     case 'PROPOSE_TRADE': {
-      const { offerCash, offerPropertyIds, targetTileId, requestCash } = action.payload;
+      const { proposerId, offerCash, offerPropertyIds, targetTileId, requestCash } = action.payload;
       const targetTile = state.tiles[targetTileId];
       const targetOwnerId = targetTile.ownerId;
       if (targetOwnerId === null) return state;
       const targetPlayer = state.players.find(p => p.id === targetOwnerId);
       if (!targetPlayer) return state;
 
-      const proposer = state.players[state.currentPlayerIndex];
+      const proposer = state.players.find(p => p.id === proposerId);
+      if (!proposer) return state;
 
       // If target is human, store as pending
       if (!targetPlayer.isBot) {
@@ -1207,8 +1218,14 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const kicked = state.players.find(p => p.id === playerId);
       if (!kicked || kicked.isBankrupt) return state;
       const { players, tiles, logs } = declareBankruptcy(state, playerId, null);
-      // BUG-4 FIX: If the kicked player is the active player, advance the turn
       const isActivePlayer = state.players[state.currentPlayerIndex]?.id === playerId;
+      const winnerId = getWinnerId(players);
+      if (winnerId !== null) {
+        return withSound(
+          { ...state, players, tiles, logs: addLog(logs, `${players.find(p => p.id === winnerId)?.name} WINS!`), winnerId, phase: 'TURN_END' },
+          'win'
+        );
+      }
       return withSound({ ...state, players, tiles, logs, phase: isActivePlayer ? 'TURN_END' : state.phase }, 'pay');
     }
 
@@ -1217,6 +1234,13 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const player = state.players[state.currentPlayerIndex];
       if (player.isBankrupt) return state;
       const { players, tiles, logs } = declareBankruptcy(state, player.id, null);
+      const winnerId = getWinnerId(players);
+      if (winnerId !== null) {
+        return withSound(
+          { ...state, players, tiles, logs: addLog(logs, `${players.find(p => p.id === winnerId)?.name} WINS!`), winnerId, phase: 'TURN_END' },
+          'win'
+        );
+      }
       return withSound({ ...state, players, tiles, logs, phase: 'TURN_END' }, 'pay');
     }
 
@@ -1251,8 +1275,15 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (existingVote!.voterIds.length >= requiredVotes && requiredVotes > 0) {
         const { players, tiles, logs } = declareBankruptcy(state, targetId, null);
         newVotekicks = newVotekicks.filter(v => v.targetId !== targetId);
-        const winCheckState = { ...state, players, tiles, votekicks: newVotekicks, logs: [`${target.name} was kicked by unanimous vote.`, ...logs] };
-        return withSound(winCheckState, 'error');
+        const kickLogs = addLog(logs, `${target.name} was kicked by unanimous vote.`);
+        const winnerId = getWinnerId(players);
+        if (winnerId !== null) {
+          return withSound(
+            { ...state, players, tiles, votekicks: newVotekicks, logs: addLog(kickLogs, `${players.find(p => p.id === winnerId)?.name} WINS!`), winnerId, phase: 'TURN_END' },
+            'win'
+          );
+        }
+        return withSound({ ...state, players, tiles, votekicks: newVotekicks, logs: kickLogs }, 'error');
       }
 
       const logMsg = existingVote!.voterIds.length === 1
@@ -1264,12 +1295,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── CHECK_VOTEKICKS ────────────────────────────────────────────────────────
     case 'CHECK_VOTEKICKS': {
-      const now = Date.now();
       let nextState = { ...state };
       const expiredTargetIds: number[] = [];
 
       for (const vote of state.votekicks) {
-        if (state.turnCount >= vote.expiresAt) { // BUG-17 FIX: Compare against turnCount
+        if (state.turnCount >= vote.expiresAt) {
           expiredTargetIds.push(vote.targetId);
         }
       }
@@ -1281,12 +1311,18 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           if (target && !target.isBankrupt) {
             const { players, tiles, logs } = declareBankruptcy(nextState, tid, null);
             nextState = { ...nextState, players, tiles };
-            // Append the bankruptcy logs, plus the kick notification
-            currentLogs = [`${target.name} was kicked (timer expired).`, ...logs, ...currentLogs];
+            currentLogs = addLog(logs, `${target.name} was kicked (timer expired).`);
           }
         }
         nextState.logs = currentLogs;
         nextState.votekicks = nextState.votekicks.filter(v => !expiredTargetIds.includes(v.targetId));
+        const winnerId = getWinnerId(nextState.players);
+        if (winnerId !== null) {
+          return withSound(
+            { ...nextState, logs: addLog(nextState.logs, `${nextState.players.find(p => p.id === winnerId)?.name} WINS!`), winnerId, phase: 'TURN_END' },
+            'win'
+          );
+        }
         return withSound(nextState, 'error');
       }
       return state;

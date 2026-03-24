@@ -6,6 +6,7 @@ import { Controls } from './components/Controls';
 import { PropertyModal } from './components/PropertyModal';
 import { PlayerPortfolioModal } from './components/PlayerPortfolioModal';
 import { TradeProposalModal } from './components/TradeProposalModal';
+import { CreateTradeModal } from './components/CreateTradeModal';
 import { GameSettings, TileType } from './types';
 import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
@@ -64,7 +65,6 @@ const App: React.FC = () => {
   const [lobbyPlayers, setLobbyPlayers] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
-  const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState(11);
   const [showJoinInput, setShowJoinInput] = useState(false);
   const [showRoomBrowser, setShowRoomBrowser] = useState(false);
@@ -75,6 +75,8 @@ const App: React.FC = () => {
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isStacked, setIsStacked] = useState(false);
+  const [showCreateTradeModal, setShowCreateTradeModal] = useState(false);
+  const [systemAlert, setSystemAlert] = useState<string | null>(null);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -154,7 +156,7 @@ const App: React.FC = () => {
       setLobbyPlayers([]);
       setIsHost(false);
       setGameStarted(false);
-      alert("You have been kicked from the room.");
+      setSystemAlert("You have been kicked from the room.");
     };
 
     const handleChatMessage = (data: any) => {
@@ -389,7 +391,7 @@ const App: React.FC = () => {
         // BUG-19 FIX: Clean stale ?room= parameter from URL
         window.history.replaceState({}, '', window.location.pathname);
       } else {
-        alert(res.error || "Failed to join room");
+        setSystemAlert(res.error || "Failed to join room");
       }
     } catch (e) {
       console.error(e);
@@ -411,7 +413,7 @@ const App: React.FC = () => {
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
       } else {
-        alert(res.error || "Failed to join random room");
+        setSystemAlert(res.error || "Failed to join random room");
       }
     } catch (e) {
       console.error(e);
@@ -551,8 +553,8 @@ const App: React.FC = () => {
 
             if (navigator.clipboard && window.isSecureContext) {
               navigator.clipboard.writeText(textToCopy)
-                .then(() => alert("Copied room link to clipboard!"))
-                .catch(() => alert("Failed to copy link via clipboard API."));
+                .then(() => setSystemAlert("Copied room link to clipboard!"))
+                .catch(() => setSystemAlert("Failed to copy link via clipboard API."));
             } else {
               // Fallback for non-HTTPS (like local network IP testing)
               try {
@@ -567,12 +569,12 @@ const App: React.FC = () => {
                 const successful = document.execCommand('copy');
                 textArea.remove();
                 if (successful) {
-                  alert("Copied room link to clipboard!");
+                  setSystemAlert("Copied room link to clipboard!");
                 } else {
-                  alert("Failed to copy link using fallback.");
+                  setSystemAlert("Failed to copy link using fallback.");
                 }
               } catch (err) {
-                alert("Failed to copy link. Please select the text and copy manually.");
+                setSystemAlert("Failed to copy link. Please select the text and copy manually.");
               }
             }
           }}
@@ -1052,7 +1054,7 @@ const App: React.FC = () => {
                       handleStartGame();
                     }
                   }}
-                  disabled={!isHost && lobbyPlayers.length < 2}
+                  disabled={!isHost}
                   className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
                 >
                   {isHost ? 'Start Game' : 'Waiting for Host'}
@@ -1147,10 +1149,10 @@ const App: React.FC = () => {
   return (
     <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03] pointer-events-none fixed" />
+      <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='white'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
 
       {/* FEAT-04: In-game sound toggle */}
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-2 fixed">
+      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <button
           onClick={() => setSoundEnabled(!soundEnabled)}
           className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors backdrop-blur-sm shadow-lg"
@@ -1162,7 +1164,7 @@ const App: React.FC = () => {
 
       {/* Left Column: Share, Ad Banner & Chat */}
       <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
-        {renderShareBox(true)}
+        {isOnline && renderShareBox(true)}
 
         {/* Ad Banner Space */}
         <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
@@ -1195,7 +1197,7 @@ const App: React.FC = () => {
               onUpgrade={tileId => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId } })}
               onOpenProperty={handleTileClick}
               onTrade={(offer, targetTileId) =>
-                handleDispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash } })
+                handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash } })
               }
               dispatch={handleDispatch}
               onViewPlayer={id => setViewingPlayerId(id)}
@@ -1337,7 +1339,7 @@ const App: React.FC = () => {
             </span>
             <Button
               size="sm"
-              onClick={() => setSelectedTileId(myProperties[0]?.id ?? null)}
+              onClick={() => setShowCreateTradeModal(true)}
               className="h-6 px-2 text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white"
             >
               Create
@@ -1428,7 +1430,7 @@ const App: React.FC = () => {
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
             myProperties={myProperties}
             onTrade={offer =>
-              handleDispatch({ type: 'PROPOSE_TRADE', payload: { offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId, requestCash: offer.requestCash } })
+              handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId, requestCash: offer.requestCash } })
             }
             onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
@@ -1444,7 +1446,18 @@ const App: React.FC = () => {
           />
         )}
 
-        {gameState.pendingTrade && (
+        <CreateTradeModal
+          isOpen={showCreateTradeModal}
+          onClose={() => setShowCreateTradeModal(false)}
+          players={gameState.players}
+          tiles={gameState.tiles}
+          myPlayerId={myPlayerId}
+          onTrade={(offerCash, offerPropertyIds, targetTileId, requestCash) => {
+            handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash, offerPropertyIds, targetTileId, requestCash } });
+          }}
+        />
+
+        {gameState.pendingTrade && gameState.pendingTrade.targetId === myPlayerId && (
           <TradeProposalModal
             trade={gameState.pendingTrade}
             players={gameState.players}
@@ -1483,6 +1496,24 @@ const App: React.FC = () => {
               <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
                 {renderGameSettings()}
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {systemAlert && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl flex flex-col items-center gap-4 text-center"
+            >
+              <Info size={32} className="text-indigo-400 mb-2" />
+              <p className="text-white font-bold">{systemAlert}</p>
+              <button onClick={() => setSystemAlert(null)} className="mt-4 w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-colors">
+                OK
+              </button>
             </motion.div>
           </motion.div>
         )}

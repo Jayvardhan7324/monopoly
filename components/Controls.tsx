@@ -77,7 +77,13 @@ export const Controls: React.FC<ControlsProps> = ({
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative">
-      <div className="flex-1 flex flex-col gap-4 relative min-h-0 w-full animate-fade-in p-2">
+      <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 ${isRollingAnim || gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING' ? 'opacity-100 z-0' : 'opacity-0 z-[-1]'}`}>
+        <div className="flex -space-x-40 relative -mt-32">
+          <Dice value={gameState.dice[0]} isRolling={isRollingAnim} size={300} index={0} />
+          <Dice value={gameState.dice[1]} isRolling={isRollingAnim} size={300} index={1} />
+        </div>
+      </div>
+      <div className="flex-1 flex flex-col gap-4 relative min-h-0 w-full animate-fade-in p-2 z-10">
 
         {/* Auction overlay */}
         {gameState.phase === 'AUCTION' && gameState.auction && (
@@ -177,13 +183,8 @@ export const Controls: React.FC<ControlsProps> = ({
           ) : (
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
-                <div className="flex flex-col items-center gap-12">
-                  <div className="flex -space-x-40 -mt-32 relative z-10">
-                    <Dice value={gameState.dice[0]} isRolling={isRollingAnim} size={300} index={0} />
-                    <Dice value={gameState.dice[1]} isRolling={isRollingAnim} size={300} index={1} />
-                  </div>
-
-                  {gameState.phase === 'ROLL' && !currentPlayer.isBot && (
+                <div className="flex flex-col items-center mt-32">
+                  {gameState.phase === 'ROLL' && !currentPlayer.isBot && isHumanTurn && (
                     currentPlayer.inJail ? (
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
@@ -253,98 +254,62 @@ export const Controls: React.FC<ControlsProps> = ({
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                  className="flex flex-col items-center gap-6 w-full max-w-md"
+                  className="flex flex-col items-center gap-4 mt-32"
                 >
-                  <div className="w-full bg-black/90 rounded-2xl p-8 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] text-center backdrop-blur-sm">
-                    <p className="text-white text-2xl font-medium italic leading-relaxed tracking-tight">
-                      "{gameState.logs[0]}"
-                    </p>
+                  {gameState.phase === 'ACTION' && !currentPlayer.isBot && isHumanTurn && canBuy && (
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={onBuy}
+                      className="px-14 py-6 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-2xl font-black text-2xl shadow-[0_0_40px_rgba(16,185,129,0.4)] border border-white/10 animate-glow-pulse relative overflow-hidden group"
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                      <span className="relative z-10 w-full text-center flex items-center justify-center">BUY FOR ${currentTile.price}</span>
+                    </motion.button>
+                  )}
 
-                    {gameState.phase === 'ACTION' && !currentPlayer.isBot && canBuy && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.2 }}
-                        className="mt-8 flex flex-col items-center gap-4"
-                      >
-                        <div className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">Market Opportunity</div>
-                        <button
-                          onClick={onBuy}
-                          className="w-full py-4 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-black text-lg shadow-xl shadow-emerald-600/20 uppercase tracking-tight active:scale-95 relative overflow-hidden group"
-                        >
-                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-                          <span className="relative z-10">BUY PROPERTY for ${currentTile.price}</span>
-                        </button>
-                      </motion.div>
-                    )}
+                  {!currentPlayer.isBot && isHumanTurn && canUpgrade && (
+                    <motion.button
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      onClick={() => onUpgrade(currentTile.id)}
+                      className="px-8 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-md shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Hammer size={16} />
+                      {currentTile.buildingCount === 4 ? 'Build Hotel' : 'Build House'} (${currentTile.houseCost})
+                    </motion.button>
+                  )}
 
-                    {!currentPlayer.isBot && canUpgrade && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3 }}
-                        className="mt-8 flex flex-col items-center gap-4 border-t border-white/10 pt-6"
-                      >
-                        <div className="text-[11px] font-black text-amber-500 uppercase tracking-[0.3em]">Property Improvement</div>
-                        <button
-                          onClick={() => onUpgrade(currentTile.id)}
-                          className="w-full py-4 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-lg shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-3"
-                        >
-                          <Hammer size={20} />
-                          {currentTile.buildingCount === 4 ? 'Build Hotel' : 'Build House'} (${currentTile.houseCost})
-                        </button>
-                      </motion.div>
-                    )}
-
-                    {gameState.phase === 'TURN_END' && currentPlayer.isBot && gameState.turnLogs.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        className="mt-6 border-t border-white/10 pt-6 overflow-hidden"
-                      >
-                        <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4">Turn Summary</div>
-                        <div className="space-y-2 text-left max-h-40 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
-                          {gameState.turnLogs.map((log, idx) => (
-                            <motion.div
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: idx * 0.1 }}
-                              key={idx}
-                              className="text-xs text-slate-300 flex items-start gap-2"
-                            >
-                              <div className="w-1 h-1 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-                              <span className="leading-relaxed">{log}</span>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {!currentPlayer.isBot && (
-                      <motion.button
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.4 }}
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        onClick={() => {
-                          if (gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null) {
-                            dispatch({ type: 'START_AUCTION' });
-                          } else {
-                            onEndTurn();
-                          }
-                        }}
-                        className="w-full mt-8 py-4 bg-gradient-to-r from-slate-100 to-white text-slate-950 rounded-xl font-black text-lg flex items-center justify-center gap-3 hover:shadow-[0_10px_30px_rgba(255,255,255,0.15)] transition-all uppercase tracking-tighter"
-                      >
+                  {!currentPlayer.isBot && isHumanTurn && (
+                    <motion.button
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 0.1 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        if (gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null) {
+                          dispatch({ type: 'START_AUCTION' });
+                        } else {
+                          onEndTurn();
+                        }
+                      }}
+                       className={`px-14 py-6 text-white rounded-2xl font-black text-2xl shadow-[0_0_40px_rgba(255,255,255,0.2)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
+                         gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null
+                           ? 'bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600'
+                           : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800'
+                       }`}
+                    >
+                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                      <span className="relative z-10 w-full text-center flex items-center justify-center">
                         {gameState.phase === 'ACTION'
                           ? gameState.settings.rules.auctionEnabled
                             ? 'PUT TO AUCTION'
                             : 'SKIP TRANSACTION'
                           : 'FINISH TURN'}
-                        <ArrowRight size={20} />
-                      </motion.button>
-                    )}
-                  </div>
+                      </span>
+                    </motion.button>
+                  )}
                 </motion.div>
               )}
             </>

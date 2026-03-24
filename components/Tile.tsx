@@ -74,7 +74,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
               <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.3)]" />
               <span className="text-[10px] text-slate-200 mt-1 font-bold">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <div className="absolute -bottom-1 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/30 z-10 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+                <div className="mt-0.5 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
                   <span className="text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
                 </div>
               )}
