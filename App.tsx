@@ -79,6 +79,9 @@ const App: React.FC = () => {
   const [showCreateTradeModal, setShowCreateTradeModal] = useState(false);
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
   const [confirmAlert, setConfirmAlert] = useState<{ message: string, onConfirm: () => void } | null>(null);
+  const [isSpectator, setIsSpectator] = useState(false);
+  const [showAppearanceModal, setShowAppearanceModal] = useState(false);
+  const autoJoinAttemptedRef = useRef(false);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -94,19 +97,49 @@ const App: React.FC = () => {
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
   const botBidFiringRef = useRef(false);
 
+  // Auto-join from URL on first load
   useEffect(() => {
-    // Support both /rooms/ROOMID path and ?room=ROOMID query param
+    if (autoJoinAttemptedRef.current) return;
     const pathMatch = window.location.pathname.match(/^\/rooms\/([A-Z0-9]+)$/i);
-    if (pathMatch) {
-      setJoinRoomId(pathMatch[1].toUpperCase());
-    } else {
-      const params = new URLSearchParams(window.location.search);
-      const room = params.get('room');
-      if (room) {
-        setJoinRoomId(room.toUpperCase());
+    const roomFromUrl = pathMatch?.[1] || new URLSearchParams(window.location.search).get('room');
+    if (!roomFromUrl) return;
+    autoJoinAttemptedRef.current = true;
+    const cleanId = roomFromUrl.toUpperCase();
+    setJoinRoomId(cleanId);
+    (async () => {
+      try {
+        const res = await fetch(`/api/rooms/${cleanId}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
+        }).then(r => r.json());
+        if (res.success) {
+          setIsOnline(true);
+          setRoomId(res.roomId);
+          setSessionPlayerId(res.playerId);
+          setIsHost(false);
+          setLobbyPlayers(res.players);
+          setShowRoomBrowser(false);
+          window.history.replaceState({}, '', `/rooms/${res.roomId}`);
+          if (res.isSpectator) {
+            setIsSpectator(true);
+            setGameStarted(true); // skip lobby, go straight to game view
+          }
+        } else {
+          setSystemAlert(res.error || 'Failed to join room');
+        }
+      } catch (e) {
+        console.error(e);
       }
-    }
+    })();
   }, []);
+
+  // Show appearance modal whenever entering the lobby
+  useEffect(() => {
+    if (isOnline && !gameStarted) {
+      setShowAppearanceModal(true);
+    }
+  }, [isOnline]);
 
   // Play sound proxy — respects toggle
   const sfx = (type: Parameters<typeof playSound>[0]) => {
@@ -164,6 +197,7 @@ const App: React.FC = () => {
       setLobbyPlayers([]);
       setIsHost(false);
       setGameStarted(false);
+      setIsSpectator(false);
       setSystemAlert("You have been kicked from the room.");
       window.history.replaceState({}, '', '/');
     };
@@ -553,13 +587,11 @@ const App: React.FC = () => {
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
-          {window.location.origin}?room={roomId}
+          {window.location.origin}/rooms/{roomId}
         </div>
         <button
           onClick={() => {
-            const url = new URL(window.location.href);
-            url.searchParams.set('room', roomId || '');
-            const textToCopy = url.toString();
+            const textToCopy = `${window.location.origin}/rooms/${roomId || ''}`;
 
             if (navigator.clipboard && window.isSecureContext) {
               navigator.clipboard.writeText(textToCopy)
@@ -1051,29 +1083,61 @@ const App: React.FC = () => {
           <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
             <Board gameState={gameState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
-                <div className="text-center">
-                  <h2 className="text-4xl font-black text-white tracking-tighter mb-2 drop-shadow-2xl">
-                    LOBBY <span className="text-indigo-500">{roomId}</span>
-                  </h2>
-                  <p className="text-slate-400 font-medium">Waiting for players to join...</p>
-                </div>
+                {showAppearanceModal ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="flex flex-col items-center gap-4 bg-slate-950/95 border border-slate-700/60 rounded-2xl p-6 shadow-2xl w-[260px]"
+                  >
+                    <div className="text-center">
+                      <h3 className="text-lg font-black text-white tracking-tight">Choose Appearance</h3>
+                      <p className="text-slate-500 text-xs mt-0.5">Pick your color</p>
+                    </div>
+                    <Avatar avatarId={selectedAvatar} className="w-16 h-16 shadow-2xl ring-2 ring-indigo-500/60" />
+                    <div className="grid grid-cols-6 gap-2">
+                      {APPEARANCE_COLORS.map((color, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            setSelectedAvatar(idx);
+                            const socket = getSocket();
+                            if (socket) socket.emit('update_player', { avatar: idx });
+                          }}
+                          className={`w-7 h-7 rounded-full transition-all ${selectedAvatar === idx ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 scale-110' : 'hover:scale-110 opacity-50 hover:opacity-100'}`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setShowAppearanceModal(false)}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-95"
+                    >
+                      OK
+                    </button>
+                  </motion.div>
+                ) : (
+                  <>
+                    <div className="text-center">
+                      <h2 className="text-4xl font-black text-white tracking-tighter mb-2 drop-shadow-2xl">
+                        LOBBY <span className="text-indigo-500">{roomId}</span>
+                      </h2>
+                      <p className="text-slate-400 font-medium">Waiting for players to join...</p>
+                    </div>
 
-                <button
-                  onClick={() => {
-                    if (isHost) {
-                      handleStartGame();
-                    }
-                  }}
-                  disabled={!isHost}
-                  className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
-                >
-                  {isHost ? 'Start Game' : 'Waiting for Host'}
-                </button>
+                    <button
+                      onClick={() => { if (isHost) handleStartGame(); }}
+                      disabled={!isHost}
+                      className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
+                    >
+                      {isHost ? 'Start Game' : 'Waiting for Host'}
+                    </button>
 
-                <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
-                  <Users size={16} className="text-indigo-400" />
-                  <span className="text-sm font-bold text-slate-300">{lobbyPlayers.length} / {settings.maxPlayers} Players</span>
-                </div>
+                    <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
+                      <Users size={16} className="text-indigo-400" />
+                      <span className="text-sm font-bold text-slate-300">{lobbyPlayers.length} / {settings.maxPlayers} Players</span>
+                    </div>
+                  </>
+                )}
               </div>
             </Board>
           </div>
@@ -1081,48 +1145,28 @@ const App: React.FC = () => {
 
         {/* Right Column: Profile & Settings */}
         <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
-          {/* User Profile Box */}
-          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex flex-col gap-4 shadow-lg shrink-0">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <Avatar avatarId={selectedAvatar} className="w-16 h-16 shadow-2xl ring-2 ring-indigo-500/50" />
-                <div className="absolute -bottom-1 -right-1 bg-indigo-500 text-white p-1 rounded-full shadow-lg">
-                  <Settings size={12} />
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-lg font-black text-white truncate flex items-center gap-2">
-                  {humanName}
-                  {isHost && <Crown size={16} className="text-amber-400" />}
-                </div>
-                <button
-                  onClick={() => setSelectedAvatar((selectedAvatar + 1) % APPEARANCE_COLORS.length)}
-                  className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors uppercase tracking-wider"
-                >
-                  Change appearance
-                </button>
-              </div>
+          {/* Lobby Players List */}
+          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex flex-col gap-3 shadow-lg shrink-0">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                <Users size={13} /> In Lobby
+              </h3>
+              <span className="text-[10px] font-bold text-slate-600">{lobbyPlayers.length}/{settings.maxPlayers}</span>
             </div>
-
-            <div className="grid grid-cols-6 gap-2 pt-2">
-              {APPEARANCE_COLORS.map((color, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => {
-                    setSelectedAvatar(idx);
-                    const socket = getSocket();
-                    if (socket) {
-                      socket.emit("update_player", { avatar: idx });
-                    }
-                  }}
-                  className={`aspect-square rounded-full transition-all ${selectedAvatar === idx
-                    ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-[#1e1e24] scale-110'
-                    : 'hover:scale-110 opacity-40 hover:opacity-100'
-                    }`}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
+            {lobbyPlayers.map((player: any) => (
+              <div key={player.id} className="flex items-center gap-3">
+                <Avatar avatarId={player.avatar ?? 0} className="w-8 h-8 shrink-0" />
+                <span className="text-sm font-bold text-slate-200 truncate flex-1">{player.name}</span>
+                {player.isHost && <Crown size={13} className="text-amber-400 shrink-0" />}
+                {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
+              </div>
+            ))}
+            <button
+              onClick={() => setShowAppearanceModal(true)}
+              className="mt-2 w-full py-2 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            >
+              <Eye size={13} /> Change Appearance
+            </button>
           </div>
 
           {/* Game Settings Box */}
@@ -1160,6 +1204,13 @@ const App: React.FC = () => {
     <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='white'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
+
+      {/* Spectator badge */}
+      {isSpectator && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-1.5 bg-slate-900/90 border border-slate-700/60 rounded-full text-slate-400 text-xs font-black uppercase tracking-widest backdrop-blur-sm shadow-lg">
+          <Eye size={13} className="text-indigo-400" /> Spectating
+        </div>
+      )}
 
       {/* FEAT-04: In-game sound toggle */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">

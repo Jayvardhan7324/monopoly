@@ -198,7 +198,13 @@ async function startServer() {
       return res.status(404).json({ success: false, error: "Room not found" });
     }
     if (room.state) {
-      return res.status(400).json({ success: false, error: "Game already started" });
+      // Game already started — allow joining as spectator
+      const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+      const uniqueName = getUniqueName(data.name, room.players);
+      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false, isSpectator: true };
+      room.players.push(player);
+      res.json({ success: true, roomId: roomId, playerId, players: room.players, isSpectator: true });
+      return;
     }
     if (room.players.length >= room.maxPlayers) {
       return res.status(400).json({ success: false, error: "Room is full" });
