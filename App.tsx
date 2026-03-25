@@ -35,7 +35,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
 
 // ─────────────────────────────────────────────────────────────────────────────
-const BOT_LOBBY_NAMES = ['RoboMax', 'CyberBot', 'AIPlayer', 'BotKing', 'NeuralX', 'DigitalDan', 'SiliconSam', 'ByteBlast'];
+const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
+const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
+const generateBotLobbyName = (index: number) => BOT_ADJ[(index * 7 + 3) % BOT_ADJ.length] + BOT_NOUN[(index * 11 + 5) % BOT_NOUN.length];
 
 const App: React.FC = () => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
@@ -85,6 +87,8 @@ const App: React.FC = () => {
   const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const isOnlineRef = useRef(false);
+  useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
   const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -488,6 +492,20 @@ const App: React.FC = () => {
     setMyPlayerId(0);
     window.history.replaceState({}, '', '/');
   };
+
+  // Back-button: leave room when browser navigates to /
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isOnlineRef.current) {
+        resetSocket();
+        setIsOnline(false); setRoomId(null); setSessionPlayerId(null);
+        setIsHost(false); setLobbyPlayers([]); setGameStarted(false);
+        setIsSpectator(false); setShowAppearanceModal(false); setMyPlayerId(0);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Reset kicked bots when allowBots or maxPlayers changes
   useEffect(() => { setKickedBotIds(new Set()); }, [settings.allowBots, settings.maxPlayers]);
@@ -912,16 +930,25 @@ const App: React.FC = () => {
           transition={{ duration: 0.25 }}
           className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-hidden"
         >
-          {/* Top accent / loading bar */}
-          <div className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-600 via-violet-500 to-pink-500 overflow-hidden">
+          {/* Top loading bar — only visible while loading */}
+          <AnimatePresence>
             {(isAutoJoining || isJoiningRoom) && (
               <motion.div
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent"
-                animate={{ x: ['-100%', '100%'] }}
-                transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-              />
+                key="topbar"
+                className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500 overflow-hidden"
+                initial={{ scaleX: 0, transformOrigin: 'left' }}
+                animate={{ scaleX: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 2.5, ease: 'easeOut' }}
+              >
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent"
+                  animate={{ x: ['-100%', '100%'] }}
+                  transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}
+                />
+              </motion.div>
             )}
-          </div>
+          </AnimatePresence>
 
           {/* Auto-join loading overlay */}
           {isAutoJoining && (
@@ -934,7 +961,7 @@ const App: React.FC = () => {
           )}
 
           {/* Top Navigation Bar */}
-          <nav className="w-full flex items-center justify-between px-6 py-4 z-20 relative shrink-0">
+          <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0">
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
@@ -1058,176 +1085,161 @@ const App: React.FC = () => {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -24 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-                  className="flex-1 flex flex-col items-center relative z-10"
+                  className="flex-1 flex flex-col relative z-10 w-full"
                 >
-                  {/* Hero */}
-                  <div className="flex flex-col items-center w-full max-w-md px-4 pt-8 pb-6">
-                    <div className="mb-4">
-                      <Dices size={64} className="text-white drop-shadow-lg" />
-                    </div>
-                    <h1 className="text-6xl font-black tracking-tighter mb-1">
-                      RICHUP<span className="text-indigo-500">.IO</span>
-                    </h1>
-                    <p className="text-slate-400 text-lg mb-8">Rule the economy</p>
+                  {/* Two-column layout: single col on mobile, side-by-side on lg+ */}
+                  <div className="flex-1 flex flex-col lg:flex-row w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 gap-8 lg:gap-12 pb-8">
 
-                    <div className="w-full space-y-3">
-                      {/* S2: Name input with auto-select */}
+                    {/* ── Left col: hero + join form ── */}
+                    <div className="w-full lg:w-[380px] shrink-0 flex flex-col items-center lg:items-start gap-4 lg:sticky lg:top-8 self-start">
+                      <div className="flex flex-col items-center lg:items-start gap-1">
+                        <Dices size={48} className="text-white drop-shadow-lg mb-1" />
+                        <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center lg:text-left">
+                          RICHUP<span className="text-indigo-500">.IO</span>
+                        </h1>
+                        <p className="text-slate-400 text-base text-center lg:text-left">Rule the economy</p>
+                      </div>
+
+                      <div className="w-full space-y-3 mt-1">
+                        <div>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center lg:text-left">Playing as</p>
+                          <input
+                            type="text"
+                            value={humanName}
+                            onChange={(e) => setHumanName(e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-5 py-3.5 text-center text-lg font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
+                            placeholder="Enter name"
+                          />
+                        </div>
+
+                        <button
+                          onClick={joinRandomRoom}
+                          className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)] relative overflow-hidden group active:scale-[0.98]"
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                          <ChevronsRight size={22} className="relative z-10" />
+                          <span className="relative z-10">Play</span>
+                        </button>
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => { setShowRoomBrowser(true); fetchRooms(); }}
+                            className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm active:scale-[0.98]"
+                          >
+                            <Users size={15} /> All rooms
+                          </button>
+                          <button
+                            onClick={() => createRoom(true)}
+                            className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm active:scale-[0.98]"
+                          >
+                            <Key size={15} /> Create private
+                          </button>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={joinRoomId}
+                            onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                            placeholder="ROOM CODE"
+                            maxLength={6}
+                            className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em] text-sm"
+                          />
+                          <button
+                            onClick={() => joinRoom()}
+                            disabled={!joinRoomId || isJoiningRoom}
+                            className="px-5 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors min-w-[64px] flex items-center justify-center active:scale-[0.98]"
+                          >
+                            {isJoiningRoom ? (
+                              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
+                                <Dices size={16} />
+                              </motion.div>
+                            ) : 'Join'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Stats row */}
+                      <div className="w-full pt-1">
+                        <div className="grid grid-cols-3 gap-2.5">
+                          {[
+                            { value: '8', label: 'Max players' },
+                            { value: '10K+', label: 'Games' },
+                            { value: 'Free', label: 'Always' },
+                          ].map((stat, i) => (
+                            <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center">
+                              <div className="text-lg font-black text-white">{stat.value}</div>
+                              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ── Right col: features + how to play ── */}
+                    <div className="flex-1 flex flex-col gap-7 min-w-0">
+                      {/* Features grid */}
                       <div>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
-                        <input
-                          type="text"
-                          value={humanName}
-                          onChange={(e) => setHumanName(e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                          className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
-                          placeholder="Enter name"
-                        />
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                          <Zap size={11} /> Features
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                          {[
+                            { icon: <Globe size={13} className="text-indigo-400" />, title: 'Online Multiplayer', desc: 'Up to 8 friends in real time' },
+                            { icon: <Bot size={13} className="text-violet-400" />, title: 'Smart AI Bots', desc: 'Fill empty slots with adaptive AI' },
+                            { icon: <Zap size={13} className="text-amber-400" />, title: 'Fast Gameplay', desc: 'Streamlined turns keep pace up' },
+                            { icon: <ShieldCheck size={13} className="text-emerald-400" />, title: 'Fair Play', desc: 'Vote-kick disruptive players' },
+                            { icon: <Handshake size={13} className="text-sky-400" />, title: 'Trading', desc: 'Negotiate deals and swap props' },
+                            { icon: <Trophy size={13} className="text-rose-400" />, title: 'Custom Rules', desc: 'Auction, mortgage & more' },
+                          ].map((feat, i) => (
+                            <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 flex items-start gap-2">
+                              <div className="mt-0.5 shrink-0">{feat.icon}</div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-200 leading-tight">{feat.title}</p>
+                                <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{feat.desc}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
-                      <button
-                        onClick={joinRandomRoom}
-                        className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)] relative overflow-hidden group"
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-                        <ChevronsRight size={24} className="relative z-10" />
-                        <span className="relative z-10">Play</span>
-                      </button>
-
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => { setShowRoomBrowser(true); fetchRooms(); }}
-                          className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm"
-                        >
-                          <Users size={16} /> All rooms
-                        </button>
-                        <button
-                          onClick={() => createRoom(true)}
-                          className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm"
-                        >
-                          <Key size={16} /> Create a private game
-                        </button>
+                      {/* How to play */}
+                      <div>
+                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                          <Info size={11} /> How to play
+                        </h3>
+                        <div className="space-y-2">
+                          {[
+                            { icon: <Coins size={14} className="text-emerald-400" />, title: 'All players start with $1500.', desc: 'You begin with enough cash to buy properties and grow your empire.' },
+                            { icon: <Dices size={14} className="text-indigo-400" />, title: 'Roll the dice to move around the board.', desc: "Got doubles? Roll again! Three doubles in a row sends you to jail." },
+                            { icon: <Landmark size={14} className="text-amber-400" />, title: 'Buy properties to build your empire.', desc: 'Other players pay rent when they land on your property.' },
+                            { icon: <TrendingUp size={14} className="text-rose-400" />, title: 'Build houses and hotels to maximise rent.', desc: 'Own a full colour set first — the more you build, the more you earn.' },
+                            { icon: <Trophy size={14} className="text-amber-400" />, title: 'Last player standing wins.', desc: 'Bankrupt your opponents by collecting rent and controlling the board.' },
+                          ].map((step, i) => (
+                            <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
+                              <div className="mt-0.5 shrink-0">{step.icon}</div>
+                              <div>
+                                <p className="text-sm font-bold text-slate-200">{step.title}</p>
+                                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.desc}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={joinRoomId}
-                          onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                          placeholder="ROOM CODE"
-                          maxLength={6}
-                          className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em]"
-                        />
-                        <button
-                          onClick={() => joinRoom()}
-                          disabled={!joinRoomId || isJoiningRoom}
-                          className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors min-w-[72px] flex items-center justify-center"
-                        >
-                          {isJoiningRoom ? (
-                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
-                              <Dices size={16} />
-                            </motion.div>
-                          ) : 'Join'}
-                        </button>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  {/* Stats row */}
-                  <div className="w-full max-w-md px-4 pb-6">
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { value: '8', label: 'Max players' },
-                        { value: '10K+', label: 'Games played' },
-                        { value: 'Free', label: 'Always' },
-                      ].map((stat, i) => (
-                        <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center">
-                          <div className="text-xl font-black text-white">{stat.value}</div>
-                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Features grid */}
-                  <div className="w-full max-w-md px-4 pb-6">
-                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                      <Zap size={12} /> Features
-                    </h3>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      {[
-                        { icon: <Globe size={14} className="text-indigo-400" />, title: 'Online Multiplayer', desc: 'Play with up to 8 friends in real time' },
-                        { icon: <Bot size={14} className="text-violet-400" />, title: 'Smart AI Bots', desc: 'Fill empty slots with adaptive AI' },
-                        { icon: <Zap size={14} className="text-amber-400" />, title: 'Fast Gameplay', desc: 'Streamlined turns keep the pace up' },
-                        { icon: <ShieldCheck size={14} className="text-emerald-400" />, title: 'Fair Play', desc: 'Vote-kick disruptive players' },
-                        { icon: <Handshake size={14} className="text-sky-400" />, title: 'Trading', desc: 'Negotiate deals and swap properties' },
-                        { icon: <Trophy size={14} className="text-rose-400" />, title: 'Ranked Rooms', desc: 'Custom rules for every play style' },
-                      ].map((feat, i) => (
-                        <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 flex items-start gap-2.5">
-                          <div className="mt-0.5 shrink-0">{feat.icon}</div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-200">{feat.title}</p>
-                            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{feat.desc}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* How to play section */}
-                  <div className="w-full max-w-md px-4 pb-6">
-                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                      <Info size={12} /> How to play
-                    </h3>
-                    <div className="space-y-2.5">
-                      {[
-                        {
-                          icon: <Coins size={15} className="text-emerald-400" />,
-                          title: 'All players start with $1500.',
-                          desc: 'You begin with enough cash to buy properties and grow your empire.',
-                        },
-                        {
-                          icon: <Dices size={15} className="text-indigo-400" />,
-                          title: 'On your turn, roll the dice to move forward.',
-                          desc: "Got doubles? You'll have another turn!",
-                        },
-                        {
-                          icon: <Landmark size={15} className="text-amber-400" />,
-                          title: 'Purchase valuable properties and grow your financial empire.',
-                          desc: 'Once you own a property, other players will pay rent when they land on it.',
-                        },
-                        {
-                          icon: <TrendingUp size={15} className="text-rose-400" />,
-                          title: 'Build houses and hotels to maximise rent.',
-                          desc: 'Own a full colour set to start constructing — the more you build, the more you earn.',
-                        },
-                        {
-                          icon: <Trophy size={15} className="text-amber-400" />,
-                          title: 'Last player standing wins.',
-                          desc: 'Bankrupt your opponents by collecting rent and controlling the board.',
-                        },
-                      ].map((step, i) => (
-                        <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
-                          <div className="mt-0.5 shrink-0">{step.icon}</div>
-                          <div>
-                            <p className="text-sm font-bold text-slate-200">{step.title}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">{step.desc}</p>
-                          </div>
-                        </div>
-                      ))}
                     </div>
                   </div>
 
                   {/* Footer */}
-                  <footer className="w-full max-w-md px-4 pb-8 mt-auto pt-4 border-t border-slate-800/60">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="flex items-center gap-5 text-xs text-slate-600 flex-wrap justify-center">
+                  <footer className="w-full border-t border-slate-800/60 py-5 px-4 sm:px-6 mt-auto">
+                    <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+                      <div className="flex items-center gap-4 text-xs text-slate-600 flex-wrap justify-center">
                         <button className="hover:text-slate-400 transition-colors">Privacy Policy</button>
-                        <span className="text-slate-800">·</span>
+                        <span className="text-slate-800 hidden sm:inline">·</span>
                         <button className="hover:text-slate-400 transition-colors">Terms of Service</button>
-                        <span className="text-slate-800">·</span>
+                        <span className="text-slate-800 hidden sm:inline">·</span>
                         <button className="hover:text-slate-400 transition-colors">Cookie Policy</button>
-                        <span className="text-slate-800">·</span>
+                        <span className="text-slate-800 hidden sm:inline">·</span>
                         <button className="hover:text-slate-400 transition-colors">Contact</button>
                       </div>
                       <p className="text-[10px] text-slate-700 font-medium">© 2025 RichUp.io · All rights reserved</p>
@@ -1244,15 +1256,13 @@ const App: React.FC = () => {
     // Room Lobby Screen
     return (
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.25 }}
-        className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 18 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+        className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
         data-layout={isStacked ? "stacked" : "row"}
       >
-        {/* Top accent / loading bar */}
-        <div className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-600 via-violet-500 to-pink-500" />
-
         {/* Left Column: Share, Ad & Chat */}
         <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
@@ -1414,7 +1424,7 @@ const App: React.FC = () => {
                     <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
                       <Bot size={14} className="text-violet-400" />
                     </div>
-                    <span className="text-sm font-bold text-slate-400 truncate flex-1">{BOT_LOBBY_NAMES[i % BOT_LOBBY_NAMES.length]}</span>
+                    <span className="text-sm font-bold text-slate-400 truncate flex-1">{generateBotLobbyName(i)}</span>
                     <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700 font-bold">AI</span>
                     {isHost && (
                       <button
@@ -1469,15 +1479,12 @@ const App: React.FC = () => {
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.25 }}
-      className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+      className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
       data-layout={isStacked ? "stacked" : "row"}
     >
-      {/* Top accent / loading bar */}
-      <div className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-600 via-violet-500 to-pink-500" />
-
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='white'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
 

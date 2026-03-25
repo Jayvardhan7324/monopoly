@@ -88,7 +88,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
 
         {/* Main action */}
-        <div className="flex-1 flex flex-col justify-center items-center relative py-2 overflow-hidden">
+        <div className="flex-1 flex flex-col items-center relative overflow-hidden justify-center translate-y-[8%]">
           {gameState.winnerId !== null ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
