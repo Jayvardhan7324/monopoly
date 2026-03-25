@@ -13,7 +13,7 @@ import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins
 } from 'lucide-react';
 import { playSound } from './services/audioService';
 import {
@@ -67,7 +67,6 @@ const App: React.FC = () => {
   const [joinRoomId, setJoinRoomId] = useState('');
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
   const [selectedAvatar, setSelectedAvatar] = useState(11);
-  const [showJoinInput, setShowJoinInput] = useState(false);
   const [showRoomBrowser, setShowRoomBrowser] = useState(false);
   const [activeRooms, setActiveRooms] = useState<any[]>([]);
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
@@ -83,6 +82,7 @@ const App: React.FC = () => {
   const [showAppearanceModal, setShowAppearanceModal] = useState(false);
   const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
+  const [isJoiningRoom, setIsJoiningRoom] = useState(false);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -423,6 +423,7 @@ const App: React.FC = () => {
   const joinRoom = async (specificRoomId: string = joinRoomId) => {
     if (!specificRoomId) return;
     const cleanId = specificRoomId.trim().toUpperCase();
+    setIsJoiningRoom(true);
     try {
       const res = await fetch(`/api/rooms/${cleanId}/join`, {
         method: "POST",
@@ -443,6 +444,8 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsJoiningRoom(false);
     }
   };
 
@@ -499,6 +502,13 @@ const App: React.FC = () => {
     const interval = setInterval(fetchRooms, 5000);
     return () => clearInterval(interval);
   }, [showRoomBrowser]);
+
+  // S3: Auto-join when room code reaches 6 characters
+  useEffect(() => {
+    if (joinRoomId.length === 6 && !isOnline && !isJoiningRoom && !isAutoJoining) {
+      joinRoom(joinRoomId);
+    }
+  }, [joinRoomId]);
 
   const updateRule = (key: keyof typeof settings.rules, value: any) => {
     const newSettings = { ...settings, rules: { ...settings.rules, [key]: value } };
@@ -585,7 +595,7 @@ const App: React.FC = () => {
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
-            placeholder="Type a message..."
+            placeholder="Say something..."
             className="w-full bg-[#111116] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 pr-10"
           />
           <button
@@ -661,7 +671,7 @@ const App: React.FC = () => {
         <Users size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Maximum players</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Player capacity</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">How many players can join the game</div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -694,7 +704,7 @@ const App: React.FC = () => {
         <Lock size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Private room</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Access control</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Private rooms can only be accessed using the room URL</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -711,7 +721,7 @@ const App: React.FC = () => {
           <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
             Allow bots to join
           </div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">AI Opponents</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Bots will join the game based on availability to fill empty slots</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -726,7 +736,7 @@ const App: React.FC = () => {
         <TrendingUp size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Starting cash</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Initial funds</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Adjust how much money players start the game with</div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -758,8 +768,8 @@ const App: React.FC = () => {
       <div className="flex gap-3">
         <Landmark size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="text-sm font-bold text-slate-200">Double rent on set</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Monopoly bonus</div>
+          <div className="text-sm font-bold text-slate-200">x2 rent on full-set properties</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">If a player owns a full property set, the base rent payment will be doubled</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -774,7 +784,7 @@ const App: React.FC = () => {
         <Plane size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Vacation cash</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Tax pool reward</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">If a player lands on Vacation, all collected money from taxes and bank payments will be earned</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -788,8 +798,8 @@ const App: React.FC = () => {
       <div className="flex gap-3">
         <LayoutGrid size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="text-sm font-bold text-slate-200">Auction enabled</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Bidding system</div>
+          <div className="text-sm font-bold text-slate-200">Auction</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">If a player skips purchasing the property landed on, it will be sold to the highest bidder</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -803,8 +813,8 @@ const App: React.FC = () => {
       <div className="flex gap-3">
         <ShieldCheck size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="text-sm font-bold text-slate-200">No rent in jail</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Prison rules</div>
+          <div className="text-sm font-bold text-slate-200">Don't collect rent while in prison</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Rent will not be collected when landing on properties whose owners are in prison</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -818,8 +828,8 @@ const App: React.FC = () => {
       <div className="flex gap-3">
         <Landmark size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="text-sm font-bold text-slate-200">Mortgage enabled</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Financial loans</div>
+          <div className="text-sm font-bold text-slate-200">Mortgage</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Mortgage properties to earn 50% of their cost, but you won't get paid rent when players land on them</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -833,8 +843,8 @@ const App: React.FC = () => {
       <div className="flex gap-3">
         <Dices size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="text-sm font-bold text-slate-200">Randomize order</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Turn shuffle</div>
+          <div className="text-sm font-bold text-slate-200">Randomize player order</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Shuffle the turn order at game start for a fair random sequence</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -848,8 +858,8 @@ const App: React.FC = () => {
       <div className="flex gap-3">
         <Copy size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
-          <div className="text-sm font-bold text-slate-200">Even building</div>
-          <div className="text-[10px] text-slate-500 mb-2 uppercase font-black tracking-wider">Construction rules</div>
+          <div className="text-sm font-bold text-slate-200">Even build</div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Houses and hotels must be built up and sold off evenly within a property set</div>
           <div className="flex justify-end">
             <Switch
               disabled={!isHost || gameStarted}
@@ -878,7 +888,12 @@ const App: React.FC = () => {
   if (!gameStarted) {
     if (!isOnline) {
       return (
-        <div className="min-h-screen bg-[#111116] text-slate-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
+          className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-hidden"
+        >
           {/* Auto-join loading overlay */}
           {isAutoJoining && (
             <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-[#111116]/95 backdrop-blur-sm gap-4">
@@ -888,17 +903,24 @@ const App: React.FC = () => {
               <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Joining room…</p>
             </div>
           )}
-          {/* Top Left: Sound Toggle */}
-          <div className="absolute top-4 left-4 z-50">
-            <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 text-slate-400 hover:text-slate-200">
-              {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+
+          {/* Top Navigation Bar */}
+          <nav className="w-full flex items-center justify-between px-6 py-4 z-20 relative shrink-0">
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
-          </div>
-          {/* Top Right: Store and Login */}
-          <div className="absolute top-4 right-4 z-50 flex items-center gap-6 text-slate-400 font-medium">
-            <button className="flex items-center gap-2 hover:text-slate-200"><ShoppingCart size={18} /> Store</button>
-            <button className="flex items-center gap-2 hover:text-slate-200"><LogIn size={18} /> Login</button>
-          </div>
+            <div className="flex items-center gap-5 text-sm font-medium text-slate-400">
+              <button className="flex items-center gap-2 hover:text-slate-200 transition-colors">
+                <ShoppingCart size={16} /> Store
+              </button>
+              <button className="flex items-center gap-2 hover:text-slate-200 transition-colors">
+                <LogIn size={16} /> Login
+              </button>
+            </div>
+          </nav>
 
           {/* Floating Icons Background */}
           <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -909,187 +931,242 @@ const App: React.FC = () => {
             <div className="absolute bottom-[10%] left-[40%] opacity-10 rotate-12"><Dices size={72} /></div>
           </div>
 
-          <div className="relative z-10 flex flex-col items-center w-full max-w-md">
-            <div className="mb-4">
-              <Dices size={64} className="text-white drop-shadow-lg" />
-            </div>
-            <h1 className="text-6xl font-black tracking-tighter mb-1">
-              RICHUP<span className="text-indigo-500">.IO</span>
-            </h1>
-            <p className="text-slate-400 text-lg mb-12">Rule the economy</p>
-
-            <div className="w-full space-y-4">
-              <input
-                type="text"
-                value={humanName}
-                onChange={(e) => setHumanName(e.target.value)}
-                className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
-                placeholder="Enter name"
-              />
-
-              <button
-                onClick={joinRandomRoom}
-                className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)] relative overflow-hidden group"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
-                <ChevronsRight size={24} className="relative z-10" /> <span className="relative z-10">Play</span>
-              </button>
-
-              <div className="flex gap-4 pt-2">
-                <button
-                  onClick={() => { setShowRoomBrowser(true); fetchRooms(); }}
-                  className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Users size={18} /> All rooms
-                </button>
-                <button
-                  onClick={() => createRoom(true)}
-                  className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Key size={18} /> Create a private game
-                </button>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <input
-                  type="text"
-                  value={joinRoomId}
-                  onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                  placeholder="ROOM CODE"
-                  maxLength={6}
-                  className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em]"
-                />
-                <button
-                  onClick={() => joinRoom()}
-                  disabled={!joinRoomId}
-                  className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors"
-                >
-                  Join
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Room Browser Modal */}
-          <AnimatePresence>
-            {showRoomBrowser && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-                onClick={(e) => { if (e.target === e.currentTarget) setShowRoomBrowser(false); }}
-              >
+          {/* Main content — switches between landing & inline room browser */}
+          <div className="flex-1 flex flex-col overflow-y-auto">
+            <AnimatePresence mode="wait">
+              {showRoomBrowser ? (
+                /* ── Inline Room Browser (U4) ── */
                 <motion.div
-                  initial={{ scale: 0.95, opacity: 0, y: 20 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.95, opacity: 0, y: 20 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                  className="bg-[#1e1e24] rounded-2xl border border-slate-800 w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh] overflow-hidden"
+                  key="rooms"
+                  initial={{ opacity: 0, x: 24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 24 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                  className="flex-1 flex flex-col items-center py-8 px-4 relative z-10"
                 >
-                  {/* Header */}
-                  <div className="p-6 border-b border-slate-800 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
-                        <Globe size={20} className="text-indigo-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-black text-white">Active Rooms</h3>
-                        <p className="text-xs text-slate-500 font-bold uppercase tracking-wider">
-                          {activeRooms.length} room{activeRooms.length !== 1 ? 's' : ''} available
-                        </p>
-                      </div>
+                  <div className="w-full max-w-lg">
+                    <div className="flex items-center justify-between mb-6">
+                      <button
+                        onClick={() => setShowRoomBrowser(false)}
+                        className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors font-bold text-sm"
+                      >
+                        <ChevronRight size={16} className="rotate-180" /> Back
+                      </button>
+                      <button
+                        onClick={() => { setShowRoomBrowser(false); createRoom(false); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
+                      >
+                        <Play size={13} /> New room
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setShowRoomBrowser(false)}
-                      className="p-2 text-slate-400 hover:text-white transition-colors rounded-xl hover:bg-slate-800"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
 
-                  {/* Room List */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-700">
-                    {activeRooms.length === 0 ? (
-                      <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
-                          <Users size={28} className="text-slate-600" />
+                    <h2 className="text-2xl font-black text-white mb-1">Select the room you would like to join</h2>
+                    <p className="text-slate-500 text-sm mb-6 flex items-center gap-2">
+                      {activeRooms.length} room{activeRooms.length !== 1 ? 's' : ''} available
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                        <span className="text-[10px] text-slate-600">Auto-refreshing</span>
+                      </span>
+                    </p>
+
+                    <div className="space-y-3 overflow-y-auto max-h-[60vh] scrollbar-thin scrollbar-thumb-slate-700 pr-1">
+                      {activeRooms.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-16 text-center bg-[#1e1e24] rounded-2xl border border-slate-800">
+                          <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center mb-4">
+                            <Users size={28} className="text-slate-600" />
+                          </div>
+                          <h4 className="text-slate-400 font-bold text-lg mb-1">No Active Rooms</h4>
+                          <p className="text-slate-600 text-sm max-w-xs">No public rooms right now. Create your own or hit Play to start one!</p>
                         </div>
-                        <h4 className="text-slate-400 font-bold text-lg mb-1">No Active Rooms</h4>
-                        <p className="text-slate-600 text-sm max-w-xs">
-                          No public rooms available right now. Create your own or hit Play to start one automatically!
-                        </p>
-                      </div>
-                    ) : (
-                      activeRooms.map((room, idx) => (
-                        <motion.div
-                          key={room.roomId}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: idx * 0.05 }}
-                          className="bg-[#111116] border border-slate-800 rounded-xl p-4 flex items-center gap-4 hover:border-slate-700 transition-all group"
-                        >
-                          <div className="w-10 h-10 bg-indigo-500/10 border border-indigo-500/20 rounded-xl flex items-center justify-center text-indigo-400 font-mono font-black text-sm shrink-0">
-                            {room.roomId.slice(0, 2)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-white truncate">{room.hostName}'s Room</span>
-                              <span className="text-[9px] font-mono text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">{room.roomId}</span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className="h-full bg-indigo-500 rounded-full transition-all duration-300"
-                                  style={{ width: `${(room.playerCount / room.maxPlayers) * 100}%` }}
-                                />
-                              </div>
-                              <span className="text-[10px] font-bold text-slate-500 shrink-0">
-                                {room.playerCount}/{room.maxPlayers}
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setJoinRoomId(room.roomId);
-                              joinRoom(room.roomId);
-                            }}
-                            className="px-4 py-2 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-sm transition-all active:scale-95 shrink-0 shadow-lg shadow-indigo-500/20"
+                      ) : (
+                        activeRooms.map((room, idx) => (
+                          <motion.div
+                            key={room.roomId}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: idx * 0.05 }}
+                            className="bg-[#1e1e24] border border-slate-800 rounded-xl p-4 flex items-center gap-4 hover:border-slate-600 transition-all"
                           >
-                            Join
-                          </button>
-                        </motion.div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Footer */}
-                  <div className="p-4 border-t border-slate-800 flex items-center justify-between shrink-0">
-                    <button
-                      onClick={fetchRooms}
-                      className="text-xs text-slate-500 hover:text-slate-300 font-bold uppercase tracking-wider transition-colors flex items-center gap-1.5"
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      Auto-refreshing
-                    </button>
-                    <button
-                      onClick={() => { setShowRoomBrowser(false); createRoom(false); }}
-                      className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
-                    >
-                      <Play size={14} /> Create Public Room
-                    </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-sm font-bold text-white truncate">{room.hostName}</span>
+                                {room.isPrivate && <Lock size={11} className="text-slate-500 shrink-0" />}
+                                <span className="text-[9px] font-mono text-slate-600 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">{room.roomId}</span>
+                              </div>
+                              {/* U5: Player slot dots */}
+                              <div className="flex items-center gap-1.5">
+                                {Array.from({ length: room.maxPlayers }).map((_, i) => (
+                                  <div
+                                    key={i}
+                                    className={`w-3 h-3 rounded-full border transition-all ${
+                                      i < room.playerCount
+                                        ? 'bg-indigo-500 border-indigo-400'
+                                        : 'bg-slate-800 border-slate-700'
+                                    }`}
+                                  />
+                                ))}
+                                <span className="text-[10px] text-slate-500 ml-1 font-bold">{room.playerCount}/{room.maxPlayers}</span>
+                              </div>
+                            </div>
+                            <button
+                              onClick={() => { setJoinRoomId(room.roomId); joinRoom(room.roomId); }}
+                              disabled={isJoiningRoom}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-all active:scale-95 shrink-0 shadow-lg shadow-indigo-500/20"
+                            >
+                              {isJoiningRoom ? '…' : 'Join'}
+                            </button>
+                          </motion.div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+              ) : (
+                /* ── Landing Page ── */
+                <motion.div
+                  key="landing"
+                  initial={{ opacity: 0, x: -24 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -24 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                  className="flex-1 flex flex-col items-center relative z-10"
+                >
+                  {/* Hero */}
+                  <div className="flex flex-col items-center w-full max-w-md px-4 pt-8 pb-6">
+                    <div className="mb-4">
+                      <Dices size={64} className="text-white drop-shadow-lg" />
+                    </div>
+                    <h1 className="text-6xl font-black tracking-tighter mb-1">
+                      RICHUP<span className="text-indigo-500">.IO</span>
+                    </h1>
+                    <p className="text-slate-400 text-lg mb-8">Rule the economy</p>
+
+                    <div className="w-full space-y-3">
+                      {/* S2: Name input with auto-select */}
+                      <div>
+                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
+                        <input
+                          type="text"
+                          value={humanName}
+                          onChange={(e) => setHumanName(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-6 py-4 text-center text-xl font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
+                          placeholder="Enter name"
+                        />
+                      </div>
+
+                      <button
+                        onClick={joinRandomRoom}
+                        className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 text-white rounded-xl font-bold text-xl flex items-center justify-center gap-2 transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)] relative overflow-hidden group"
+                      >
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
+                        <ChevronsRight size={24} className="relative z-10" />
+                        <span className="relative z-10">Play</span>
+                      </button>
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => { setShowRoomBrowser(true); fetchRooms(); }}
+                          className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm"
+                        >
+                          <Users size={16} /> All rooms
+                        </button>
+                        <button
+                          onClick={() => createRoom(true)}
+                          className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm"
+                        >
+                          <Key size={16} /> Create a private game
+                        </button>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={joinRoomId}
+                          onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                          placeholder="ROOM CODE"
+                          maxLength={6}
+                          className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em]"
+                        />
+                        <button
+                          onClick={() => joinRoom()}
+                          disabled={!joinRoomId || isJoiningRoom}
+                          className="px-6 py-3 bg-indigo-500 hover:bg-indigo-400 disabled:opacity-50 text-white rounded-xl font-bold transition-colors min-w-[72px] flex items-center justify-center"
+                        >
+                          {isJoiningRoom ? (
+                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}>
+                              <Dices size={16} />
+                            </motion.div>
+                          ) : 'Join'}
+                        </button>
+                      </div>
+
+                      {/* B5: Spectator mode toggle */}
+                      <div className="flex items-center justify-center pt-1">
+                        <button
+                          onClick={() => setSpectatorMode(!spectatorMode)}
+                          className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-all px-3 py-1.5 rounded-lg border ${
+                            spectatorMode
+                              ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
+                              : 'text-slate-500 hover:text-slate-300 border-transparent hover:border-slate-700'
+                          }`}
+                        >
+                          <Eye size={13} /> Watch bots play
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* U1: How to play section */}
+                  <div className="w-full max-w-md px-4 pb-12">
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                      <Info size={12} /> How to play
+                    </h3>
+                    <div className="space-y-2.5">
+                      {[
+                        {
+                          icon: <Coins size={15} className="text-emerald-400" />,
+                          title: 'All players start with $1500.',
+                          desc: 'You begin with enough cash to buy properties and grow your empire.',
+                        },
+                        {
+                          icon: <Dices size={15} className="text-indigo-400" />,
+                          title: 'On your turn, roll the dice to move forward.',
+                          desc: "Got doubles? You'll have another turn!",
+                        },
+                        {
+                          icon: <Landmark size={15} className="text-amber-400" />,
+                          title: 'Purchase valuable properties and grow your financial empire.',
+                          desc: 'Once you own a property, other players will pay rent when they land on it.',
+                        },
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
+                          <div className="mt-0.5 shrink-0">{step.icon}</div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-200">{step.title}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{step.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
       );
     }
 
     // Room Lobby Screen
     return (
-      <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25 }}
+        className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+        data-layout={isStacked ? "stacked" : "row"}
+      >
         {/* Left Column: Share, Ad & Chat */}
         <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
@@ -1128,6 +1205,7 @@ const App: React.FC = () => {
                           key={idx}
                           onClick={() => {
                             setSelectedAvatar(idx);
+                            sfx('buy'); // S4: sound feedback
                             const socket = getSocket();
                             if (socket) socket.emit('update_player', { avatar: idx });
                           }}
@@ -1136,6 +1214,10 @@ const App: React.FC = () => {
                         />
                       ))}
                     </div>
+                    {/* U13: Get more appearances link */}
+                    <button className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-widest transition-colors">
+                      Get more appearances
+                    </button>
                     <button
                       onClick={() => setShowAppearanceModal(false)}
                       className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm uppercase tracking-widest transition-all active:scale-95"
@@ -1145,6 +1227,14 @@ const App: React.FC = () => {
                   </motion.div>
                 ) : (
                   <>
+                    {/* U7: Animated dice hero in lobby */}
+                    <motion.div
+                      animate={{ y: [0, -8, 0] }}
+                      transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+                    >
+                      <Dices size={52} className="text-indigo-400 drop-shadow-[0_0_20px_rgba(99,102,241,0.5)]" />
+                    </motion.div>
+
                     <div className="text-center">
                       <h2 className="text-4xl font-black text-white tracking-tighter mb-2 drop-shadow-2xl">
                         LOBBY <span className="text-indigo-500">{roomId}</span>
@@ -1227,7 +1317,7 @@ const App: React.FC = () => {
             </button>
           )}
         </div>
-      </div>
+      </motion.div>
     );
   }
 
@@ -1235,7 +1325,13 @@ const App: React.FC = () => {
   const myProperties = gameState.tiles.filter(t => t.ownerId === myPlayerId);
 
   return (
-    <div className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden" data-layout={isStacked ? "stacked" : "row"}>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
+      className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+      data-layout={isStacked ? "stacked" : "row"}
+    >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='white'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
 
@@ -1276,9 +1372,79 @@ const App: React.FC = () => {
           <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
 
-        {/* Chat Box */}
-        <div className="hidden group-data-[layout=row]:block">
-          {renderChatBox(false)}
+        {/* B2/U9: Tabbed Logs/Chat panel */}
+        <div className="hidden group-data-[layout=row]:flex flex-col bg-[#1e1e24] rounded-2xl border border-slate-800 overflow-hidden shadow-lg h-80 shrink-0">
+          {/* Tab headers */}
+          <div className="flex items-center border-b border-slate-800 shrink-0">
+            <button
+              onClick={() => setActiveSidebarTab('logs')}
+              className={`flex-1 py-2.5 text-xs font-black uppercase tracking-widest transition-colors ${activeSidebarTab === 'logs' ? 'text-white border-b-2 border-indigo-500' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Activity
+            </button>
+            <button
+              onClick={() => setActiveSidebarTab('chat')}
+              className={`flex-1 py-2.5 text-xs font-black uppercase tracking-widest transition-colors ${activeSidebarTab === 'chat' ? 'text-white border-b-2 border-indigo-500' : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              Chat
+            </button>
+          </div>
+
+          {activeSidebarTab === 'logs' ? (
+            /* Activity log */
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700">
+              {gameState.logs.length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs gap-2 opacity-50">
+                  <Dices size={28} />
+                  <span>No activity yet</span>
+                </div>
+              ) : (
+                [...gameState.logs].reverse().map((log, i) => (
+                  <div key={i} className={`text-[10px] leading-relaxed px-2 py-1 rounded-lg ${i === 0 ? 'text-indigo-200 bg-indigo-950/50 border border-indigo-900/40' : 'text-slate-400'}`}>
+                    {log}
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            /* Chat */
+            <>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-slate-700">
+                {chatMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-slate-500 text-sm gap-2 opacity-50">
+                    <MessageSquare size={28} />
+                    <span>No messages yet</span>
+                  </div>
+                ) : (
+                  chatMessages.map((msg, i) => (
+                    <div key={i} className="flex flex-col gap-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-400">{msg.sender}</span>
+                        <span className="text-[10px] text-slate-500">{msg.time}</span>
+                      </div>
+                      <div className="bg-slate-800/50 rounded-lg p-2 text-sm text-slate-200 break-words">{msg.text}</div>
+                    </div>
+                  ))
+                )}
+                <div ref={chatEndRef} />
+              </div>
+              <div className="p-3 border-t border-slate-800 shrink-0">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
+                    placeholder="Say something..."
+                    className="w-full bg-[#111116] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 pr-10"
+                  />
+                  <button onClick={sendChatMessage} className="absolute right-2 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-300 transition-colors">
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1326,10 +1492,14 @@ const App: React.FC = () => {
                 onClick={() => setViewingPlayerId(player.id)}
                 className={`
                   relative flex items-center gap-2 bg-[#111116] border p-2.5 rounded-xl shadow-md cursor-pointer transition-all duration-300
-                  ${isActive ? 'border-indigo-500/50 ring-1 ring-indigo-500/20' : 'border-slate-800 hover:border-slate-700'}
+                  ${isActive ? 'border-indigo-500/60 ring-2 ring-indigo-500/25 shadow-lg shadow-indigo-500/10' : 'border-slate-800 hover:border-slate-700'}
                   ${player.isBankrupt ? 'opacity-40 grayscale' : ''}
                 `}
               >
+                {/* U11: Active player pulse dot */}
+                {isActive && !player.isBankrupt && (
+                  <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-[#111116] animate-pulse z-10" />
+                )}
                 <div className="relative">
                   <Avatar
                     avatarId={player.avatarId}
@@ -1351,9 +1521,11 @@ const App: React.FC = () => {
                     </span>
                     {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
                   </div>
-                  <span className={`font-mono text-sm font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
-                    ${player.money}
-                  </span>
+                  {/* U10: Money badge with coin icon */}
+                  <div className={`flex items-center gap-1 font-mono text-sm font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>
+                    <Coins size={11} />
+                    <span>${player.money.toLocaleString()}</span>
+                  </div>
                 </div>
                 <span className="text-[9px] text-slate-600 font-mono shrink-0">
                   {gameState.tiles.filter(t => t.ownerId === player.id).length} props
@@ -1412,14 +1584,13 @@ const App: React.FC = () => {
               if (!target) return null;
               const activeCount = gameState.players.filter(p => !p.isBankrupt).length;
               const requiredVotes = activeCount - 1;
-              const secondsLeft = Math.max(0, Math.ceil((vote.expiresAt - Date.now()) / 1000));
-              const formatTime = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+              const turnsLeft = Math.max(0, vote.expiresAt - gameState.turnCount);
 
               return (
                 <div key={vote.targetId} className="flex flex-col gap-1 bg-rose-950/20 p-2 rounded-xl border border-rose-900/40">
                   <div className="flex items-center justify-between text-[10px] text-slate-300">
                     <span className="truncate max-w-[100px]">Target: <strong className="text-white">{target.name}</strong></span>
-                    <span className="text-rose-400 font-mono font-bold shrink-0">{formatTime(secondsLeft)}</span>
+                    <span className="text-rose-400 font-mono font-bold shrink-0">{turnsLeft} turn{turnsLeft !== 1 ? 's' : ''}</span>
                   </div>
                   <div className="flex items-center justify-between text-[9px] text-slate-400 mt-0.5">
                     <span>Votes: <strong className="text-emerald-400">{vote.voterIds.length}</strong> / {requiredVotes}</span>
@@ -1530,7 +1701,7 @@ const App: React.FC = () => {
             owner={gameState.players.find(p => p.id === gameState.tiles[selectedTileId].ownerId)}
             onClose={() => setSelectedTileId(null)}
             onUpgrade={() => dispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
-            canUpgrade={gameState.phase === 'TURN_END' && gameState.tiles[selectedTileId].ownerId === myPlayerId}
+            canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId}
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
             myProperties={myProperties}
             onTrade={offer =>
@@ -1651,7 +1822,7 @@ const App: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
 
