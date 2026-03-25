@@ -78,7 +78,7 @@ export const Controls: React.FC<ControlsProps> = ({
   return (
     <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative">
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-        <div className="flex -space-x-40 relative -mt-32">
+        <div className="flex -space-x-40 relative -mt-52">
           <Dice value={gameState.dice[0]} isRolling={isRollingAnim} size={300} index={0} />
           <Dice value={gameState.dice[1]} isRolling={isRollingAnim} size={300} index={1} />
         </div>
@@ -116,7 +116,7 @@ export const Controls: React.FC<ControlsProps> = ({
           ) : (
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
-                <div className="flex flex-col items-center gap-3 mt-16">
+                <div className="flex flex-col items-center gap-3 mt-6">
                   {/* Bot thinking indicator — shown during ROLL, MOVING, RESOLVING */}
                   {currentPlayer.isBot && (
                     <motion.div
@@ -168,7 +168,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={onRoll}
-                        className="px-10 py-5 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 text-white rounded-xl font-black text-xl shadow-[0_0_30px_rgba(99,102,241,0.4)] border border-white/10 animate-glow-pulse relative overflow-hidden group"
+                        className="px-7 py-3 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 text-white rounded-xl font-black text-base shadow-[0_0_30px_rgba(99,102,241,0.4)] border border-white/10 animate-glow-pulse relative overflow-hidden group"
                       >
                         {/* Shimmer overlay */}
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
@@ -184,7 +184,7 @@ export const Controls: React.FC<ControlsProps> = ({
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                  className="flex flex-col items-center gap-3 mt-10 w-full"
+                  className="flex flex-col items-center gap-2.5 mt-6 w-full"
                 >
                   {/* Top row: Buy + Build */}
                   {(!currentPlayer.isBot && isHumanTurn && (canBuy || canUpgrade)) && (
@@ -194,7 +194,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={onBuy}
-                          className="px-8 py-4 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-xl font-black text-lg shadow-[0_0_30px_rgba(16,185,129,0.4)] border border-white/10 relative overflow-hidden group"
+                          className="px-5 py-2.5 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-white/10 relative overflow-hidden group"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center">BUY FOR ${currentTile.price}</span>
@@ -205,7 +205,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           onClick={() => onUpgrade(currentTile.id)}
-                          className="px-8 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-md shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-2"
+                          className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-xs shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-2"
                         >
                           <Hammer size={16} />
                           {currentTile.buildingCount === 4 ? 'Build Hotel' : 'Build House'} (${currentTile.houseCost})
@@ -229,7 +229,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={onEndTurn}
-                          className={`px-8 py-4 text-white rounded-xl font-black text-lg border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
+                          className={`px-5 py-2.5 text-white rounded-xl font-black text-sm border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
                             gameState.phase === 'TURN_END'
                               ? 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 shadow-[0_0_30px_rgba(99,102,241,0.4)]'
                               : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 shadow-lg'
@@ -252,7 +252,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => dispatch({ type: 'START_AUCTION' })}
-                          className="px-8 py-4 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600 text-white rounded-xl font-black text-lg shadow-[0_0_30px_rgba(244,63,94,0.3)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase"
+                          className="px-5 py-2.5 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(244,63,94,0.2)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">

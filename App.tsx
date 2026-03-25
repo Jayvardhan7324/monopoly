@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useState, useRef } from 'react';
+import React, { useReducer, useEffect, useState, useRef, useMemo } from 'react';
 import { gameReducer, initialState } from './services/gameReducer';
 import { getBotAction, getBotBidAction } from './services/botService';
 import { Board } from './components/Board';
@@ -35,6 +35,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
 
 // ─────────────────────────────────────────────────────────────────────────────
+const BOT_LOBBY_NAMES = ['RoboMax', 'CyberBot', 'AIPlayer', 'BotKing', 'NeuralX', 'DigitalDan', 'SiliconSam', 'ByteBlast'];
+
 const App: React.FC = () => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
   const [gameStarted, setGameStarted] = useState(false);
@@ -83,6 +85,7 @@ const App: React.FC = () => {
   const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+  const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const checkLayout = () => {
@@ -484,6 +487,21 @@ const App: React.FC = () => {
     setShowAppearanceModal(false);
     setMyPlayerId(0);
     window.history.replaceState({}, '', '/');
+  };
+
+  // Reset kicked bots when allowBots or maxPlayers changes
+  useEffect(() => { setKickedBotIds(new Set()); }, [settings.allowBots, settings.maxPlayers]);
+
+  const kickBotSlot = (index: number) => {
+    setKickedBotIds(prev => new Set([...prev, index]));
+    // Bot rejoins after 20 seconds
+    setTimeout(() => {
+      setKickedBotIds(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }, 20000);
   };
 
   const fetchRooms = async () => {
@@ -894,6 +912,17 @@ const App: React.FC = () => {
           transition={{ duration: 0.25 }}
           className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-hidden"
         >
+          {/* Top accent / loading bar */}
+          <div className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-600 via-violet-500 to-pink-500 overflow-hidden">
+            {(isAutoJoining || isJoiningRoom) && (
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent"
+                animate={{ x: ['-100%', '100%'] }}
+                transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+              />
+            )}
+          </div>
+
           {/* Auto-join loading overlay */}
           {isAutoJoining && (
             <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-[#111116]/95 backdrop-blur-sm gap-4">
@@ -1101,24 +1130,52 @@ const App: React.FC = () => {
                         </button>
                       </div>
 
-                      {/* B5: Spectator mode toggle */}
-                      <div className="flex items-center justify-center pt-1">
-                        <button
-                          onClick={() => setSpectatorMode(!spectatorMode)}
-                          className={`flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-all px-3 py-1.5 rounded-lg border ${
-                            spectatorMode
-                              ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/30'
-                              : 'text-slate-500 hover:text-slate-300 border-transparent hover:border-slate-700'
-                          }`}
-                        >
-                          <Eye size={13} /> Watch bots play
-                        </button>
-                      </div>
                     </div>
                   </div>
 
-                  {/* U1: How to play section */}
-                  <div className="w-full max-w-md px-4 pb-12">
+                  {/* Stats row */}
+                  <div className="w-full max-w-md px-4 pb-6">
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { value: '8', label: 'Max players' },
+                        { value: '10K+', label: 'Games played' },
+                        { value: 'Free', label: 'Always' },
+                      ].map((stat, i) => (
+                        <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center">
+                          <div className="text-xl font-black text-white">{stat.value}</div>
+                          <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Features grid */}
+                  <div className="w-full max-w-md px-4 pb-6">
+                    <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                      <Zap size={12} /> Features
+                    </h3>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {[
+                        { icon: <Globe size={14} className="text-indigo-400" />, title: 'Online Multiplayer', desc: 'Play with up to 8 friends in real time' },
+                        { icon: <Bot size={14} className="text-violet-400" />, title: 'Smart AI Bots', desc: 'Fill empty slots with adaptive AI' },
+                        { icon: <Zap size={14} className="text-amber-400" />, title: 'Fast Gameplay', desc: 'Streamlined turns keep the pace up' },
+                        { icon: <ShieldCheck size={14} className="text-emerald-400" />, title: 'Fair Play', desc: 'Vote-kick disruptive players' },
+                        { icon: <Handshake size={14} className="text-sky-400" />, title: 'Trading', desc: 'Negotiate deals and swap properties' },
+                        { icon: <Trophy size={14} className="text-rose-400" />, title: 'Ranked Rooms', desc: 'Custom rules for every play style' },
+                      ].map((feat, i) => (
+                        <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 flex items-start gap-2.5">
+                          <div className="mt-0.5 shrink-0">{feat.icon}</div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">{feat.title}</p>
+                            <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{feat.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* How to play section */}
+                  <div className="w-full max-w-md px-4 pb-6">
                     <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                       <Info size={12} /> How to play
                     </h3>
@@ -1139,6 +1196,16 @@ const App: React.FC = () => {
                           title: 'Purchase valuable properties and grow your financial empire.',
                           desc: 'Once you own a property, other players will pay rent when they land on it.',
                         },
+                        {
+                          icon: <TrendingUp size={15} className="text-rose-400" />,
+                          title: 'Build houses and hotels to maximise rent.',
+                          desc: 'Own a full colour set to start constructing — the more you build, the more you earn.',
+                        },
+                        {
+                          icon: <Trophy size={15} className="text-amber-400" />,
+                          title: 'Last player standing wins.',
+                          desc: 'Bankrupt your opponents by collecting rent and controlling the board.',
+                        },
                       ].map((step, i) => (
                         <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
                           <div className="mt-0.5 shrink-0">{step.icon}</div>
@@ -1150,6 +1217,22 @@ const App: React.FC = () => {
                       ))}
                     </div>
                   </div>
+
+                  {/* Footer */}
+                  <footer className="w-full max-w-md px-4 pb-8 mt-auto pt-4 border-t border-slate-800/60">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="flex items-center gap-5 text-xs text-slate-600 flex-wrap justify-center">
+                        <button className="hover:text-slate-400 transition-colors">Privacy Policy</button>
+                        <span className="text-slate-800">·</span>
+                        <button className="hover:text-slate-400 transition-colors">Terms of Service</button>
+                        <span className="text-slate-800">·</span>
+                        <button className="hover:text-slate-400 transition-colors">Cookie Policy</button>
+                        <span className="text-slate-800">·</span>
+                        <button className="hover:text-slate-400 transition-colors">Contact</button>
+                      </div>
+                      <p className="text-[10px] text-slate-700 font-medium">© 2025 RichUp.io · All rights reserved</p>
+                    </div>
+                  </footer>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1167,6 +1250,9 @@ const App: React.FC = () => {
         className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
         data-layout={isStacked ? "stacked" : "row"}
       >
+        {/* Top accent / loading bar */}
+        <div className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-600 via-violet-500 to-pink-500" />
+
         {/* Left Column: Share, Ad & Chat */}
         <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
@@ -1274,9 +1360,14 @@ const App: React.FC = () => {
                       {isHost ? 'Start Game' : 'Waiting for Host'}
                     </button>
 
-                    <div className="flex items-center gap-2 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
+                    <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
                       <Users size={16} className="text-indigo-400" />
                       <span className="text-sm font-bold text-slate-300">{lobbyPlayers.length} / {settings.maxPlayers} Players</span>
+                      {settings.allowBots && Math.max(0, settings.maxPlayers - lobbyPlayers.length - kickedBotIds.size) > 0 && (
+                        <span className="flex items-center gap-1 text-[10px] text-violet-400 font-bold">
+                          <Bot size={11} /> {Math.max(0, settings.maxPlayers - lobbyPlayers.length - kickedBotIds.size)} bots
+                        </span>
+                      )}
                     </div>
                   </>
                 )}
@@ -1301,8 +1392,42 @@ const App: React.FC = () => {
                 <span className="text-sm font-bold text-slate-200 truncate flex-1">{player.name}</span>
                 {player.isHost && <Crown size={13} className="text-amber-400 shrink-0" />}
                 {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
+                {isHost && !player.isHost && player.id !== sessionPlayerId && (
+                  <button
+                    onClick={() => getSocket()?.emit('kick_player', { playerId: player.id })}
+                    className="p-1 text-slate-600 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-950/30"
+                    title={`Kick ${player.name}`}
+                  >
+                    <UserX size={12} />
+                  </button>
+                )}
               </div>
             ))}
+            {/* Bot slots — shown when allowBots is on */}
+            {(() => {
+              const realCount = lobbyPlayers.length;
+              const totalBotSlots = settings.allowBots ? Math.max(0, settings.maxPlayers - realCount) : 0;
+              return Array.from({ length: totalBotSlots }, (_, i) => i)
+                .filter(i => !kickedBotIds.has(i))
+                .map(i => (
+                  <div key={`bot-${i}`} className="flex items-center gap-3 opacity-70">
+                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+                      <Bot size={14} className="text-violet-400" />
+                    </div>
+                    <span className="text-sm font-bold text-slate-400 truncate flex-1">{BOT_LOBBY_NAMES[i % BOT_LOBBY_NAMES.length]}</span>
+                    <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700 font-bold">AI</span>
+                    {isHost && (
+                      <button
+                        onClick={() => kickBotSlot(i)}
+                        className="p-1 text-slate-600 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-950/30"
+                        title="Kick bot"
+                      >
+                        <UserX size={12} />
+                      </button>
+                    )}
+                  </div>
+                ));
+            })()}
             <button
               onClick={leaveRoom}
               className="w-full py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
@@ -1350,6 +1475,9 @@ const App: React.FC = () => {
       className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-2 gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
       data-layout={isStacked ? "stacked" : "row"}
     >
+      {/* Top accent / loading bar */}
+      <div className="fixed top-0 left-0 right-0 z-[500] h-[3px] bg-gradient-to-r from-indigo-600 via-violet-500 to-pink-500" />
+
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='white'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
 
