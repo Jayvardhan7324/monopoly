@@ -13,7 +13,7 @@ import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut
 } from 'lucide-react';
 import { playSound } from './services/audioService';
 import {
@@ -81,6 +81,7 @@ const App: React.FC = () => {
   const [confirmAlert, setConfirmAlert] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [isSpectator, setIsSpectator] = useState(false);
   const [showAppearanceModal, setShowAppearanceModal] = useState(false);
+  const [isAutoJoining, setIsAutoJoining] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
 
   useEffect(() => {
@@ -106,6 +107,7 @@ const App: React.FC = () => {
     autoJoinAttemptedRef.current = true;
     const cleanId = roomFromUrl.toUpperCase();
     setJoinRoomId(cleanId);
+    setIsAutoJoining(true);
     (async () => {
       try {
         const res = await fetch(`/api/rooms/${cleanId}/join`, {
@@ -123,13 +125,16 @@ const App: React.FC = () => {
           window.history.replaceState({}, '', `/rooms/${res.roomId}`);
           if (res.isSpectator) {
             setIsSpectator(true);
-            setGameStarted(true); // skip lobby, go straight to game view
+            setMyPlayerId(-1);
+            setGameStarted(true);
           }
         } else {
           setSystemAlert(res.error || 'Failed to join room');
         }
       } catch (e) {
         console.error(e);
+      } finally {
+        setIsAutoJoining(false);
       }
     })();
   }, []);
@@ -160,7 +165,7 @@ const App: React.FC = () => {
     const handleRoomUpdated = (data: any) => {
       setLobbyPlayers(data.players);
       const me = data.players.find((p: any) => p.id === socket.id);
-      if (me) {
+      if (me && !me.isSpectator) {
         setIsHost(me.isHost);
         setMyPlayerId(data.players.indexOf(me));
       }
@@ -462,6 +467,20 @@ const App: React.FC = () => {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const leaveRoom = () => {
+    resetSocket();
+    setIsOnline(false);
+    setRoomId(null);
+    setSessionPlayerId(null);
+    setIsHost(false);
+    setLobbyPlayers([]);
+    setGameStarted(false);
+    setIsSpectator(false);
+    setShowAppearanceModal(false);
+    setMyPlayerId(0);
+    window.history.replaceState({}, '', '/');
   };
 
   const fetchRooms = async () => {
@@ -860,6 +879,15 @@ const App: React.FC = () => {
     if (!isOnline) {
       return (
         <div className="min-h-screen bg-[#111116] text-slate-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+          {/* Auto-join loading overlay */}
+          {isAutoJoining && (
+            <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-[#111116]/95 backdrop-blur-sm gap-4">
+              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                <Dices size={40} className="text-indigo-400" />
+              </motion.div>
+              <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Joining room…</p>
+            </div>
+          )}
           {/* Top Left: Sound Toggle */}
           <div className="absolute top-4 left-4 z-50">
             <button onClick={() => setSoundEnabled(!soundEnabled)} className="p-2 text-slate-400 hover:text-slate-200">
@@ -1091,7 +1119,7 @@ const App: React.FC = () => {
                   >
                     <div className="text-center">
                       <h3 className="text-lg font-black text-white tracking-tight">Choose Appearance</h3>
-                      <p className="text-slate-500 text-xs mt-0.5">Pick your color</p>
+                      <p className="text-indigo-400 text-xs font-bold mt-0.5">{humanName}</p>
                     </div>
                     <Avatar avatarId={selectedAvatar} className="w-16 h-16 shadow-2xl ring-2 ring-indigo-500/60" />
                     <div className="grid grid-cols-6 gap-2">
@@ -1167,6 +1195,12 @@ const App: React.FC = () => {
             >
               <Eye size={13} /> Change Appearance
             </button>
+            <button
+              onClick={leaveRoom}
+              className="w-full py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+            >
+              <LogOut size={13} /> Leave Room
+            </button>
           </div>
 
           {/* Game Settings Box */}
@@ -1212,7 +1246,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* FEAT-04: In-game sound toggle */}
+      {/* Sound toggle + Leave button */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
         <button
           onClick={() => setSoundEnabled(!soundEnabled)}
@@ -1221,6 +1255,15 @@ const App: React.FC = () => {
         >
           {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
         </button>
+        {isOnline && (
+          <button
+            onClick={leaveRoom}
+            className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors backdrop-blur-sm shadow-lg"
+            title="Leave room"
+          >
+            <LogOut size={18} />
+          </button>
+        )}
       </div>
 
       {/* Left Column: Share, Ad Banner & Chat */}

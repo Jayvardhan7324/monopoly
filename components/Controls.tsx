@@ -107,7 +107,7 @@ export const Controls: React.FC<ControlsProps> = ({
                 {gameState.players.find(p => p.id === gameState.winnerId)?.name} is the last one standing
               </p>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => { window.location.href = '/'; }}
                 className="mt-6 px-10 py-4 bg-gradient-to-r from-white to-slate-100 text-slate-900 rounded-xl font-black text-lg hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all uppercase tracking-tight active:scale-95"
               >
                 New Empire
@@ -117,15 +117,15 @@ export const Controls: React.FC<ControlsProps> = ({
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
                 <div className="flex flex-col items-center gap-3 mt-16">
-                  {/* Bot thinking indicator */}
-                  {gameState.phase === 'ROLL' && currentPlayer.isBot && (
+                  {/* Bot thinking indicator — shown during ROLL, MOVING, RESOLVING */}
+                  {currentPlayer.isBot && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       className="flex items-center gap-2 px-4 py-2 bg-slate-800/60 border border-slate-700/40 rounded-full text-slate-400 text-xs font-bold uppercase tracking-widest"
                     >
                       <Bot size={13} className="text-indigo-400" />
-                      {currentPlayer.name} is thinking…
+                      {gameState.phase === 'ROLL' ? `${currentPlayer.name} is thinking…` : `${currentPlayer.name} is moving…`}
                     </motion.div>
                   )}
                   {gameState.phase === 'ROLL' && !currentPlayer.isBot && isHumanTurn && (
@@ -153,7 +153,8 @@ export const Controls: React.FC<ControlsProps> = ({
                         </button>
                         <button
                           onClick={() => dispatch({ type: 'SKIP_JAIL_TURN' })}
-                          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl font-black text-xs shadow-lg border border-white/5 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
+                          disabled={currentPlayer.jailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS - 1}
+                          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-400 rounded-xl font-black text-xs shadow-lg border border-white/5 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
                         >
                           <ArrowRight size={14} />
                           Wait Turn
@@ -199,7 +200,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           <span className="relative z-10 flex items-center justify-center">BUY FOR ${currentTile.price}</span>
                         </motion.button>
                       )}
-                      {canUpgrade && (
+                      {gameState.phase === 'ACTION' && canUpgrade && (
                         <motion.button
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
