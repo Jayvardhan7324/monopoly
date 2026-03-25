@@ -7,6 +7,7 @@ import { PropertyModal } from './components/PropertyModal';
 import { PlayerPortfolioModal } from './components/PlayerPortfolioModal';
 import { TradeProposalModal } from './components/TradeProposalModal';
 import { CreateTradeModal } from './components/CreateTradeModal';
+import { AuctionModal } from './components/AuctionModal';
 import { GameSettings, TileType } from './types';
 import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
@@ -77,6 +78,7 @@ const App: React.FC = () => {
   const [isStacked, setIsStacked] = useState(false);
   const [showCreateTradeModal, setShowCreateTradeModal] = useState(false);
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
+  const [confirmAlert, setConfirmAlert] = useState<{ message: string, onConfirm: () => void } | null>(null);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -93,10 +95,16 @@ const App: React.FC = () => {
   const botBidFiringRef = useRef(false);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const room = params.get('room');
-    if (room) {
-      setJoinRoomId(room.toUpperCase());
+    // Support both /rooms/ROOMID path and ?room=ROOMID query param
+    const pathMatch = window.location.pathname.match(/^\/rooms\/([A-Z0-9]+)$/i);
+    if (pathMatch) {
+      setJoinRoomId(pathMatch[1].toUpperCase());
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      const room = params.get('room');
+      if (room) {
+        setJoinRoomId(room.toUpperCase());
+      }
     }
   }, []);
 
@@ -157,6 +165,7 @@ const App: React.FC = () => {
       setIsHost(false);
       setGameStarted(false);
       setSystemAlert("You have been kicked from the room.");
+      window.history.replaceState({}, '', '/');
     };
 
     const handleChatMessage = (data: any) => {
@@ -365,6 +374,7 @@ const App: React.FC = () => {
         if (isPrivate) {
           setSettings(prev => ({ ...prev, isPrivate: true }));
         }
+        window.history.pushState({}, '', `/rooms/${res.roomId}`);
       }
     } catch (e) {
       console.error(e);
@@ -388,8 +398,7 @@ const App: React.FC = () => {
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        // BUG-19 FIX: Clean stale ?room= parameter from URL
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState({}, '', `/rooms/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join room");
       }
@@ -412,6 +421,7 @@ const App: React.FC = () => {
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
+        window.history.pushState({}, '', `/rooms/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join random room");
       }
@@ -1290,7 +1300,7 @@ const App: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => { if (window.confirm('Declare yourself bankrupt? All assets will be forfeited.')) handleDispatch({ type: 'DECLARE_BANKRUPT' }); }}
+            onClick={() => setConfirmAlert({ message: 'Declare yourself bankrupt? All assets will be forfeited.', onConfirm: () => handleDispatch({ type: 'DECLARE_BANKRUPT' }) })}
             className="flex-1 text-xs border-rose-900/40 bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 gap-1.5 flex items-center justify-center"
           >
             <Flag size={13} /> Bankrupt
@@ -1468,6 +1478,12 @@ const App: React.FC = () => {
           />
         )}
 
+        <AuctionModal
+          gameState={gameState}
+          myPlayerId={myPlayerId}
+          dispatch={handleDispatch}
+        />
+
         {showSettingsModal && (
           <motion.div
             initial={{ opacity: 0 }}
@@ -1514,6 +1530,29 @@ const App: React.FC = () => {
               <button onClick={() => setSystemAlert(null)} className="mt-4 w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-colors">
                 OK
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {confirmAlert && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-sm w-full shadow-2xl flex flex-col items-center gap-4 text-center"
+            >
+              <Info size={32} className="text-rose-500 mb-2" />
+              <p className="text-white font-bold">{confirmAlert.message}</p>
+              <div className="flex gap-2 w-full mt-4">
+                <button onClick={() => setConfirmAlert(null)} className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold uppercase tracking-widest text-xs transition-colors">
+                  Cancel
+                </button>
+                <button onClick={() => { confirmAlert.onConfirm(); setConfirmAlert(null); }} className="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white rounded-xl font-bold uppercase tracking-widest text-xs transition-colors shadow-lg shadow-rose-600/20">
+                  Confirm
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
