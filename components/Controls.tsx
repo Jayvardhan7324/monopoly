@@ -214,30 +214,37 @@ export const Controls: React.FC<ControlsProps> = ({
                     </div>
                   )}
 
-                  {/* Bottom row: Roll Dice + Put to Auction side by side */}
+                  {/* Bottom row — SKIP shown only when auction won't handle it; END TURN always in TURN_END */}
                   {!currentPlayer.isBot && isHumanTurn && (
                     <div className="flex flex-row justify-center items-center gap-3">
-                      <motion.button
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.05 }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        onClick={onEndTurn}
-                        className={`px-8 py-4 text-white rounded-xl font-black text-lg border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
-                          gameState.phase === 'TURN_END'
-                            ? 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 shadow-[0_0_30px_rgba(99,102,241,0.4)]'
-                            : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 shadow-lg'
-                        }`}
-                      >
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
-                        <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
-                          {gameState.phase === 'TURN_END' ? <CheckCircle size={18} /> : <ArrowRight size={18} />}
-                          {gameState.phase === 'TURN_END' ? 'END TURN' : 'SKIP'}
-                        </span>
-                      </motion.button>
+                      {/* Show SKIP in ACTION only if auction is off, tile is already owned, or not purchasable */}
+                      {(gameState.phase === 'TURN_END' ||
+                        !gameState.settings.rules.auctionEnabled ||
+                        currentTile.ownerId !== null ||
+                        currentTile.price === 0) && (
+                        <motion.button
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.05 }}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={onEndTurn}
+                          className={`px-8 py-4 text-white rounded-xl font-black text-lg border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
+                            gameState.phase === 'TURN_END'
+                              ? 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 shadow-[0_0_30px_rgba(99,102,241,0.4)]'
+                              : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 shadow-lg'
+                          }`}
+                        >
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
+                          <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
+                            {gameState.phase === 'TURN_END' ? <CheckCircle size={18} /> : <ArrowRight size={18} />}
+                            {gameState.phase === 'TURN_END' ? 'END TURN' : 'SKIP'}
+                          </span>
+                        </motion.button>
+                      )}
 
-                      {gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null && (
+                      {/* Auction button — replaces SKIP when auction is on and tile is buyable */}
+                      {gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null && currentTile.price > 0 && (
                         <motion.button
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}

@@ -1200,19 +1200,43 @@ const App: React.FC = () => {
                     </div>
                     <Avatar avatarId={selectedAvatar} className="w-16 h-16 shadow-2xl ring-2 ring-indigo-500/60" />
                     <div className="grid grid-cols-6 gap-2">
-                      {APPEARANCE_COLORS.map((color, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            setSelectedAvatar(idx);
-                            sfx('buy'); // S4: sound feedback
-                            const socket = getSocket();
-                            if (socket) socket.emit('update_player', { avatar: idx });
-                          }}
-                          className={`w-7 h-7 rounded-full transition-all ${selectedAvatar === idx ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 scale-110' : 'hover:scale-110 opacity-50 hover:opacity-100'}`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
+                      {(() => {
+                        const takenAvatarIndices = new Set(
+                          lobbyPlayers
+                            .filter((p: any) => p.id !== sessionPlayerId)
+                            .map((p: any) => p.avatar ?? 0)
+                        );
+                        return APPEARANCE_COLORS.map((color, idx) => {
+                          const isTaken = takenAvatarIndices.has(idx);
+                          return (
+                            <button
+                              key={idx}
+                              disabled={isTaken}
+                              onClick={() => {
+                                if (isTaken) return;
+                                setSelectedAvatar(idx);
+                                sfx('buy');
+                                const socket = getSocket();
+                                if (socket) socket.emit('update_player', { avatar: idx });
+                              }}
+                              className={`w-7 h-7 rounded-full transition-all relative ${
+                                selectedAvatar === idx
+                                  ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 scale-110'
+                                  : isTaken
+                                    ? 'opacity-20 cursor-not-allowed'
+                                    : 'hover:scale-110 opacity-50 hover:opacity-100'
+                              }`}
+                              style={{ backgroundColor: color }}
+                            >
+                              {isTaken && (
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <X size={9} className="text-white" strokeWidth={3} />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        });
+                      })()}
                     </div>
                     {/* U13: Get more appearances link */}
                     <button className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-widest transition-colors">
@@ -1279,12 +1303,6 @@ const App: React.FC = () => {
                 {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
               </div>
             ))}
-            <button
-              onClick={() => setShowAppearanceModal(true)}
-              className="mt-2 w-full py-2 bg-slate-800 hover:bg-slate-700 text-indigo-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-            >
-              <Eye size={13} /> Change Appearance
-            </button>
             <button
               onClick={leaveRoom}
               className="w-full py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"
@@ -1537,31 +1555,28 @@ const App: React.FC = () => {
 
         {/* Votekick & Bankrupt */}
         <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex gap-2 shadow-lg shrink-0">
-          {/* Votekick dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="flex-1 text-xs border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 gap-1.5 flex items-center justify-center">
-                <UserX size={13} className="text-rose-400" /> Votekick
+          {/* Votekick — auto-targets the current turn player */}
+          {(() => {
+            const turnPlayer = gameState.players[gameState.currentPlayerIndex];
+            const canVotekick = turnPlayer && turnPlayer.id !== myPlayerId && !turnPlayer.isBankrupt;
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!canVotekick}
+                onClick={() => {
+                  if (canVotekick) {
+                    handleDispatch({ type: 'VOTE_KICK', payload: { targetId: turnPlayer.id, voterId: myPlayerId } });
+                  }
+                }}
+                className="flex-1 text-xs border-slate-700 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-slate-300 gap-1.5 flex items-center justify-center"
+                title={canVotekick ? `Vote to kick ${turnPlayer.name} (current turn)` : "Can't kick yourself or on your turn"}
+              >
+                <UserX size={13} className="text-rose-400" />
+                Kick {canVotekick ? <span className="text-rose-300 truncate max-w-[50px]">{turnPlayer.name}</span> : 'player'}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-slate-900 border-slate-700 w-44">
-              <DropdownMenuGroup>
-                {gameState.players
-                  .filter(p => !p.isBankrupt && p.id !== myPlayerId)
-                  .map(p => (
-                    <DropdownMenuItem
-                      key={p.id}
-                      onClick={() => {
-                        handleDispatch({ type: 'VOTE_KICK', payload: { targetId: p.id, voterId: myPlayerId } });
-                      }}
-                      className="text-slate-200 hover:bg-slate-800 cursor-pointer text-xs"
-                    >
-                      {p.name}
-                    </DropdownMenuItem>
-                  ))}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            );
+          })()}
           {/* Self-bankrupt */}
           <Button
             variant="outline"
