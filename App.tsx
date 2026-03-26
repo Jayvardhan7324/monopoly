@@ -11,7 +11,7 @@ import { AuctionModal } from './components/AuctionModal';
 import { GameSettings, TileType } from './types';
 import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
-  LayoutGrid, ChevronRight, Volume2, VolumeX, Eye, Trophy, X,
+  LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
   TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins
 } from 'lucide-react';
@@ -90,6 +90,10 @@ const App: React.FC = () => {
   const isOnlineRef = useRef(false);
   useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
   const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [activePolicyPage, setActivePolicyPage] = useState<'privacy' | 'terms' | 'cookies' | 'contact' | null>(null);
+  const [nowTs, setNowTs] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -403,6 +407,7 @@ const App: React.FC = () => {
   };
 
   const createRoom = async (isPrivate = false) => {
+    setIsCreatingRoom(true);
     try {
       const res = await fetch("/api/rooms", {
         method: "POST",
@@ -424,6 +429,8 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.error(e);
+    } finally {
+      setIsCreatingRoom(false);
     }
   };
 
@@ -928,8 +935,128 @@ const App: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25 }}
-          className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-hidden"
+          className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto"
         >
+          {/* Creating room overlay */}
+          <AnimatePresence>
+            {isCreatingRoom && (
+              <motion.div
+                key="creating-room"
+                className="fixed inset-0 z-[600] bg-[#0e0e14]/95 backdrop-blur-md flex flex-col items-center justify-center gap-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                >
+                  <Dices size={52} className="text-indigo-400" />
+                </motion.div>
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-white font-black text-xl tracking-tight">Creating room…</p>
+                  <p className="text-slate-500 text-sm">Setting up your private game</p>
+                </div>
+                <div className="flex gap-1.5">
+                  {[0,1,2].map(i => (
+                    <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-500"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.4 }} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Policy page overlay */}
+          <AnimatePresence>
+            {activePolicyPage && (
+              <motion.div
+                key="policy"
+                className="fixed inset-0 z-[550] bg-[#111116] overflow-y-auto"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 24 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+              >
+                <div className="max-w-2xl mx-auto px-6 py-12">
+                  <button onClick={() => setActivePolicyPage(null)}
+                    className="flex items-center gap-2 text-slate-500 hover:text-slate-200 transition-colors text-sm font-bold mb-8">
+                    <ChevronLeft size={16} /> Back
+                  </button>
+                  {activePolicyPage === 'privacy' && (
+                    <div className="space-y-6">
+                      <h1 className="text-3xl font-black text-white">Privacy Policy</h1>
+                      <p className="text-slate-400 text-sm leading-relaxed">Last updated: March 2025</p>
+                      {[
+                        { title: 'Information We Collect', body: 'We collect only the player name you enter and basic gameplay data (room IDs, game actions) to operate the multiplayer service. No account registration is required.' },
+                        { title: 'How We Use Your Data', body: 'Player names and gameplay data are used solely to run game sessions. Data is stored temporarily in memory and is not persisted to a database after sessions end.' },
+                        { title: 'Cookies', body: 'We use minimal session cookies to maintain your connection to an active game room. No tracking or advertising cookies are used.' },
+                        { title: 'Third Parties', body: 'We do not sell, share, or transfer your data to any third parties.' },
+                        { title: 'Contact', body: 'Questions? Reach us through our Discord server.' },
+                      ].map((s, i) => (
+                        <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
+                          <h3 className="font-bold text-white mb-2">{s.title}</h3>
+                          <p className="text-slate-400 text-sm leading-relaxed">{s.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {activePolicyPage === 'terms' && (
+                    <div className="space-y-6">
+                      <h1 className="text-3xl font-black text-white">Terms of Service</h1>
+                      <p className="text-slate-400 text-sm leading-relaxed">Last updated: March 2025</p>
+                      {[
+                        { title: 'Acceptance', body: 'By playing RichUp.io you agree to these terms. The game is provided free of charge for entertainment purposes.' },
+                        { title: 'Fair Play', body: 'Do not exploit bugs, harass other players, or attempt to disrupt game sessions. Violators may be removed from rooms by vote-kick.' },
+                        { title: 'Disclaimer', body: 'The game is provided "as is" without warranty. We are not responsible for interrupted sessions due to server downtime.' },
+                        { title: 'Intellectual Property', body: 'RichUp.io is an original web game inspired by classic board game mechanics. All code and design is © 2025 RichUp.io.' },
+                      ].map((s, i) => (
+                        <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
+                          <h3 className="font-bold text-white mb-2">{s.title}</h3>
+                          <p className="text-slate-400 text-sm leading-relaxed">{s.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {activePolicyPage === 'cookies' && (
+                    <div className="space-y-6">
+                      <h1 className="text-3xl font-black text-white">Cookie Policy</h1>
+                      <p className="text-slate-400 text-sm leading-relaxed">Last updated: March 2025</p>
+                      {[
+                        { title: 'What Are Cookies', body: 'Cookies are small text files stored in your browser. We use them only to maintain your active game session.' },
+                        { title: 'Cookies We Use', body: 'Session cookies: used to keep you connected to your active game room. These expire when your browser closes. We do not use any tracking, analytics, or advertising cookies.' },
+                        { title: 'Disabling Cookies', body: 'You can disable cookies in your browser settings. Note that this will prevent you from joining or creating multiplayer rooms.' },
+                      ].map((s, i) => (
+                        <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
+                          <h3 className="font-bold text-white mb-2">{s.title}</h3>
+                          <p className="text-slate-400 text-sm leading-relaxed">{s.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {activePolicyPage === 'contact' && (
+                    <div className="space-y-6">
+                      <h1 className="text-3xl font-black text-white">Contact</h1>
+                      <p className="text-slate-400 text-sm leading-relaxed">Have a question, bug report, or feedback? We'd love to hear from you.</p>
+                      {[
+                        { title: 'Discord Community', body: 'Join our Discord server to chat with the developers and other players, report bugs, and suggest features.' },
+                        { title: 'Bug Reports', body: 'Found a bug? Please describe the steps to reproduce it in our Discord #bug-reports channel.' },
+                        { title: 'Feature Requests', body: 'Share your ideas in #suggestions on Discord. Popular requests get prioritised in our roadmap.' },
+                      ].map((s, i) => (
+                        <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
+                          <h3 className="font-bold text-white mb-2">{s.title}</h3>
+                          <p className="text-slate-400 text-sm leading-relaxed">{s.body}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Top loading bar — only visible while loading */}
           <AnimatePresence>
             {(isAutoJoining || isJoiningRoom) && (
@@ -961,20 +1088,30 @@ const App: React.FC = () => {
           )}
 
           {/* Top Navigation Bar */}
-          <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0">
+          <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
             >
               {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
-            <div className="flex items-center gap-5 text-sm font-medium text-slate-400">
+            <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
               <button className="flex items-center gap-2 hover:text-slate-200 transition-colors">
                 <ShoppingCart size={16} /> Store
               </button>
               <button className="flex items-center gap-2 hover:text-slate-200 transition-colors">
                 <LogIn size={16} /> Login
               </button>
+              {/* Discord */}
+              <a
+                href="#"
+                className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors rounded-lg hover:bg-slate-800/60"
+                title="Join our Discord"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+                </svg>
+              </a>
             </div>
           </nav>
 
@@ -1131,9 +1268,12 @@ const App: React.FC = () => {
                           </button>
                           <button
                             onClick={() => createRoom(true)}
-                            className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm active:scale-[0.98]"
+                            disabled={isCreatingRoom}
+                            className="flex-1 py-3 bg-[#2a2a35] hover:bg-[#323240] text-slate-200 rounded-xl font-medium flex items-center justify-center gap-2 transition-colors text-sm active:scale-[0.98] disabled:opacity-60"
                           >
-                            <Key size={15} /> Create private
+                            {isCreatingRoom
+                              ? <><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}><Dices size={15} /></motion.div> Creating…</>
+                              : <><Key size={15} /> Create private</>}
                           </button>
                         </div>
 
@@ -1234,13 +1374,13 @@ const App: React.FC = () => {
                   <footer className="w-full border-t border-slate-800/60 py-5 px-4 sm:px-6 mt-auto">
                     <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
                       <div className="flex items-center gap-4 text-xs text-slate-600 flex-wrap justify-center">
-                        <button className="hover:text-slate-400 transition-colors">Privacy Policy</button>
+                        <button onClick={() => setActivePolicyPage('privacy')} className="hover:text-slate-400 transition-colors">Privacy Policy</button>
                         <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button className="hover:text-slate-400 transition-colors">Terms of Service</button>
+                        <button onClick={() => setActivePolicyPage('terms')} className="hover:text-slate-400 transition-colors">Terms of Service</button>
                         <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button className="hover:text-slate-400 transition-colors">Cookie Policy</button>
+                        <button onClick={() => setActivePolicyPage('cookies')} className="hover:text-slate-400 transition-colors">Cookie Policy</button>
                         <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button className="hover:text-slate-400 transition-colors">Contact</button>
+                        <button onClick={() => setActivePolicyPage('contact')} className="hover:text-slate-400 transition-colors">Contact</button>
                       </div>
                       <p className="text-[10px] text-slate-700 font-medium">© 2025 RichUp.io · All rights reserved</p>
                     </div>
@@ -1734,13 +1874,16 @@ const App: React.FC = () => {
               if (!target) return null;
               const activeCount = gameState.players.filter(p => !p.isBankrupt).length;
               const requiredVotes = activeCount - 1;
-              const turnsLeft = Math.max(0, vote.expiresAt - gameState.turnCount);
+              const timeLeftMs = Math.max(0, vote.expiresAt - nowTs);
+              const mins = Math.floor(timeLeftMs / 60000);
+              const secs = Math.floor((timeLeftMs % 60000) / 1000);
+              const timeDisplay = `${mins}:${secs.toString().padStart(2, '0')}`;
 
               return (
                 <div key={vote.targetId} className="flex flex-col gap-1 bg-rose-950/20 p-2 rounded-xl border border-rose-900/40">
                   <div className="flex items-center justify-between text-[10px] text-slate-300">
                     <span className="truncate max-w-[100px]">Target: <strong className="text-white">{target.name}</strong></span>
-                    <span className="text-rose-400 font-mono font-bold shrink-0">{turnsLeft} turn{turnsLeft !== 1 ? 's' : ''}</span>
+                    <span className={`font-mono font-bold shrink-0 ${timeLeftMs < 30000 ? 'text-rose-300 animate-pulse' : 'text-rose-400'}`}>{timeDisplay}</span>
                   </div>
                   <div className="flex items-center justify-between text-[9px] text-slate-400 mt-0.5">
                     <span>Votes: <strong className="text-emerald-400">{vote.voterIds.length}</strong> / {requiredVotes}</span>

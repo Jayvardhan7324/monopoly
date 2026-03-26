@@ -1195,6 +1195,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         nextDoublesCount = 0;
       }
 
+      // Player completed their turn — clear any active votekick against them
+      const currentPlayerId = state.players[state.currentPlayerIndex].id;
+      const votekicksAfterTurn = state.votekicks.filter(v => v.targetId !== currentPlayerId);
+
       return withSound(
         {
           ...state,
@@ -1206,6 +1210,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           turnCount: state.turnCount + 1,
           auction: null,
           doublesCount: nextDoublesCount,
+          votekicks: votekicksAfterTurn,
           turnLogs: [], // BUG-M1: Reset turnLogs atomically on END_TURN
         },
         'turn_switch'
@@ -1258,7 +1263,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         existingVote = {
           targetId,
           voterIds: [voterId],
-          expiresAt: state.turnCount + 20 // BUG-17 FIX: Use turn-count offset (20 turns ≈ 2 minutes) instead of Date.now()
+          expiresAt: Date.now() + 120000 // 2-minute real-time timer
         };
         newVotekicks.push(existingVote);
       } else {
@@ -1299,7 +1304,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const expiredTargetIds: number[] = [];
 
       for (const vote of state.votekicks) {
-        if (state.turnCount >= vote.expiresAt) {
+        if (Date.now() >= vote.expiresAt) {
           expiredTargetIds.push(vote.targetId);
         }
       }

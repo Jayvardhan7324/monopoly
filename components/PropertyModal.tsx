@@ -249,8 +249,8 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 )}
               </div>
 
-              {/* Trade Button */}
-              {isOtherOwned && onTrade && currentPlayer && !tile.isMortgaged && (
+              {/* Trade via the Trade menu in the sidebar */}
+              {false && isOtherOwned && onTrade && currentPlayer && !tile.isMortgaged && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-1">
                   <Separator className="bg-slate-800 mb-3" />
                   {!showTradeBuilder ? (
