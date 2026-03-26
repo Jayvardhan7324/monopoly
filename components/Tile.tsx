@@ -253,6 +253,33 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           />
         )}
 
+        {/* Hover Tooltip */}
+        {!isCorner && tile.price > 0 && tile.type !== ETileType.TAX && (
+          <div className={`
+            absolute z-[200] hidden group-hover:block pointer-events-none
+            min-w-[80px] bg-[#0f172a]/95 border border-indigo-500/30 rounded-lg p-2 shadow-xl backdrop-blur-sm
+            ${isTop ? 'top-full mt-1.5 left-1/2 -translate-x-1/2' : ''}
+            ${isBottom ? 'bottom-full mb-1.5 left-1/2 -translate-x-1/2' : ''}
+            ${isLeft ? 'left-full ml-1.5 top-1/2 -translate-y-1/2' : ''}
+            ${isRight ? 'right-full mr-1.5 top-1/2 -translate-y-1/2' : ''}
+          `}>
+            <div className="text-[9px] font-black text-white uppercase tracking-tight truncate mb-1">{tile.name}</div>
+            <div className="flex items-center gap-1 text-[8px] font-bold text-emerald-400">
+              <span className="text-slate-500">Price</span> ${tile.price}
+            </div>
+            {tile.rent && tile.rent[0] > 0 && (
+              <div className="flex items-center gap-1 text-[8px] font-bold text-indigo-300">
+                <span className="text-slate-500">Rent</span> ${tile.rent[tile.buildingCount]}
+              </div>
+            )}
+            {tile.houseCost > 0 && tile.type === ETileType.PROPERTY && (
+              <div className="flex items-center gap-1 text-[8px] font-bold text-amber-400">
+                <span className="text-slate-500">Build</span> ${tile.houseCost}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Players on tile */}
         {players.length > 0 && (
           <div className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none p-1">

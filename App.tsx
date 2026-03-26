@@ -743,8 +743,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Lock size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.isPrivate ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Lock size={18} className={`shrink-0 mt-0.5 ${settings.isPrivate ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Private room</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Private rooms can only be accessed using the room URL</div>
@@ -758,8 +758,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Bot size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.allowBots ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Bot size={18} className={`shrink-0 mt-0.5 ${settings.allowBots ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
             Allow bots to join
@@ -808,8 +808,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Landmark size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.doubleRentOnFullSet ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Landmark size={18} className={`shrink-0 mt-0.5 ${settings.rules.doubleRentOnFullSet ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">x2 rent on full-set properties</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">If a player owns a full property set, the base rent payment will be doubled</div>
@@ -823,8 +823,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Plane size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.vacationCash ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Plane size={18} className={`shrink-0 mt-0.5 ${settings.rules.vacationCash ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Vacation cash</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">If a player lands on Vacation, all collected money from taxes and bank payments will be earned</div>
@@ -838,8 +838,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <LayoutGrid size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.auctionEnabled ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <LayoutGrid size={18} className={`shrink-0 mt-0.5 ${settings.rules.auctionEnabled ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Auction</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">If a player skips purchasing the property landed on, it will be sold to the highest bidder</div>
@@ -853,8 +853,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <ShieldCheck size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.noRentInJail ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <ShieldCheck size={18} className={`shrink-0 mt-0.5 ${settings.rules.noRentInJail ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Don't collect rent while in prison</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Rent will not be collected when landing on properties whose owners are in prison</div>
@@ -868,8 +868,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Landmark size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.mortgageEnabled ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Landmark size={18} className={`shrink-0 mt-0.5 ${settings.rules.mortgageEnabled ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Mortgage</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Mortgage properties to earn 50% of their cost, but you won't get paid rent when players land on them</div>
@@ -883,8 +883,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Dices size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.randomizeOrder ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Dices size={18} className={`shrink-0 mt-0.5 ${settings.rules.randomizeOrder ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Randomize player order</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Shuffle the turn order at game start for a fair random sequence</div>
@@ -898,8 +898,8 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <Copy size={18} className="text-slate-400 shrink-0 mt-0.5" />
+      <div className={`flex gap-3 rounded-xl p-2 -mx-2 transition-colors ${settings.rules.evenBuild ? 'bg-indigo-500/8 border border-indigo-500/15' : ''}`}>
+        <Copy size={18} className={`shrink-0 mt-0.5 ${settings.rules.evenBuild ? 'text-indigo-400' : 'text-slate-400'}`} />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Even build</div>
           <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Houses and hotels must be built up and sold off evenly within a property set</div>
@@ -1419,8 +1419,8 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Center Column: Board Preview */}
-        <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
+        {/* Center Column: Board Preview — hidden on mobile */}
+        <div className="hidden sm:flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
           <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
             <Board gameState={gameState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
@@ -1774,19 +1774,27 @@ const App: React.FC = () => {
 
         {/* Players List */}
         <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex flex-col gap-2 shadow-lg shrink-0">
+          <AnimatePresence>
           {gameState.players.map(player => {
             const isActive = gameState.currentPlayerIndex === gameState.players.indexOf(player);
             return (
               <motion.div
                 key={player.id}
+                layout
                 initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                whileHover={{ scale: 1.02 }}
+                animate={{
+                  opacity: player.isBankrupt ? 0.35 : 1,
+                  y: 0,
+                  scale: player.isBankrupt ? 0.97 : 1,
+                  filter: player.isBankrupt ? 'grayscale(1)' : 'grayscale(0)'
+                }}
+                exit={{ opacity: 0, scale: 0.8, x: -20, transition: { duration: 0.4 } }}
+                transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+                whileHover={player.isBankrupt ? {} : { scale: 1.02 }}
                 onClick={() => setViewingPlayerId(player.id)}
                 className={`
-                  relative flex items-center gap-2 bg-[#111116] border p-2.5 rounded-xl shadow-md cursor-pointer transition-all duration-300
+                  relative flex items-center gap-2 bg-[#111116] border p-2.5 rounded-xl shadow-md cursor-pointer transition-colors duration-300
                   ${isActive ? 'border-indigo-500/60 ring-2 ring-indigo-500/25 shadow-lg shadow-indigo-500/10' : 'border-slate-800 hover:border-slate-700'}
-                  ${player.isBankrupt ? 'opacity-40 grayscale' : ''}
                 `}
               >
                 {/* U11: Active player pulse dot */}
@@ -1826,6 +1834,7 @@ const App: React.FC = () => {
               </motion.div>
             );
           })}
+          </AnimatePresence>
         </div>
 
         {/* Votekick & Bankrupt */}
@@ -1904,6 +1913,9 @@ const App: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-widest text-slate-300 flex items-center gap-1.5">
               <Handshake size={13} className="text-indigo-400" /> Trades
+              {gameState.pendingTrade?.targetId === myPlayerId && (
+                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_6px_rgba(244,63,94,0.7)]" />
+              )}
             </span>
             <Button
               size="sm"

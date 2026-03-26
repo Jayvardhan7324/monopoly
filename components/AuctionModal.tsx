@@ -77,18 +77,27 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
             </button>
           </div>
 
-          <div className="w-full flex flex-col gap-1.5 z-10">
-            <div className="flex justify-between items-end">
-              <span className="text-[8px] font-bold uppercase text-slate-500 tracking-[0.2em]">Time Remaining</span>
-              <span className={`font-mono font-black text-base ${gameState.auction.timer <= 3 ? 'text-rose-500 animate-pulse' : 'text-indigo-400'}`}>
-                {gameState.auction.timer}s
-              </span>
-            </div>
-            <div className="w-full bg-slate-800/50 rounded-full h-1.5 overflow-hidden border border-white/5">
-              <div
-                className={`h-full transition-all duration-1000 ease-linear ${gameState.auction.timer <= 3 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]' : 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]'}`}
-                style={{ width: `${(gameState.auction.timer / GAME_CONSTANTS.AUCTION_TIMER_SECONDS) * 100}%` }}
-              />
+          <div className="w-full flex flex-col items-center gap-1.5 z-10">
+            <span className="text-[8px] font-bold uppercase text-slate-500 tracking-[0.2em] self-start">Time Remaining</span>
+            <div className="relative flex items-center justify-center w-20 h-20">
+              <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="#1e293b" strokeWidth="5" />
+                <circle
+                  cx="40" cy="40" r="34" fill="none"
+                  stroke={gameState.auction.timer <= 3 ? '#f43f5e' : '#6366f1'}
+                  strokeWidth="5"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 34}`}
+                  strokeDashoffset={`${2 * Math.PI * 34 * (1 - gameState.auction.timer / GAME_CONSTANTS.AUCTION_TIMER_SECONDS)}`}
+                  style={{ transition: 'stroke-dashoffset 1s linear, stroke 0.3s ease' }}
+                />
+              </svg>
+              <div className="flex flex-col items-center z-10">
+                <span className={`font-mono font-black text-2xl leading-none ${gameState.auction.timer <= 3 ? 'text-rose-500 animate-pulse' : 'text-white'}`}>
+                  {gameState.auction.timer}
+                </span>
+                <span className="text-[8px] text-slate-500 font-bold uppercase tracking-widest">sec</span>
+              </div>
             </div>
           </div>
         </div>
