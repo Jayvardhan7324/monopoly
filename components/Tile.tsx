@@ -31,12 +31,12 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
   const getIcon = () => {
     switch (tile.type) {
       case ETileType.RAILROAD:
-        return <Plane size={18} className="text-slate-300 drop-shadow-md" />;
+        return <Plane size={14} className="text-slate-300 drop-shadow-md" />;
       case ETileType.UTILITY:
         return tile.name.includes('Water') ? (
-          <Droplets size={18} className="text-cyan-400 drop-shadow-md" />
+          <Droplets size={14} className="text-cyan-400 drop-shadow-md" />
         ) : (
-          <Zap size={18} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
+          <Zap size={14} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
         );
       case ETileType.CHANCE:
         return <div className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">?</div>;
@@ -176,7 +176,7 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
             >
               {tile.name && (
                 <span
-                  className="max-w-[55px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[7px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
+                  className="max-w-[48px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[6.5px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
                   style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
                 >
                   {tile.name}
@@ -253,32 +253,6 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
           />
         )}
 
-        {/* Hover Tooltip */}
-        {!isCorner && tile.price > 0 && tile.type !== ETileType.TAX && (
-          <div className={`
-            absolute z-[200] hidden group-hover:block pointer-events-none
-            min-w-[80px] bg-[#0f172a]/95 border border-indigo-500/30 rounded-lg p-2 shadow-xl backdrop-blur-sm
-            ${isTop ? 'top-full mt-1.5 left-1/2 -translate-x-1/2' : ''}
-            ${isBottom ? 'bottom-full mb-1.5 left-1/2 -translate-x-1/2' : ''}
-            ${isLeft ? 'left-full ml-1.5 top-1/2 -translate-y-1/2' : ''}
-            ${isRight ? 'right-full mr-1.5 top-1/2 -translate-y-1/2' : ''}
-          `}>
-            <div className="text-[9px] font-black text-white uppercase tracking-tight truncate mb-1">{tile.name}</div>
-            <div className="flex items-center gap-1 text-[8px] font-bold text-emerald-400">
-              <span className="text-slate-500">Price</span> ${tile.price}
-            </div>
-            {tile.rent && tile.rent[0] > 0 && (
-              <div className="flex items-center gap-1 text-[8px] font-bold text-indigo-300">
-                <span className="text-slate-500">Rent</span> ${tile.rent[tile.buildingCount]}
-              </div>
-            )}
-            {tile.houseCost > 0 && tile.type === ETileType.PROPERTY && (
-              <div className="flex items-center gap-1 text-[8px] font-bold text-amber-400">
-                <span className="text-slate-500">Build</span> ${tile.houseCost}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Players on tile */}
         {players.length > 0 && (

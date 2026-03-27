@@ -1224,11 +1224,19 @@ const App: React.FC = () => {
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                   className="flex-1 flex flex-col relative z-10 w-full"
                 >
-                  {/* Two-column layout: single col on mobile, side-by-side on lg+ */}
-                  <div className="flex-1 flex flex-col lg:flex-row w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 gap-8 lg:gap-12 pb-8">
+                  {/* Top section: ads (left) + hero/form (center) */}
+                  <div className="flex w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 gap-6 pb-6">
 
-                    {/* ── Left col: hero + join form ── */}
-                    <div className="w-full lg:w-[380px] shrink-0 flex flex-col items-center lg:items-start gap-4 lg:sticky lg:top-8 self-start">
+                    {/* ── Left col: ad placeholder (desktop only) ── */}
+                    <div className="hidden lg:flex w-[160px] shrink-0 flex-col gap-4">
+                      <div className="bg-[#1a1a22] rounded-2xl border border-slate-800/60 flex-1 flex flex-col items-center justify-start gap-3 p-3 min-h-[320px]">
+                        <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest mt-1">Advertisement</span>
+                        <div className="w-full flex-1 bg-slate-800/20 rounded-xl border border-slate-800/40" />
+                      </div>
+                    </div>
+
+                    {/* ── Center col: hero + join form ── */}
+                    <div className="flex-1 flex flex-col items-center gap-4">
                       <div className="flex flex-col items-center lg:items-start gap-1">
                         <Dices size={48} className="text-white drop-shadow-lg mb-1" />
                         <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center lg:text-left">
@@ -1316,56 +1324,56 @@ const App: React.FC = () => {
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    {/* ── Right col: features + how to play ── */}
-                    <div className="flex-1 flex flex-col gap-7 min-w-0">
-                      {/* Features grid */}
-                      <div>
-                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                          <Zap size={11} /> Features
-                        </h3>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                          {[
-                            { icon: <Globe size={13} className="text-indigo-400" />, title: 'Online Multiplayer', desc: 'Up to 8 friends in real time' },
-                            { icon: <Bot size={13} className="text-violet-400" />, title: 'Smart AI Bots', desc: 'Fill empty slots with adaptive AI' },
-                            { icon: <Zap size={13} className="text-amber-400" />, title: 'Fast Gameplay', desc: 'Streamlined turns keep pace up' },
-                            { icon: <ShieldCheck size={13} className="text-emerald-400" />, title: 'Fair Play', desc: 'Vote-kick disruptive players' },
-                            { icon: <Handshake size={13} className="text-sky-400" />, title: 'Trading', desc: 'Negotiate deals and swap props' },
-                            { icon: <Trophy size={13} className="text-rose-400" />, title: 'Custom Rules', desc: 'Auction, mortgage & more' },
-                          ].map((feat, i) => (
-                            <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 flex items-start gap-2">
-                              <div className="mt-0.5 shrink-0">{feat.icon}</div>
-                              <div>
-                                <p className="text-xs font-bold text-slate-200 leading-tight">{feat.title}</p>
-                                <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{feat.desc}</p>
-                              </div>
+                  {/* Bottom section: Features + How To Play (centered, full width) */}
+                  <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pb-8 flex flex-col gap-7">
+                    {/* Features grid */}
+                    <div>
+                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-center gap-2">
+                        <Zap size={11} /> Features
+                      </h3>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {[
+                          { icon: <Globe size={13} className="text-indigo-400" />, title: 'Online Multiplayer', desc: 'Up to 8 friends in real time' },
+                          { icon: <Bot size={13} className="text-violet-400" />, title: 'Smart AI Bots', desc: 'Fill empty slots with adaptive AI' },
+                          { icon: <Zap size={13} className="text-amber-400" />, title: 'Fast Gameplay', desc: 'Streamlined turns keep pace up' },
+                          { icon: <ShieldCheck size={13} className="text-emerald-400" />, title: 'Fair Play', desc: 'Vote-kick disruptive players' },
+                          { icon: <Handshake size={13} className="text-sky-400" />, title: 'Trading', desc: 'Negotiate deals and swap props' },
+                          { icon: <Trophy size={13} className="text-rose-400" />, title: 'Custom Rules', desc: 'Auction, mortgage & more' },
+                        ].map((feat, i) => (
+                          <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 flex items-start gap-2">
+                            <div className="mt-0.5 shrink-0">{feat.icon}</div>
+                            <div>
+                              <p className="text-xs font-bold text-slate-200 leading-tight">{feat.title}</p>
+                              <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{feat.desc}</p>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
+                    </div>
 
-                      {/* How to play */}
-                      <div>
-                        <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
-                          <Info size={11} /> How to play
-                        </h3>
-                        <div className="space-y-2">
-                          {[
-                            { icon: <Coins size={14} className="text-emerald-400" />, title: 'All players start with $1500.', desc: 'You begin with enough cash to buy properties and grow your empire.' },
-                            { icon: <Dices size={14} className="text-indigo-400" />, title: 'Roll the dice to move around the board.', desc: "Got doubles? Roll again! Three doubles in a row sends you to jail." },
-                            { icon: <Landmark size={14} className="text-amber-400" />, title: 'Buy properties to build your empire.', desc: 'Other players pay rent when they land on your property.' },
-                            { icon: <TrendingUp size={14} className="text-rose-400" />, title: 'Build houses and hotels to maximise rent.', desc: 'Own a full colour set first — the more you build, the more you earn.' },
-                            { icon: <Trophy size={14} className="text-amber-400" />, title: 'Last player standing wins.', desc: 'Bankrupt your opponents by collecting rent and controlling the board.' },
-                          ].map((step, i) => (
-                            <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
-                              <div className="mt-0.5 shrink-0">{step.icon}</div>
-                              <div>
-                                <p className="text-sm font-bold text-slate-200">{step.title}</p>
-                                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.desc}</p>
-                              </div>
+                    {/* How to play */}
+                    <div>
+                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-center gap-2">
+                        <Info size={11} /> How to play
+                      </h3>
+                      <div className="space-y-2">
+                        {[
+                          { icon: <Coins size={14} className="text-emerald-400" />, title: 'All players start with $1500.', desc: 'You begin with enough cash to buy properties and grow your empire.' },
+                          { icon: <Dices size={14} className="text-indigo-400" />, title: 'Roll the dice to move around the board.', desc: "Got doubles? Roll again! Three doubles in a row sends you to jail." },
+                          { icon: <Landmark size={14} className="text-amber-400" />, title: 'Buy properties to build your empire.', desc: 'Other players pay rent when they land on your property.' },
+                          { icon: <TrendingUp size={14} className="text-rose-400" />, title: 'Build houses and hotels to maximise rent.', desc: 'Own a full colour set first — the more you build, the more you earn.' },
+                          { icon: <Trophy size={14} className="text-amber-400" />, title: 'Last player standing wins.', desc: 'Bankrupt your opponents by collecting rent and controlling the board.' },
+                        ].map((step, i) => (
+                          <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
+                            <div className="mt-0.5 shrink-0">{step.icon}</div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-200">{step.title}</p>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.desc}</p>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1565,7 +1573,7 @@ const App: React.FC = () => {
                       <Bot size={14} className="text-violet-400" />
                     </div>
                     <span className="text-sm font-bold text-slate-400 truncate flex-1">{generateBotLobbyName(i)}</span>
-                    <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700 font-bold">AI</span>
+                    <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700 font-bold">BOT</span>
                     {isHost && (
                       <button
                         onClick={() => kickBotSlot(i)}
@@ -1587,7 +1595,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Game Settings Box */}
-          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex-1 overflow-hidden flex flex-col shadow-lg min-h-[400px] group-data-[layout=row]:min-h-0">
+          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex-1 overflow-x-hidden flex flex-col shadow-lg min-h-[400px] group-data-[layout=row]:min-h-0">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-6 shrink-0 flex items-center gap-2">
               <Settings size={16} /> Game Settings
             </h3>
@@ -1644,15 +1652,6 @@ const App: React.FC = () => {
         >
           {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
         </button>
-        {isOnline && (
-          <button
-            onClick={leaveRoom}
-            className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-rose-400 transition-colors backdrop-blur-sm shadow-lg"
-            title="Leave room"
-          >
-            <LogOut size={18} />
-          </button>
-        )}
       </div>
 
       {/* Left Column: Share, Ad Banner & Chat */}

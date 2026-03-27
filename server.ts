@@ -55,15 +55,11 @@ async function startServer() {
     } else {
       // Transfer host if the removed player was host
       if (room.host === player.id) {
-        const next = room.players.find((p: any) => !p.disconnected);
-        const heir = next || room.players[0];
+        const next = room.players.find((p: any) => !p.disconnected) || room.players[0];
+        const heir = next;
         room.host = heir.id;
         heir.isHost = true;
         room.hostName = heir.name || 'Player';
-        // BUG-11 FIX: Log warning if heir is also disconnected
-        if (heir.disconnected) {
-          console.log(`WARNING: Host transferred to disconnected player ${heir.id} in room ${roomId}. Waiting for reconnect.`);
-        }
       }
       io.to(roomId).emit("room_updated", { players: room.players });
     }
@@ -362,7 +358,10 @@ async function startServer() {
       const key = `${socket.id}:${eventKey}`;
       const timestamps = rateLimitMap.get(key) || [];
       const filtered = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
-      if (filtered.length >= RATE_LIMIT_MAX) return true;
+      if (filtered.length >= RATE_LIMIT_MAX) {
+        rateLimitMap.set(key, filtered);
+        return true;
+      }
       filtered.push(now);
       rateLimitMap.set(key, filtered);
       return false;
@@ -408,19 +407,37 @@ async function startServer() {
           const player = room.players[playerIndex];
           const timerKey = player.originalId || player.id;
 
-          // Soft-disconnect: mark as disconnected and start the reconnect timer
-          player.disconnected = true;
-          console.log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
+          if (!room.state) {
+            // Game hasn't started — remove immediately so rejoining player keeps original name
+            room.players.splice(playerIndex, 1);
+            if (room.players.length === 0) {
+              rooms.delete(roomId);
+            } else {
+              if (room.host === player.id) {
+                const next = room.players.find((p: any) => !p.disconnected) || room.players[0];
+                room.host = next.id;
+                next.isHost = true;
+                room.hostName = next.name || 'Player';
+              }
+              io.to(roomId).emit("room_updated", { players: room.players });
+            }
+            io.emit("rooms_list", getPublicRoomsList());
+            console.log(`Player ${timerKey} removed immediately from lobby ${roomId} (game not started).`);
+          } else {
+            // Game in progress — soft-disconnect with 5-min reconnect window
+            player.disconnected = true;
+            console.log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
 
-          // Notify others that this player temporarily disconnected
-          io.to(roomId).emit("room_updated", { players: room.players });
-          io.emit("rooms_list", getPublicRoomsList());
+            // Notify others that this player temporarily disconnected
+            io.to(roomId).emit("room_updated", { players: room.players });
+            io.emit("rooms_list", getPublicRoomsList());
 
-          // Schedule permanent removal after the reconnect window
-          const timer = setTimeout(() => {
-            permanentlyRemovePlayer(roomId, timerKey);
-          }, RECONNECT_WINDOW_MS);
-          disconnectTimers.set(timerKey, timer);
+            // Schedule permanent removal after the reconnect window
+            const timer = setTimeout(() => {
+              permanentlyRemovePlayer(roomId, timerKey);
+            }, RECONNECT_WINDOW_MS);
+            disconnectTimers.set(timerKey, timer);
+          }
 
           return; // player found in a room — done
         }
