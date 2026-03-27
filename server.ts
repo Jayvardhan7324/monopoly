@@ -287,7 +287,14 @@ async function startServer() {
               const otherPlayers = room.players.filter(p => p.id !== socket.id);
               player.name = getUniqueName(data.name, otherPlayers);
             }
-            if (data.avatar !== undefined) player.avatar = data.avatar;
+            if (data.avatar !== undefined) {
+              const avatarTaken = room.players.some((p: any) => p.id !== socket.id && p.avatar === data.avatar);
+              if (avatarTaken) {
+                if (callback) callback({ success: false, error: 'Color already taken' });
+                return;
+              }
+              player.avatar = data.avatar;
+            }
             io.to(roomId).emit("room_updated", { players: room.players });
             if (callback) callback({ success: true });
           }

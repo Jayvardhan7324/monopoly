@@ -1483,18 +1483,19 @@ const App: React.FC = () => {
                                 const socket = getSocket();
                                 if (socket) socket.emit('update_player', { avatar: idx });
                               }}
+                              title={isTaken ? 'Taken by another player' : undefined}
                               className={`w-7 h-7 rounded-full transition-all relative ${
                                 selectedAvatar === idx
                                   ? 'ring-2 ring-indigo-400 ring-offset-2 ring-offset-slate-950 scale-110'
                                   : isTaken
-                                    ? 'opacity-20 cursor-not-allowed'
-                                    : 'hover:scale-110 opacity-50 hover:opacity-100'
+                                    ? 'opacity-25 cursor-not-allowed grayscale'
+                                    : 'hover:scale-110 hover:ring-2 hover:ring-white/40 hover:ring-offset-1 hover:ring-offset-slate-950'
                               }`}
                               style={{ backgroundColor: color }}
                             >
                               {isTaken && (
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <X size={9} className="text-white" strokeWidth={3} />
+                                <div className="absolute inset-0 rounded-full flex items-center justify-center bg-black/50">
+                                  <X size={10} className="text-white/80" strokeWidth={3} />
                                 </div>
                               )}
                             </button>
