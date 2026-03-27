@@ -110,7 +110,7 @@ const App: React.FC = () => {
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
   const botBidFiringRef = useRef(false);
 
-  // Auto-join from URL on first load
+  // Auto-join from URL on first load (also handles reconnect after refresh)
   useEffect(() => {
     if (autoJoinAttemptedRef.current) return;
     const pathMatch = window.location.pathname.match(/^\/rooms\/([A-Z0-9]+)$/i);
@@ -122,6 +122,17 @@ const App: React.FC = () => {
     setIsAutoJoining(true);
     (async () => {
       try {
+        // Check if we have a stored session for this room (page refresh / accidental close)
+        const stored = JSON.parse(sessionStorage.getItem('richup_session') || 'null');
+        if (stored?.roomId === cleanId && stored?.playerId) {
+          // Restore session — socket will reconnect via join_session with originalId
+          setIsOnline(true);
+          setRoomId(cleanId);
+          setSessionPlayerId(stored.playerId);
+          setIsAutoJoining(false);
+          return;
+        }
+
         const res = await fetch(`/api/rooms/${cleanId}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -134,6 +145,7 @@ const App: React.FC = () => {
           setIsHost(false);
           setLobbyPlayers(res.players);
           setShowRoomBrowser(false);
+          sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
           window.history.replaceState({}, '', `/rooms/${res.roomId}`);
           if (res.isSpectator) {
             setIsSpectator(true);
@@ -433,6 +445,7 @@ const App: React.FC = () => {
         setIsHost(true);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
+        sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         if (isPrivate) {
           setSettings(prev => ({ ...prev, isPrivate: true }));
         }
@@ -463,6 +476,7 @@ const App: React.FC = () => {
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
+        sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         window.history.replaceState({}, '', `/rooms/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join room");
@@ -488,6 +502,7 @@ const App: React.FC = () => {
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
+        sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         window.history.pushState({}, '', `/rooms/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join random room");
@@ -499,6 +514,7 @@ const App: React.FC = () => {
 
   const leaveRoom = () => {
     resetSocket();
+    sessionStorage.removeItem('richup_session');
     setIsOnline(false);
     setRoomId(null);
     setSessionPlayerId(null);
@@ -508,6 +524,7 @@ const App: React.FC = () => {
     setIsSpectator(false);
     setShowAppearanceModal(false);
     setMyPlayerId(0);
+    setIsSocketDisconnected(false);
     window.history.replaceState({}, '', '/');
   };
 
@@ -1144,6 +1161,14 @@ const App: React.FC = () => {
             <div className="absolute bottom-[10%] left-[40%] opacity-10 rotate-12"><Dices size={72} /></div>
           </div>
 
+          {/* Fixed left ad — rendered here (outside motion.div transforms) so position:fixed works */}
+          {!showRoomBrowser && (
+            <div className="hidden lg:flex fixed left-0 top-0 h-screen w-36 z-0 flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
+              <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
+              <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
+            </div>
+          )}
+
           {/* Main content — switches between landing & inline room browser */}
           <div className="flex-1 flex flex-col overflow-y-auto">
             <AnimatePresence mode="wait">
@@ -1244,12 +1269,6 @@ const App: React.FC = () => {
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                   className="flex-1 flex flex-col relative z-10 w-full"
                 >
-                  {/* Fixed left ad sidebar — desktop only */}
-                  <div className="hidden lg:flex fixed left-0 top-0 h-screen w-36 z-0 flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
-                    <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
-                    <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
-                  </div>
-
                   {/* Hero / join form — narrow centered column */}
                   <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6">
                     <div className="w-full max-w-sm flex flex-col items-center gap-4">
@@ -1373,7 +1392,7 @@ const App: React.FC = () => {
                       </h3>
                       <div className="flex flex-col gap-2">
                         {[
-                          { icon: <Coins size={12} className="text-emerald-400" />, title: 'Start with $1500' },
+                          { icon: <Coins size={12} className="text-emerald-400" />, title: 'Start with configurable cash' },
                           { icon: <Dices size={12} className="text-indigo-400" />, title: 'Roll & move' },
                           { icon: <Landmark size={12} className="text-amber-400" />, title: 'Buy properties' },
                           { icon: <TrendingUp size={12} className="text-rose-400" />, title: 'Build houses & hotels' },
@@ -1531,13 +1550,25 @@ const App: React.FC = () => {
                       <p className="text-slate-400 font-medium">Waiting for players to join...</p>
                     </div>
 
-                    <button
-                      onClick={() => { if (isHost) handleStartGame(); }}
-                      disabled={!isHost}
-                      className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
-                    >
-                      {isHost ? 'Start Game' : 'Waiting for Host'}
-                    </button>
+                    {(() => {
+                      const activeBots = settings.allowBots ? Math.max(0, settings.maxPlayers - lobbyPlayers.length - kickedBotIds.size) : 0;
+                      const totalPlayers = lobbyPlayers.length + activeBots;
+                      const canStart = isHost && totalPlayers >= 2;
+                      return (
+                        <div className="flex flex-col items-center gap-1">
+                          <button
+                            onClick={() => { if (canStart) handleStartGame(); }}
+                            disabled={!canStart}
+                            className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] enabled:hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
+                          >
+                            {isHost ? 'Start Game' : 'Waiting for Host'}
+                          </button>
+                          {isHost && totalPlayers < 2 && (
+                            <p className="text-[11px] text-rose-400 font-bold">Need at least 2 players to start</p>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
                       <Users size={16} className="text-indigo-400" />
@@ -1616,7 +1647,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Game Settings Box */}
-          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex-1 overflow-x-hidden flex flex-col shadow-lg min-h-[400px] group-data-[layout=row]:min-h-0">
+          <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex-1 flex flex-col shadow-lg min-h-[400px] group-data-[layout=row]:min-h-0">
             <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em] mb-6 shrink-0 flex items-center gap-2">
               <Settings size={16} /> Game Settings
             </h3>
