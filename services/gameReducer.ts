@@ -83,7 +83,7 @@ export const initialState: GameState = {
   settings: {
     maxPlayers: 4,
     isPrivate: false,
-    allowBots: true,
+    allowBots: false,
     boardMap: 'Classic',
     rules: {
       doubleRentOnFullSet: true,

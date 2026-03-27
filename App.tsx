@@ -13,7 +13,7 @@ import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff
 } from 'lucide-react';
 import { playSound } from './services/audioService';
 import {
@@ -75,7 +75,8 @@ const App: React.FC = () => {
   const [activeRooms, setActiveRooms] = useState<any[]>([]);
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
   const [chatInput, setChatInput] = useState('');
-  const [activeSidebarTab, setActiveSidebarTab] = useState<'logs' | 'chat'>('logs');
+  const [activeSidebarTab, setActiveSidebarTab] = useState<'logs' | 'chat'>('chat');
+  const [isSocketDisconnected, setIsSocketDisconnected] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isStacked, setIsStacked] = useState(false);
@@ -220,7 +221,11 @@ const App: React.FC = () => {
 
     const handleChatMessage = (data: any) => {
       setChatMessages(prev => [...prev, data]);
+      if (soundEnabled) playSound('notification');
     };
+
+    const handleSocketDisconnect = () => setIsSocketDisconnected(true);
+    const handleSocketConnect = () => setIsSocketDisconnected(false);
 
     socket.on("room_updated", handleRoomUpdated);
     socket.on("game_started", handleGameStarted);
@@ -230,6 +235,9 @@ const App: React.FC = () => {
     socket.on("kicked", handleKicked);
     socket.on("chat_message", handleChatMessage);
     socket.on("rooms_list", (rooms: any[]) => setActiveRooms(rooms));
+    socket.on("disconnect", handleSocketDisconnect);
+    socket.on("connect", handleSocketConnect);
+    socket.on("connect_error", handleSocketDisconnect);
 
     return () => {
       socket.off("room_updated", handleRoomUpdated);
@@ -240,6 +248,9 @@ const App: React.FC = () => {
       socket.off("kicked", handleKicked);
       socket.off("chat_message", handleChatMessage);
       socket.off("rooms_list");
+      socket.off("disconnect", handleSocketDisconnect);
+      socket.off("connect", handleSocketConnect);
+      socket.off("connect_error", handleSocketDisconnect);
     };
   }, [isHost, roomId, sessionPlayerId]);
 
@@ -698,12 +709,21 @@ const App: React.FC = () => {
         </button>
       </div>
       {showSettingsButton && (
-        <button
-          onClick={() => setShowSettingsModal(true)}
-          className="mt-2 w-full bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-slate-300 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
-        >
-          <Settings size={16} /> View room settings
-        </button>
+        <div className="mt-2 flex gap-2">
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="flex-1 bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-slate-300 transition-colors flex items-center justify-center gap-2 text-sm font-bold"
+          >
+            <Settings size={16} /> View room settings
+          </button>
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="bg-slate-800 hover:bg-slate-700 p-2 rounded-xl text-slate-400 hover:text-slate-200 transition-colors"
+            title={soundEnabled ? 'Mute' : 'Unmute'}
+          >
+            {soundEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -1224,30 +1244,26 @@ const App: React.FC = () => {
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                   className="flex-1 flex flex-col relative z-10 w-full"
                 >
-                  {/* Top section: ads (left) + hero/form (center) */}
-                  <div className="flex w-full max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8 gap-6 pb-6">
+                  {/* Fixed left ad sidebar — desktop only */}
+                  <div className="hidden lg:flex fixed left-0 top-0 h-screen w-36 z-0 flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
+                    <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
+                    <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
+                  </div>
 
-                    {/* ── Left col: ad placeholder (desktop only) ── */}
-                    <div className="hidden lg:flex w-[160px] shrink-0 flex-col gap-4">
-                      <div className="bg-[#1a1a22] rounded-2xl border border-slate-800/60 flex-1 flex flex-col items-center justify-start gap-3 p-3 min-h-[320px]">
-                        <span className="text-[8px] font-bold text-slate-700 uppercase tracking-widest mt-1">Advertisement</span>
-                        <div className="w-full flex-1 bg-slate-800/20 rounded-xl border border-slate-800/40" />
-                      </div>
-                    </div>
-
-                    {/* ── Center col: hero + join form ── */}
-                    <div className="flex-1 flex flex-col items-center gap-4">
-                      <div className="flex flex-col items-center lg:items-start gap-1">
+                  {/* Hero / join form — narrow centered column */}
+                  <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6">
+                    <div className="w-full max-w-sm flex flex-col items-center gap-4">
+                      <div className="flex flex-col items-center gap-1">
                         <Dices size={48} className="text-white drop-shadow-lg mb-1" />
-                        <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center lg:text-left">
+                        <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center">
                           RICHUP<span className="text-indigo-500">.IO</span>
                         </h1>
-                        <p className="text-slate-400 text-base text-center lg:text-left">Rule the economy</p>
+                        <p className="text-slate-400 text-base text-center">Rule the economy</p>
                       </div>
 
                       <div className="w-full space-y-3 mt-1">
                         <div>
-                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center lg:text-left">Playing as</p>
+                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
                           <input
                             type="text"
                             value={humanName}
@@ -1326,28 +1342,25 @@ const App: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Bottom section: Features + How To Play (centered, full width) */}
-                  <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 pb-8 flex flex-col gap-7">
-                    {/* Features grid */}
+                  {/* Bottom section: Features + How To Play side by side */}
+                  <div className="w-full max-w-2xl mx-auto px-4 pb-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Features */}
                     <div>
-                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-center gap-2">
+                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                         <Zap size={11} /> Features
                       </h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                      <div className="flex flex-col gap-2">
                         {[
-                          { icon: <Globe size={13} className="text-indigo-400" />, title: 'Online Multiplayer', desc: 'Up to 8 friends in real time' },
-                          { icon: <Bot size={13} className="text-violet-400" />, title: 'Smart AI Bots', desc: 'Fill empty slots with adaptive AI' },
-                          { icon: <Zap size={13} className="text-amber-400" />, title: 'Fast Gameplay', desc: 'Streamlined turns keep pace up' },
-                          { icon: <ShieldCheck size={13} className="text-emerald-400" />, title: 'Fair Play', desc: 'Vote-kick disruptive players' },
-                          { icon: <Handshake size={13} className="text-sky-400" />, title: 'Trading', desc: 'Negotiate deals and swap props' },
-                          { icon: <Trophy size={13} className="text-rose-400" />, title: 'Custom Rules', desc: 'Auction, mortgage & more' },
+                          { icon: <Globe size={12} className="text-indigo-400" />, title: 'Online Multiplayer' },
+                          { icon: <Bot size={12} className="text-violet-400" />, title: 'Smart AI Bots' },
+                          { icon: <Zap size={12} className="text-amber-400" />, title: 'Fast Gameplay' },
+                          { icon: <ShieldCheck size={12} className="text-emerald-400" />, title: 'Fair Play' },
+                          { icon: <Handshake size={12} className="text-sky-400" />, title: 'Trading' },
+                          { icon: <Trophy size={12} className="text-rose-400" />, title: 'Custom Rules' },
                         ].map((feat, i) => (
-                          <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 flex items-start gap-2">
-                            <div className="mt-0.5 shrink-0">{feat.icon}</div>
-                            <div>
-                              <p className="text-xs font-bold text-slate-200 leading-tight">{feat.title}</p>
-                              <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{feat.desc}</p>
-                            </div>
+                          <div key={i} className="flex items-center gap-2 bg-[#1a1a22] rounded-xl px-3 py-2 border border-slate-800/60">
+                            <div className="shrink-0">{feat.icon}</div>
+                            <p className="text-xs font-bold text-slate-300">{feat.title}</p>
                           </div>
                         ))}
                       </div>
@@ -1355,23 +1368,21 @@ const App: React.FC = () => {
 
                     {/* How to play */}
                     <div>
-                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center justify-center gap-2">
+                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                         <Info size={11} /> How to play
                       </h3>
-                      <div className="space-y-2">
+                      <div className="flex flex-col gap-2">
                         {[
-                          { icon: <Coins size={14} className="text-emerald-400" />, title: 'All players start with $1500.', desc: 'You begin with enough cash to buy properties and grow your empire.' },
-                          { icon: <Dices size={14} className="text-indigo-400" />, title: 'Roll the dice to move around the board.', desc: "Got doubles? Roll again! Three doubles in a row sends you to jail." },
-                          { icon: <Landmark size={14} className="text-amber-400" />, title: 'Buy properties to build your empire.', desc: 'Other players pay rent when they land on your property.' },
-                          { icon: <TrendingUp size={14} className="text-rose-400" />, title: 'Build houses and hotels to maximise rent.', desc: 'Own a full colour set first — the more you build, the more you earn.' },
-                          { icon: <Trophy size={14} className="text-amber-400" />, title: 'Last player standing wins.', desc: 'Bankrupt your opponents by collecting rent and controlling the board.' },
+                          { icon: <Coins size={12} className="text-emerald-400" />, title: 'Start with $1500' },
+                          { icon: <Dices size={12} className="text-indigo-400" />, title: 'Roll & move' },
+                          { icon: <Landmark size={12} className="text-amber-400" />, title: 'Buy properties' },
+                          { icon: <TrendingUp size={12} className="text-rose-400" />, title: 'Build houses & hotels' },
+                          { icon: <Trophy size={12} className="text-amber-400" />, title: 'Last one standing wins' },
                         ].map((step, i) => (
-                          <div key={i} className="flex items-start gap-3 bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60">
-                            <div className="mt-0.5 shrink-0">{step.icon}</div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-200">{step.title}</p>
-                              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{step.desc}</p>
-                            </div>
+                          <div key={i} className="flex items-center gap-2 bg-[#1a1a22] rounded-xl px-3 py-2 border border-slate-800/60">
+                            <span className="text-[9px] font-black text-slate-600 w-3 shrink-0">{i + 1}</span>
+                            <div className="shrink-0">{step.icon}</div>
+                            <p className="text-xs font-bold text-slate-300">{step.title}</p>
                           </div>
                         ))}
                       </div>
@@ -1411,6 +1422,15 @@ const App: React.FC = () => {
         className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
         data-layout={isStacked ? "stacked" : "row"}
       >
+        {/* Disconnect overlay */}
+        {isSocketDisconnected && (
+          <div className="fixed inset-0 z-[999] bg-red-950 flex flex-col items-center justify-center gap-4">
+            <WifiOff size={56} className="text-red-400 animate-pulse" />
+            <p className="text-white text-xl font-black uppercase tracking-widest">Disconnected</p>
+            <p className="text-red-300 text-sm font-medium">Trying to reconnect…</p>
+          </div>
+        )}
+
         {/* Left Column: Share, Ad & Chat */}
         <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
@@ -1635,6 +1655,15 @@ const App: React.FC = () => {
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
       <div className="fixed inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='white'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
+
+      {/* Disconnect overlay */}
+      {isSocketDisconnected && (
+        <div className="fixed inset-0 z-[999] bg-red-950 flex flex-col items-center justify-center gap-4">
+          <WifiOff size={56} className="text-red-400 animate-pulse" />
+          <p className="text-white text-xl font-black uppercase tracking-widest">Disconnected</p>
+          <p className="text-red-300 text-sm font-medium">Trying to reconnect…</p>
+        </div>
+      )}
 
       {/* Spectator badge */}
       {isSpectator && (
