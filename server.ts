@@ -86,6 +86,10 @@ async function startServer() {
     return `${adj}${noun}`;
   }
 
+  function sanitizeName(name: any): string {
+    return (String(name || '')).replace(/[^\x20-\x7E]/g, '').trim().slice(0, 20);
+  }
+
   function getUniqueName(baseName: string, players: any[]) {
     const stripped = (baseName || '').trim();
     // Use a gamertag when the player hasn't set a real name (empty, or default "Player 1", "Player 2", etc.)
@@ -128,10 +132,10 @@ async function startServer() {
     const data = req.body;
     const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
     const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-    const player = { id: playerId, originalId: playerId, name: data.name, avatar: data.avatar, isHost: true };
+    const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, isHost: true };
     rooms.set(roomId, {
       host: playerId, // Will be updated to socket.id when they connect
-      hostName: data.name || 'Player',
+      hostName: sanitizeName(data.name) || 'Player',
       players: [player],
       state: null,
       isPrivate: data.isPrivate || false,
@@ -159,7 +163,7 @@ async function startServer() {
     if (targetRoomId) {
       const room = rooms.get(targetRoomId)!;
       const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-      const uniqueName = getUniqueName(data.name, room.players);
+      const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
       const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
       room.players.push(player);
       // We don't broadcast room_updated here because socket isn't connected yet.
@@ -169,10 +173,10 @@ async function startServer() {
       // Create a new room
       const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
       const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-      const player = { id: playerId, originalId: playerId, name: data.name, avatar: data.avatar, isHost: true };
+      const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, isHost: true };
       rooms.set(roomId, {
         host: playerId,
-        hostName: data.name || 'Player',
+        hostName: sanitizeName(data.name) || 'Player',
         players: [player],
         state: null,
         isPrivate: false,
@@ -196,7 +200,7 @@ async function startServer() {
     if (room.state) {
       // Game already started — allow joining as spectator
       const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-      const uniqueName = getUniqueName(data.name, room.players);
+      const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
       const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false, isSpectator: true };
       room.players.push(player);
       res.json({ success: true, roomId: roomId, playerId, players: room.players, isSpectator: true });
@@ -207,7 +211,7 @@ async function startServer() {
     }
 
     const playerId = "p_" + Math.random().toString(36).substring(2, 10);
-    const uniqueName = getUniqueName(data.name, room.players);
+    const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
     const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
     room.players.push(player);
 
@@ -285,7 +289,7 @@ async function startServer() {
           if (player) {
             if (data.name !== undefined) {
               const otherPlayers = room.players.filter(p => p.id !== socket.id);
-              player.name = getUniqueName(data.name, otherPlayers);
+              player.name = getUniqueName(sanitizeName(data.name), otherPlayers);
             }
             if (data.avatar !== undefined) {
               const avatarTaken = room.players.some((p: any) => p.id !== socket.id && p.avatar === data.avatar);
@@ -388,8 +392,9 @@ async function startServer() {
       if (roomId) {
         const room = rooms.get(roomId);
         if (room) {
-          // Send action to the host to process
-          io.to(room.host).emit("host_process_action", data);
+          const isPlayer = room.players.some((p: any) => p.id === socket.id);
+          if (!isPlayer) return;
+          io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
         }
       }
     });

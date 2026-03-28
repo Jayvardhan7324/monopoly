@@ -1,7 +1,7 @@
 import React from 'react';
 import { Player, Tile, TradeOffer } from '../types';
 import { motion } from 'motion/react';
-import { X, ArrowRightLeft, Landmark, Coins } from 'lucide-react';
+import { X, ArrowRightLeft, Coins } from 'lucide-react';
 import { Avatar } from './Avatar';
 
 interface TradeProposalModalProps {

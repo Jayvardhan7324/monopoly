@@ -1466,8 +1466,8 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Center Column: Board Preview — hidden on mobile */}
-        <div className="hidden sm:flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
+        {/* Center Column: Board */}
+        <div className="flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-first group-data-[layout=row]:order-2">
           <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
             <Board gameState={gameState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">

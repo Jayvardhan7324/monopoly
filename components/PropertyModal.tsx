@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tile, TileType, Player, ColorGroup } from '../types';
-import { X, ArrowUpCircle, AlertCircle, Banknote, Landmark, Unlock, Home, Building2, AlertTriangle, ArrowRightLeft, Coins, Check } from 'lucide-react';
+import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, ArrowRightLeft, Coins, Check } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_CONSTANTS } from '../constants';

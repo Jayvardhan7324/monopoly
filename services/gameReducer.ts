@@ -141,7 +141,7 @@ const getRent = (
   if (tile.type === TileType.PROPERTY && tile.rent.length > 0) {
     if (tile.buildingCount === 0) {
       const groupTiles = allTiles.filter(t => t.group === tile.group);
-      const isMonopoly = groupTiles.every(t => t.ownerId === tile.ownerId);
+      const isMonopoly = groupTiles.every(t => t.ownerId === tile.ownerId && !t.isMortgaged);
       return isMonopoly && rules.doubleRentOnFullSet ? tile.rent[0] * 2 : tile.rent[0];
     }
     return tile.rent[tile.buildingCount];
