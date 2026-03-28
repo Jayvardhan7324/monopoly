@@ -94,7 +94,9 @@ export type SoundEffectType =
   | 'trade_accept'
   | 'trade_decline'
   | 'notification'
-  | 'error';
+  | 'error'
+  | 'player_join'
+  | 'player_leave';
 
 export interface AuctionState {
   tileId: number;

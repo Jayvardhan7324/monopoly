@@ -33,10 +33,15 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
       case ETileType.RAILROAD:
         return <Plane size={14} className="text-slate-300 drop-shadow-md" />;
       case ETileType.UTILITY:
-        return tile.name.includes('Water') ? (
-          <Droplets size={14} className="text-cyan-400 drop-shadow-md" />
-        ) : (
-          <Zap size={14} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
+        return (
+          <div className="flex flex-col items-center gap-[1px]">
+            {tile.name.includes('Water') ? (
+              <Droplets size={13} className="text-cyan-400 drop-shadow-md" />
+            ) : (
+              <Zap size={13} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
+            )}
+            <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">Company</span>
+          </div>
         );
       case ETileType.CHANCE:
         return <div className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">?</div>;
@@ -174,7 +179,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
                 transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none'
               }}
             >
-              {tile.name && (
+              {tile.name && tile.type !== ETileType.UTILITY && (
                 <span
                   className="max-w-[48px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[6.5px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
                   style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}

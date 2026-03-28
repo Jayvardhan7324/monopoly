@@ -107,6 +107,7 @@ const App: React.FC = () => {
   }, []);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const kickTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const prevLobbyCountRef = useRef(-1);
 
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
   const botBidFiringRef = useRef(false);
@@ -188,6 +189,13 @@ const App: React.FC = () => {
     const socket = initSocket(roomId, sessionPlayerId);
 
     const handleRoomUpdated = (data: any) => {
+      const newCount = data.players.length;
+      const prevCount = prevLobbyCountRef.current;
+      if (prevCount >= 0 && soundEnabled) {
+        if (newCount > prevCount) playSound('player_join');
+        else if (newCount < prevCount) playSound('player_leave');
+      }
+      prevLobbyCountRef.current = newCount;
       setLobbyPlayers(data.players);
       const me = data.players.find((p: any) => p.id === socket.id);
       if (me && !me.isSpectator) {
@@ -526,6 +534,7 @@ const App: React.FC = () => {
   const leaveRoom = () => {
     resetSocket();
     sessionStorage.removeItem('richup_session');
+    prevLobbyCountRef.current = -1;
     setIsOnline(false);
     setRoomId(null);
     setSessionPlayerId(null);
@@ -764,7 +773,7 @@ const App: React.FC = () => {
   );
 
   const renderGameSettings = () => (
-    <div className="space-y-6 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-700">
+    <div className="space-y-6 overflow-y-auto pl-2 pr-2 scrollbar-thin scrollbar-thumb-slate-700">
       <div className="flex gap-3">
         <Users size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
@@ -986,6 +995,14 @@ const App: React.FC = () => {
   if (!gameStarted) {
     if (!isOnline) {
       return (
+        <>
+        {/* Fixed left ad — outside motion.div so CSS transforms don't break position:fixed */}
+        {!showRoomBrowser && (
+          <div className="hidden lg:flex fixed left-0 top-0 h-screen w-36 z-[5] flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
+            <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
+            <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
+          </div>
+        )}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -1179,13 +1196,6 @@ const App: React.FC = () => {
             <div className="absolute bottom-[10%] left-[40%] opacity-10 rotate-12"><Dices size={72} /></div>
           </div>
 
-          {/* Fixed left ad — rendered here (outside motion.div transforms) so position:fixed works */}
-          {!showRoomBrowser && (
-            <div className="hidden lg:flex fixed left-0 top-0 h-screen w-36 z-0 flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
-              <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
-              <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
-            </div>
-          )}
 
           {/* Main content — switches between landing & inline room browser */}
           <div className="flex-1 flex flex-col overflow-y-auto">
@@ -1446,6 +1456,7 @@ const App: React.FC = () => {
             </AnimatePresence>
           </div>
         </motion.div>
+        </>
       );
     }
 

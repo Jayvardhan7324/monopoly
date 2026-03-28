@@ -136,6 +136,14 @@ function playSynth(effect: SoundEffectType) {
       case 'error':
         createOsc(ctx, 'sawtooth', 150, now, 0.15, 0.08);
         break;
+      case 'player_join':
+        createOsc(ctx, 'sine', 440, now, 0.1, 0.07);
+        createOsc(ctx, 'sine', 660, now + 0.1, 0.2, 0.07);
+        break;
+      case 'player_leave':
+        createOsc(ctx, 'sine', 550, now, 0.1, 0.06);
+        createOsc(ctx, 'sine', 330, now + 0.1, 0.25, 0.06);
+        break;
       default:
         break;
     }
