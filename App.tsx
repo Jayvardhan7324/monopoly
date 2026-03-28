@@ -106,6 +106,7 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', checkLayout);
   }, []);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const kickTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
 
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
   const botBidFiringRef = useRef(false);
@@ -287,6 +288,13 @@ const App: React.FC = () => {
       }
     }
   }, [gameState, isOnline, isHost, gameStarted]);
+
+  // Dismiss trade modal when an auction starts (prevents overlapping modals)
+  useEffect(() => {
+    if (gameState.phase === 'AUCTION') {
+      setShowCreateTradeModal(false);
+    }
+  }, [gameState.phase]);
 
   // Intercept dispatch for online play
   const handleDispatch = (action: any) => {
@@ -547,15 +555,22 @@ const App: React.FC = () => {
 
   const kickBotSlot = (index: number) => {
     setKickedBotIds(prev => new Set([...prev, index]));
-    // Bot rejoins after 20 seconds
-    setTimeout(() => {
+    // Bot rejoins after 20 seconds — track timer so it can be cleared on unmount
+    const t = setTimeout(() => {
+      kickTimersRef.current.delete(index);
       setKickedBotIds(prev => {
         const next = new Set(prev);
         next.delete(index);
         return next;
       });
     }, 20000);
+    kickTimersRef.current.set(index, t);
   };
+
+  // Cleanup all pending kick-bot timers on unmount
+  useEffect(() => {
+    return () => { kickTimersRef.current.forEach(t => clearTimeout(t)); };
+  }, []);
 
   const fetchRooms = async () => {
     try {
@@ -2097,7 +2112,8 @@ const App: React.FC = () => {
           }}
         />
 
-        {gameState.pendingTrade && gameState.pendingTrade.targetId === myPlayerId && (
+        {gameState.pendingTrade && gameState.pendingTrade.targetId === myPlayerId &&
+         gameState.players.some(p => p.id === gameState.pendingTrade?.proposerId && !p.isBankrupt) && (
           <TradeProposalModal
             trade={gameState.pendingTrade}
             players={gameState.players}

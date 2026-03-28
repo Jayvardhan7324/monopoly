@@ -37,7 +37,22 @@ async function startServer() {
 
   const rooms = new Map<string, RoomData>();
   const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
-  const RECONNECT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+  const roomIdleTimers = new Map<string, NodeJS.Timeout>(); // keyed by roomId — fires when all players disconnected
+  const RECONNECT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes per-player reconnect window
+  const ROOM_IDLE_TTL = 60 * 60 * 1000; // 1 hour — room survives fully disconnected before deletion
+
+  // Background GC: delete zombie rooms every 15 min
+  setInterval(() => {
+    const now = Date.now();
+    for (const [roomId, room] of rooms.entries()) {
+      const allDisconnected = room.players.length > 0 && room.players.every((p: any) => p.disconnected);
+      if (allDisconnected && now - room.createdAt > ROOM_IDLE_TTL) {
+        roomIdleTimers.delete(roomId);
+        rooms.delete(roomId);
+        console.log(`GC: deleted stale room ${roomId} (all disconnected > 1hr)`);
+      }
+    }
+  }, 15 * 60 * 1000);
 
   // Permanently removes a player after the reconnect window expires
   function permanentlyRemovePlayer(roomId: string, originalPlayerId: string) {
@@ -255,6 +270,12 @@ async function startServer() {
         disconnectTimers.delete(timerKey);
         console.log(`Player ${timerKey} reconnected to room ${roomId}. Disconnect timer cleared.`);
       }
+      // Clear room-level idle timer if someone is reconnecting
+      if (roomIdleTimers.has(roomId)) {
+        clearTimeout(roomIdleTimers.get(roomId)!);
+        roomIdleTimers.delete(roomId);
+        console.log(`Room ${roomId} idle timer cleared — player reconnected.`);
+      }
 
       // Update socket ID and clear disconnected flag
       player.id = socket.id;
@@ -436,7 +457,7 @@ async function startServer() {
             io.emit("rooms_list", getPublicRoomsList());
             console.log(`Player ${timerKey} removed immediately from lobby ${roomId} (game not started).`);
           } else {
-            // Game in progress — soft-disconnect with 5-min reconnect window
+            // Game in progress — soft-disconnect with reconnect window
             player.disconnected = true;
             console.log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
 
@@ -449,6 +470,18 @@ async function startServer() {
               permanentlyRemovePlayer(roomId, timerKey);
             }, RECONNECT_WINDOW_MS);
             disconnectTimers.set(timerKey, timer);
+
+            // If ALL players are now disconnected, start a room-level idle timer
+            const allDisconnected = room.players.every((p: any) => p.disconnected);
+            if (allDisconnected && !roomIdleTimers.has(roomId)) {
+              console.log(`All players disconnected from room ${roomId}. Room will persist for ${ROOM_IDLE_TTL / 60000} min.`);
+              const idleTimer = setTimeout(() => {
+                rooms.delete(roomId);
+                roomIdleTimers.delete(roomId);
+                console.log(`Room ${roomId} deleted after idle TTL (all players disconnected).`);
+              }, ROOM_IDLE_TTL);
+              roomIdleTimers.set(roomId, idleTimer);
+            }
           }
 
           return; // player found in a room — done
