@@ -17,7 +17,7 @@ interface TileProps {
   taxPool?: number;
 }
 
-export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
+const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp = tile.type === ETileType.PROPERTY;
 
@@ -293,3 +293,5 @@ export const Tile: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, i
     </div>
   );
 };
+
+export const Tile = React.memo(TileInner);

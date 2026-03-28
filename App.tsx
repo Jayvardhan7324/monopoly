@@ -239,6 +239,7 @@ const App: React.FC = () => {
 
     const handleSocketDisconnect = () => setIsSocketDisconnected(true);
     const handleSocketConnect = () => setIsSocketDisconnected(false);
+    const handleYouAreHost = () => setIsHost(true); // B4: server promotes us to host after original host permanently left
 
     socket.on("room_updated", handleRoomUpdated);
     socket.on("game_started", handleGameStarted);
@@ -251,6 +252,7 @@ const App: React.FC = () => {
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
+    socket.on("you_are_host", handleYouAreHost);
 
     return () => {
       socket.off("room_updated", handleRoomUpdated);
@@ -262,6 +264,7 @@ const App: React.FC = () => {
       socket.off("chat_message", handleChatMessage);
       socket.off("rooms_list");
       socket.off("disconnect", handleSocketDisconnect);
+      socket.off("you_are_host", handleYouAreHost);
       socket.off("connect", handleSocketConnect);
       socket.off("connect_error", handleSocketDisconnect);
     };
@@ -1896,6 +1899,13 @@ const App: React.FC = () => {
                       {player.name}
                     </span>
                     {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
+                    {/* I5: Disconnected countdown — 2 min window */}
+                    {(player as any).disconnected && (player as any).disconnectedAt && (() => {
+                      const secondsLeft = Math.max(0, 120 - Math.floor((nowTs - (player as any).disconnectedAt) / 1000));
+                      return secondsLeft > 0
+                        ? <span className="text-[8px] font-mono text-amber-400 animate-pulse ml-0.5">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}</span>
+                        : <span className="text-[8px] text-slate-600 ml-0.5">away</span>;
+                    })()}
                   </div>
                   {/* U10: Money badge with coin icon */}
                   <div className={`flex items-center gap-1 font-mono text-sm font-bold ${player.isBankrupt ? 'text-slate-600' : 'text-emerald-400'}`}>

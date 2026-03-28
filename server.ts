@@ -47,6 +47,14 @@ async function startServer() {
     for (const [roomId, room] of rooms.entries()) {
       const allDisconnected = room.players.length > 0 && room.players.every((p: any) => p.disconnected);
       if (allDisconnected && now - room.createdAt > ROOM_IDLE_TTL) {
+        // B7: Clear all pending disconnect timers before deleting room
+        for (const p of room.players) {
+          const key = (p as any).originalId || (p as any).id;
+          if (disconnectTimers.has(key)) {
+            clearTimeout(disconnectTimers.get(key)!);
+            disconnectTimers.delete(key);
+          }
+        }
         roomIdleTimers.delete(roomId);
         rooms.delete(roomId);
         console.log(`GC: deleted stale room ${roomId} (all disconnected > 1hr)`);
@@ -75,8 +83,23 @@ async function startServer() {
         room.host = heir.id;
         heir.isHost = true;
         room.hostName = heir.name || 'Player';
+        // B4: Sync full game state to new host and inform them of their new role
+        if (room.state) {
+          io.to(heir.id).emit("sync_state", { state: room.state });
+        }
+        io.to(heir.id).emit("you_are_host");
       }
       io.to(roomId).emit("room_updated", { players: room.players });
+      // B3: If the removed player was the current turn player, force turn advancement
+      if (room.state && room.state.players) {
+        const currentPlayer = room.state.players[room.state.currentPlayerIndex];
+        if (currentPlayer && (currentPlayer.id === originalPlayerId || currentPlayer.originalId === originalPlayerId)) {
+          io.to(room.host).emit("host_process_action", {
+            type: 'FORCE_END_TURN',
+            payload: { removedPlayerId: originalPlayerId },
+          });
+        }
+      }
     }
     io.emit("rooms_list", getPublicRoomsList());
     console.log(`Player ${originalPlayerId} permanently removed from room ${roomId} (reconnect window expired).`);
@@ -421,6 +444,8 @@ async function startServer() {
     });
 
     socket.on("sync_state", (data) => {
+      const MAX_STATE_SIZE = 512 * 1024; // 512 KB — B5: reject oversized payloads
+      if (!data?.state || JSON.stringify(data.state).length > MAX_STATE_SIZE) return;
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
@@ -459,6 +484,7 @@ async function startServer() {
           } else {
             // Game in progress — soft-disconnect with reconnect window
             player.disconnected = true;
+            player.disconnectedAt = Date.now(); // I5: client uses this for 2-min countdown UI
             console.log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
 
             // Notify others that this player temporarily disconnected

@@ -61,7 +61,9 @@ export type Action =
   | { type: 'DECLARE_BANKRUPT' }
   | { type: 'VOTE_KICK'; payload: { targetId: number; voterId: number } }
   | { type: 'CHECK_VOTEKICKS' }
-  | { type: 'SYNC_STATE'; payload: GameState };
+  | { type: 'SYNC_STATE'; payload: GameState }
+  | { type: 'FORCE_END_TURN'; payload: { removedPlayerId: string } }
+  | { type: 'RESET_GAME' };
 
 export const initialState: GameState = {
   players: [],
@@ -170,7 +172,7 @@ const declareBankruptcy = (
   creditorId: number | null
 ): { players: Player[]; tiles: Tile[]; logs: string[] } => {
   const newPlayers = state.players.map(p =>
-    p.id === bankruptPlayerId ? { ...p, isBankrupt: true, money: 0 } : p
+    p.id === bankruptPlayerId ? { ...p, isBankrupt: true, money: 0, inJail: false, jailTurns: 0 } : p
   );
 
   const newTiles = state.tiles.map(t => {
@@ -299,6 +301,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── ROLL_DICE ─────────────────────────────────────────────────────────────
     case 'ROLL_DICE': {
+      if (state.phase !== 'ROLL') return state;
+      if (state.winnerId !== null) return state;
       const d1 = rollDie();
       const d2 = rollDie();
       const isDoubles = d1 === d2;
@@ -723,8 +727,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── PLACE_BID ─────────────────────────────────────────────────────────────
     case 'PLACE_BID': {
+      if (state.winnerId !== null) return state;
       const { playerId, amount } = action.payload;
-      if (!state.auction || amount <= state.auction.currentBid) return state;
+      if (!state.auction || state.auction.tileId < 0 || state.auction.tileId >= state.tiles.length) return state;
+      if (amount <= state.auction.currentBid) return state;
       const bidder = state.players.find(p => p.id === playerId);
       if (!bidder || bidder.money < amount || bidder.isBankrupt) return state;
       return withSound(
@@ -1088,6 +1094,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── ACCEPT_TRADE ──────────────────────────────────────────────────────────
     case 'ACCEPT_TRADE': {
+      if (state.winnerId !== null) return state;
       if (!state.pendingTrade) return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
 
@@ -1135,6 +1142,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── DECLINE_TRADE ──────────────────────────────────────────────────────────
     case 'DECLINE_TRADE': {
+      if (state.winnerId !== null) return state;
       if (!state.pendingTrade) return state;
       const target = state.players.find(p => p.id === state.pendingTrade!.targetId)!;
       return withSound(
@@ -1191,6 +1199,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         while (processedPlayers[nextIndex].isBankrupt && loopGuard < processedPlayers.length) {
           nextIndex = (nextIndex + 1) % processedPlayers.length;
           loopGuard++;
+        }
+        // Safety: if all players ended up bankrupt, declare whoever has most money as winner
+        if (processedPlayers[nextIndex]?.isBankrupt) {
+          const richest = processedPlayers.reduce((a, b) => (a.money >= b.money ? a : b));
+          return { ...state, players: processedPlayers, winnerId: richest.id };
         }
         nextDoublesCount = 0;
       }
@@ -1332,6 +1345,26 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       }
       return state;
     }
+
+    // ─── FORCE_END_TURN (server-triggered when a player is permanently removed) ─
+    case 'FORCE_END_TURN': {
+      // Advance past whoever was removed — same logic as END_TURN but unconditional
+      let nextIndex = (state.currentPlayerIndex + 1) % state.players.length;
+      let guard = 0;
+      while (state.players[nextIndex]?.isBankrupt && guard < state.players.length) {
+        nextIndex = (nextIndex + 1) % state.players.length;
+        guard++;
+      }
+      const winnerId = getWinnerId(state.players);
+      if (winnerId !== null) {
+        return { ...state, winnerId, phase: 'TURN_END' };
+      }
+      return { ...state, currentPlayerIndex: nextIndex, phase: 'ROLL', doublesCount: 0, auction: null, turnLogs: [] };
+    }
+
+    // ─── RESET_GAME (rematch — returns to home without page reload) ────────────
+    case 'RESET_GAME':
+      return { ...initialState };
 
     default:
       return state;

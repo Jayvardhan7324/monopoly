@@ -134,7 +134,8 @@ export const Controls: React.FC<ControlsProps> = ({
                 }
               </div>
               <button
-                onClick={() => { window.location.href = '/'; }}
+                onClick={() => dispatch({ type: 'RESET_GAME' })}
+                aria-label="Start a new game"
                 className="mt-4 px-10 py-3 bg-gradient-to-r from-white to-slate-100 text-slate-900 rounded-xl font-black text-base hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all uppercase tracking-tight active:scale-95"
               >
                 New Empire
@@ -221,7 +222,8 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={onBuy}
-                          className="px-5 py-2.5 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-white/10 relative overflow-hidden group"
+                          aria-label={`Buy ${currentTile.name} for $${currentTile.price}`}
+                          className="px-5 py-3 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-white/10 relative overflow-hidden group"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center">BUY FOR ${currentTile.price}</span>
@@ -232,7 +234,8 @@ export const Controls: React.FC<ControlsProps> = ({
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           onClick={() => onUpgrade(currentTile.id)}
-                          className="px-4 py-2 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-xs shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-2"
+                          aria-label={`Build ${currentTile.buildingCount === 4 ? 'hotel' : 'house'} for $${currentTile.houseCost}`}
+                          className="px-4 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-xs shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-2"
                         >
                           <Hammer size={16} />
                           {currentTile.buildingCount === 4 ? 'Build Hotel' : 'Build House'} (${currentTile.houseCost})
@@ -256,7 +259,8 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={onEndTurn}
-                          className={`px-5 py-2.5 text-white rounded-xl font-black text-sm border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
+                          aria-label={gameState.phase === 'TURN_END' ? 'End turn' : 'Skip action'}
+                          className={`px-5 py-3 text-white rounded-xl font-black text-sm border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
                             gameState.phase === 'TURN_END'
                               ? 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 shadow-[0_0_30px_rgba(99,102,241,0.4)]'
                               : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 shadow-lg'
@@ -279,7 +283,8 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={() => dispatch({ type: 'START_AUCTION' })}
-                          className="px-5 py-2.5 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(244,63,94,0.2)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase"
+                          aria-label="Put property to auction"
+                          className="px-5 py-3 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(244,63,94,0.2)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
