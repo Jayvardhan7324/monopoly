@@ -30,7 +30,7 @@ const colorMap: Record<ColorGroup, string> = {
   [ColorGroup.PINK]: 'bg-pink-500',
   [ColorGroup.ORANGE]: 'bg-orange-500',
   [ColorGroup.RED]: 'bg-red-600',
-  [ColorGroup.YELLOW]: 'bg-yellow-400',
+  [ColorGroup.YELLOW]: 'bg-yellow-600',
   [ColorGroup.GREEN]: 'bg-emerald-600',
   [ColorGroup.DARK_BLUE]: 'bg-blue-700',
   [ColorGroup.NONE]: 'bg-slate-700',

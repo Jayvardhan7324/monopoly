@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tile, TileType, Player, ColorGroup } from '../types';
-import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, ArrowRightLeft, Coins, Check } from 'lucide-react';
+import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, ArrowRightLeft, Coins, Check, AlertCircle, Unlock } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_CONSTANTS } from '../constants';
@@ -250,7 +250,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
               </div>
 
               {/* Trade via the Trade menu in the sidebar */}
-              {false && isOtherOwned && onTrade && currentPlayer && !tile.isMortgaged && (
+              {isOtherOwned && onTrade && currentPlayer && !tile.isMortgaged && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-1">
                   <Separator className="bg-slate-800 mb-3" />
                   {!showTradeBuilder ? (

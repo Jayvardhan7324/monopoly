@@ -235,7 +235,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             color: '#ef4444',
             money: settings.rules.startingCash,
             position: 0,
-            isBot: humanName === 'Spectator', // BUG-C2: Spectator mode sets isBot to true
+            isBot: false,
             isBankrupt: false,
             inJail: false,
             jailTurns: 0,
@@ -1224,7 +1224,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           auction: null,
           doublesCount: nextDoublesCount,
           votekicks: votekicksAfterTurn,
-          turnLogs: [], // BUG-M1: Reset turnLogs atomically on END_TURN
         },
         'turn_switch'
       );

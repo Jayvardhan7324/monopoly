@@ -22,7 +22,7 @@ export const Avatar: React.FC<AvatarProps> = ({ avatarId = 0, color, className =
   return (
     <div
       className={`
-        ${className} rounded-full flex items-center justify-center shrink-0 relative overflow-hidden transition-all scale-80
+        ${className} rounded-full flex items-center justify-center shrink-0 relative overflow-hidden transition-all
         ${isBankrupt ? 'opacity-50 grayscale' : 'shadow-md'}
       `}
       style={{ backgroundColor: bgColor }}

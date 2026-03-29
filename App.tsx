@@ -414,16 +414,14 @@ const App: React.FC = () => {
       },
     };
 
+    const computedInitialState = gameReducer(gameState, action as any);
     dispatch(action as any);
     setGameStarted(true);
 
     if (isOnline && isHost) {
       const socket = getSocket();
       if (socket) {
-        // We need to wait for the state to update, but we can just send the action
-        // Actually, the server expects the full initial state.
-        // We'll let the sync_state effect handle it.
-        socket.emit("start_game", { initialState: null }); // sync_state will send the real state
+        socket.emit("start_game", { initialState: computedInitialState });
       }
     }
   };

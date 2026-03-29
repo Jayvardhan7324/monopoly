@@ -45,7 +45,7 @@ async function startServer() {
     if (roomsListFlushTimer) return;
     roomsListFlushTimer = setTimeout(() => {
       roomsListFlushTimer = null;
-      scheduleRoomsListBroadcast();
+      io.emit('rooms_list', getPublicRoomsList());
     }, 50);
   }
   const RECONNECT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes per-player reconnect window
@@ -101,13 +101,18 @@ async function startServer() {
       }
       io.to(roomId).emit("room_updated", { players: room.players });
       // B3: If the removed player was the current turn player, force turn advancement
+      // Match by name since game state uses numeric IDs, not socket IDs
       if (room.state && room.state.players) {
-        const currentPlayer = room.state.players[room.state.currentPlayerIndex];
-        if (currentPlayer && (currentPlayer.id === originalPlayerId || currentPlayer.originalId === originalPlayerId)) {
-          io.to(room.host).emit("host_process_action", {
-            type: 'FORCE_END_TURN',
-            payload: { removedPlayerId: originalPlayerId },
-          });
+        const removedRoomPlayer = room.players.find((p: any) => (p.originalId || p.id) === originalPlayerId);
+        if (removedRoomPlayer) {
+          const removedGamePlayer = room.state.players.find((p: any) => p.name === removedRoomPlayer.name);
+          const currentGamePlayer = room.state.players[room.state.currentPlayerIndex];
+          if (removedGamePlayer && currentGamePlayer && removedGamePlayer.id === currentGamePlayer.id) {
+            io.to(room.host).emit("host_process_action", {
+              type: 'FORCE_END_TURN',
+              payload: { removedPlayerId: originalPlayerId },
+            });
+          }
         }
       }
     }
@@ -441,13 +446,19 @@ async function startServer() {
     });
 
     socket.on("game_action", (data) => {
-      if (isRateLimited('action')) return;
+      if (isRateLimited('action')) {
+        socket.emit("action_error", { error: "Too many actions — slow down" });
+        return;
+      }
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
         const room = rooms.get(roomId);
         if (room) {
           const isPlayer = room.players.some((p: any) => p.id === socket.id);
-          if (!isPlayer) return;
+          if (!isPlayer) {
+            socket.emit("action_error", { error: "Not a player in this room" });
+            return;
+          }
           io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
         }
       }
