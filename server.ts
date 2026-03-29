@@ -38,6 +38,16 @@ async function startServer() {
   const rooms = new Map<string, RoomData>();
   const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
   const roomIdleTimers = new Map<string, NodeJS.Timeout>(); // keyed by roomId — fires when all players disconnected
+
+  // Debounced rooms_list broadcast — collapses bursts of calls into one emit per 50ms
+  let roomsListFlushTimer: NodeJS.Timeout | null = null;
+  function scheduleRoomsListBroadcast() {
+    if (roomsListFlushTimer) return;
+    roomsListFlushTimer = setTimeout(() => {
+      roomsListFlushTimer = null;
+      scheduleRoomsListBroadcast();
+    }, 50);
+  }
   const RECONNECT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes per-player reconnect window
   const ROOM_IDLE_TTL = 60 * 60 * 1000; // 1 hour — room survives fully disconnected before deletion
 
@@ -101,7 +111,7 @@ async function startServer() {
         }
       }
     }
-    io.emit("rooms_list", getPublicRoomsList());
+    scheduleRoomsListBroadcast();
     console.log(`Player ${originalPlayerId} permanently removed from room ${roomId} (reconnect window expired).`);
   }
 
@@ -182,7 +192,7 @@ async function startServer() {
     });
 
     // Broadcast updated room list to everyone (via socket)
-    io.emit("rooms_list", getPublicRoomsList());
+    scheduleRoomsListBroadcast();
     res.json({ success: true, roomId, playerId, players: [player] });
   });
 
@@ -221,7 +231,7 @@ async function startServer() {
         maxPlayers: 5,
         createdAt: Date.now(),
       });
-      io.emit("rooms_list", getPublicRoomsList());
+      scheduleRoomsListBroadcast();
       res.json({ success: true, roomId, playerId, players: [player] });
     }
   });
@@ -253,7 +263,7 @@ async function startServer() {
     const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
     room.players.push(player);
 
-    io.emit("rooms_list", getPublicRoomsList());
+    scheduleRoomsListBroadcast();
     res.json({ success: true, roomId: roomId, playerId, players: room.players });
   });
 
@@ -359,7 +369,7 @@ async function startServer() {
           io.to(roomId).emit("game_started", { state: data.initialState });
 
           // Room is now in-game, remove from public list
-          io.emit("rooms_list", getPublicRoomsList());
+          scheduleRoomsListBroadcast();
         }
       }
     });
@@ -378,7 +388,7 @@ async function startServer() {
             io.to(roomId).emit("room_updated", { players: room.players });
 
             // Broadcast updated room list
-            io.emit("rooms_list", getPublicRoomsList());
+            scheduleRoomsListBroadcast();
           }
         }
       }
@@ -399,7 +409,7 @@ async function startServer() {
           socket.to(roomId).emit("settings_updated", data.settings);
 
           // Broadcast updated room list (privacy might have changed)
-          io.emit("rooms_list", getPublicRoomsList());
+          scheduleRoomsListBroadcast();
         }
       }
     });
@@ -450,9 +460,12 @@ async function startServer() {
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id) {
-          room.state = data.state;
-          // Broadcast state to all other clients in the room
-          socket.to(roomId).emit("sync_state", data);
+          room.state = data.state; // store full state for reconnects
+          // Trim logs to last 50 entries before broadcasting — keeps payload small
+          const broadcastState = Array.isArray(data.state.logs) && data.state.logs.length > 50
+            ? { ...data.state, logs: data.state.logs.slice(-50) }
+            : data.state;
+          socket.to(roomId).emit("sync_state", { state: broadcastState });
         }
       }
     });
@@ -479,7 +492,7 @@ async function startServer() {
               }
               io.to(roomId).emit("room_updated", { players: room.players });
             }
-            io.emit("rooms_list", getPublicRoomsList());
+            scheduleRoomsListBroadcast();
             console.log(`Player ${timerKey} removed immediately from lobby ${roomId} (game not started).`);
           } else {
             // Game in progress — soft-disconnect with reconnect window
@@ -489,7 +502,7 @@ async function startServer() {
 
             // Notify others that this player temporarily disconnected
             io.to(roomId).emit("room_updated", { players: room.players });
-            io.emit("rooms_list", getPublicRoomsList());
+            scheduleRoomsListBroadcast();
 
             // Schedule permanent removal after the reconnect window
             const timer = setTimeout(() => {
@@ -514,7 +527,7 @@ async function startServer() {
         }
       }
       // Not in any room — just update the list
-      io.emit("rooms_list", getPublicRoomsList());
+      scheduleRoomsListBroadcast();
     });
   });
 

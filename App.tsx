@@ -90,6 +90,8 @@ const App: React.FC = () => {
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const isOnlineRef = useRef(false);
   useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+  // 100ms per-action-type throttle — prevents double-fire from rapid clicks
+  const lastActionTimeRef = useRef<Map<string, number>>(new Map());
   const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [activePolicyPage, setActivePolicyPage] = useState<'privacy' | 'terms' | 'cookies' | 'contact' | null>(null);
@@ -265,10 +267,10 @@ const App: React.FC = () => {
 
       const socket = getSocket();
       if (socket) {
-        // Debounce the sync emission
+        // 50ms trailing debounce — collapses rapid state changes into one emit
         const timeoutId = setTimeout(() => {
           socket.emit("sync_state", { state: gameState });
-        }, 0);
+        }, 50);
         return () => clearTimeout(timeoutId);
       }
     }
@@ -287,6 +289,10 @@ const App: React.FC = () => {
     if (isOnline && !isHost) {
       const socket = getSocket();
       if (socket) {
+        const now = Date.now();
+        const last = lastActionTimeRef.current.get(action.type) ?? 0;
+        if (now - last < 100) return; // throttle duplicate rapid-fire actions
+        lastActionTimeRef.current.set(action.type, now);
         socket.emit("game_action", action);
       }
     } else {
