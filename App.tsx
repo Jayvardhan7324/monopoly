@@ -350,9 +350,9 @@ const App: React.FC = () => {
     // Spectator mode uses same bot timing — works automatically since bots handle all turns
 
     const delays: Record<string, number> = {
-      ROLL: 2500,
-      ACTION: 3000,
-      TURN_END: 4500,
+      ROLL: 600,
+      ACTION: 700,
+      TURN_END: 900,
     };
     const delay = delays[gameState.phase] ?? 0;
     if (!delay) return;

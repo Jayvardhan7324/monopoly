@@ -1,8 +1,7 @@
 import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
 // BUG-08: Replaced `Palmtree` (removed in lucide-react v0.468) with `TreePalm`
-import { Plane, Zap, Droplets, Landmark, TreePalm, Skull, ArrowRight, Package, Home, Building2, Crown, Lock } from 'lucide-react';
-import { Badge } from './ui/badge';
+import { Plane, Zap, Droplets, TreePalm, Skull, ArrowRight, Package, Home, Building2, Crown, Lock } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { PLAYER_COLORS } from '../constants';
 import { motion } from 'motion/react';
@@ -17,43 +16,61 @@ interface TileProps {
   taxPool?: number;
 }
 
+// Property group colors — used for the outer color band
+const GROUP_COLORS: Record<ColorGroup, string> = {
+  [ColorGroup.BROWN]:     '#92400e',
+  [ColorGroup.LIGHT_BLUE]:'#0891b2',
+  [ColorGroup.PINK]:      '#c026d3',
+  [ColorGroup.ORANGE]:    '#ea580c',
+  [ColorGroup.RED]:       '#dc2626',
+  [ColorGroup.YELLOW]:    '#ca8a04',
+  [ColorGroup.GREEN]:     '#15803d',
+  [ColorGroup.DARK_BLUE]: '#1d4ed8',
+  [ColorGroup.NONE]:      'transparent',
+};
+
+// Width/height of the color band as a percentage of the tile
+const BAND = '32%';
+
 const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
-  const isProp = tile.type === ETileType.PROPERTY;
+  const isProp   = tile.type === ETileType.PROPERTY;
 
-  const isTop = tile.id >= 0 && tile.id <= 10;
-  const isRight = tile.id >= 11 && tile.id <= 19;
+  const isTop    = tile.id >= 0  && tile.id <= 10;
+  const isRight  = tile.id >= 11 && tile.id <= 19;
   const isBottom = tile.id >= 20 && tile.id <= 30;
-  const isLeft = tile.id >= 31 && tile.id <= 39;
+  const isLeft   = tile.id >= 31 && tile.id <= 39;
 
   const ownerColor = tile.ownerId !== null ? (PLAYER_COLORS[tile.ownerId] || '#888') : null;
+  const groupColor = isProp && tile.group !== ColorGroup.NONE ? GROUP_COLORS[tile.group] : null;
+  const contentRotate = isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none';
 
   const getIcon = () => {
     switch (tile.type) {
       case ETileType.RAILROAD:
-        return <Plane size={14} className="text-slate-300 drop-shadow-md" />;
+        return <Plane size={13} className="text-slate-300 drop-shadow-md" />;
       case ETileType.UTILITY:
         return (
           <div className="flex flex-col items-center gap-[1px]">
             {tile.name.includes('Water') ? (
-              <Droplets size={13} className="text-cyan-400 drop-shadow-md" />
+              <Droplets size={12} className="text-cyan-400 drop-shadow-md" />
             ) : (
-              <Zap size={13} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
+              <Zap size={12} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
             )}
-            <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">
+            <span className="text-[4.5px] font-bold text-slate-400 uppercase tracking-tight leading-none">
               {tile.name.includes('Water') ? 'Water' : 'Electric'}
             </span>
-            <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">Company</span>
+            <span className="text-[4.5px] font-bold text-slate-400 uppercase tracking-tight leading-none">Co.</span>
           </div>
         );
       case ETileType.CHANCE:
         return <div className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">?</div>;
       case ETileType.COMMUNITY_CHEST:
-        return <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />;
+        return <Package size={17} className="text-amber-400 drop-shadow-md" fill="currentColor" />;
       case ETileType.TAX:
         return (
-          <div className="bg-slate-700/80 w-[22px] h-[16px] flex items-center justify-center rounded-[3px] border border-slate-500/60 shadow-sm">
-            <span className="text-slate-200 font-black text-[8px] leading-none tracking-tight">×10</span>
+          <div className="bg-slate-700/80 w-[20px] h-[14px] flex items-center justify-center rounded-[3px] border border-slate-500/60 shadow-sm">
+            <span className="text-slate-200 font-black text-[6.5px] leading-none tracking-tight">×10</span>
           </div>
         );
       case ETileType.CORNER:
@@ -101,28 +118,25 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
     }
   };
 
+  // Houses/hotel shown as icon + count badge
   const renderBuildings = () => {
     if (tile.buildingCount === 0) return null;
-    if (tile.buildingCount === 5) {
-      return (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="w-3.5 h-3.5 bg-rose-600 border border-black/40 rounded-sm shadow-lg flex items-center justify-center shadow-rose-500/30">
-            <div className="w-[70%] h-[30%] bg-white/30 rounded-full" />
-          </div>
-        </div>
-      );
-    }
-    const flexDir = isTop || isBottom ? 'flex-row' : 'flex-col';
+    const isHotel = tile.buildingCount === 5;
     return (
-      <div className={`absolute inset-0 flex ${flexDir} items-end justify-center gap-0.5 z-20 pointer-events-none p-0.5`}>
-        {[...Array(tile.buildingCount)].map((_, i) => (
-          <div
-            key={i}
-            className="w-2 h-2 bg-emerald-500 border border-black/40 rounded-xs flex items-center justify-center shadow-sm shadow-emerald-500/20"
-          >
-            <div className="w-[60%] h-[60%] bg-white/25 rounded-full" />
-          </div>
-        ))}
+      <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+        <div
+          className={`flex items-center gap-[2px] px-[3px] py-[2px] rounded-[3px] border border-white/20 shadow-sm ${isHotel ? 'bg-rose-600' : 'bg-emerald-600'}`}
+          style={{ transform: contentRotate }}
+        >
+          {isHotel ? (
+            <Building2 size={7} className="text-white" />
+          ) : (
+            <>
+              <Home size={7} className="text-white" />
+              <span className="text-white font-black leading-none" style={{ fontSize: '5.5px' }}>×{tile.buildingCount}</span>
+            </>
+          )}
+        </div>
       </div>
     );
   };
@@ -146,7 +160,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
           width: 'calc(100% / var(--board-scale, 1))',
           height: 'calc(100% / var(--board-scale, 1))',
           transform: 'scale(var(--board-scale, 1))',
-          transformOrigin: 'center'
+          transformOrigin: 'center',
         }}
       >
         {/* Monopoly Crown */}
@@ -164,7 +178,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
             <div className="absolute inset-0 flex items-center justify-center">
               <span
                 className="text-[8px] font-black text-rose-500 uppercase tracking-widest bg-black/80 px-1 py-0.5 rounded border border-rose-500/50 drop-shadow-2xl"
-                style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}
+                style={{ transform: contentRotate }}
               >
                 MRTG
               </span>
@@ -172,95 +186,116 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
           </div>
         )}
 
-        {/* Main Content — flat tile, no color stripe */}
+        {/* Non-corner tile body */}
         {!isCorner ? (
-          <div className="absolute inset-0 flex items-center justify-center overflow-hidden rounded-[4px] p-0.5">
+          <>
+            {/* ── Property group color band at outer edge, price lives here ── */}
+            {groupColor && (
+              <div
+                className="absolute z-10 flex items-center justify-center overflow-hidden rounded-[3px]"
+                style={{
+                  backgroundColor: groupColor,
+                  ...(isTop    ? { top: 0, left: 0, right: 0, height: BAND } : {}),
+                  ...(isBottom ? { bottom: 0, left: 0, right: 0, height: BAND } : {}),
+                  ...(isLeft   ? { left: 0, top: 0, bottom: 0, width: BAND } : {}),
+                  ...(isRight  ? { right: 0, top: 0, bottom: 0, width: BAND } : {}),
+                }}
+              >
+                <span
+                  className="text-white font-black drop-shadow-sm leading-none select-none"
+                  style={{
+                    fontSize: '5.5px',
+                    transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none',
+                  }}
+                >
+                  ${tile.price}
+                </span>
+              </div>
+            )}
+
+            {/* ── Price for non-property tiles (railroads, utilities) ── */}
+            {!groupColor && tile.price > 0 && tile.type !== ETileType.TAX && (
+              <div
+                className="absolute z-10 flex items-center justify-center pointer-events-none"
+                style={{
+                  ...(isTop    ? { top: '2px', left: 0, right: 0 } : {}),
+                  ...(isBottom ? { bottom: '2px', left: 0, right: 0 } : {}),
+                  ...(isLeft   ? { left: '2px', top: 0, bottom: 0 } : {}),
+                  ...(isRight  ? { right: '2px', top: 0, bottom: 0 } : {}),
+                }}
+              >
+                <span
+                  className="font-black text-slate-300 leading-none"
+                  style={{
+                    fontSize: '5.5px',
+                    transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none',
+                  }}
+                >
+                  ${tile.price}
+                </span>
+              </div>
+            )}
+
+            {/* ── Main content: name + flag/icon (inset to leave room for band) ── */}
             <div
-              className="flex items-center justify-center gap-[2px] w-full h-full"
+              className="absolute flex items-center justify-center overflow-hidden p-[2px]"
               style={{
-                flexDirection: isBottom ? 'column-reverse' : 'column',
-                transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none'
+                top:    groupColor && isTop    ? BAND : 0,
+                right:  groupColor && isRight  ? BAND : 0,
+                bottom: groupColor && isBottom ? BAND : 0,
+                left:   groupColor && isLeft   ? BAND : 0,
               }}
             >
-              {tile.name && tile.type !== ETileType.UTILITY && (
-                <span
-                  className="max-w-[48px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold text-[6.5px] uppercase tracking-tighter text-slate-100 leading-none drop-shadow-md pb-[1px]"
-                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
-                >
-                  {tile.name}
-                </span>
-              )}
-              {(!tile.countryCode && getIcon() !== null) && (
-                <div className="flex items-center justify-center shrink-0 min-h-0 min-w-0">
-                  {getIcon()}
-                </div>
-              )}
+              <div
+                className="flex flex-col items-center justify-center gap-[2px] w-full"
+                style={{ transform: contentRotate }}
+              >
+                {tile.name && tile.type !== ETileType.UTILITY && (
+                  <span
+                    className="max-w-[44px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold uppercase tracking-tighter text-slate-100 leading-none"
+                    style={{ fontSize: '5.5px', textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+                  >
+                    {tile.name}
+                  </span>
+                )}
+                {tile.countryCode ? (
+                  <img
+                    src={`https://flagcdn.com/w40/${tile.countryCode}.png`}
+                    srcSet={`https://flagcdn.com/w80/${tile.countryCode}.png 2x`}
+                    alt={tile.countryCode}
+                    className="w-[18px] h-[13px] object-cover rounded-[2px] shadow-sm border border-white/20"
+                    loading="lazy"
+                  />
+                ) : getIcon() !== null ? (
+                  <div className="flex items-center justify-center shrink-0 min-h-0 min-w-0">
+                    {getIcon()}
+                  </div>
+                ) : null}
+              </div>
             </div>
-            {/* Buildings overlay directly on tile body */}
+
+            {/* ── Buildings overlay ── */}
             {isProp && renderBuildings()}
-          </div>
+
+            {/* ── Owner color strip on the inner (board-facing) edge ── */}
+            {ownerColor && !tile.isMortgaged && (
+              <div
+                className="absolute pointer-events-none z-10 inset-0 rounded-[4px] transition-all duration-300"
+                style={{
+                  boxShadow: isTop
+                    ? `inset 0 -3px 0 0 ${ownerColor}`
+                    : isBottom
+                      ? `inset 0 3px 0 0 ${ownerColor}`
+                      : isLeft
+                        ? `inset -3px 0 0 0 ${ownerColor}`
+                        : `inset 3px 0 0 0 ${ownerColor}`,
+                }}
+              />
+            )}
+          </>
         ) : (
           <div className="absolute inset-0">{getIcon()}</div>
         )}
-
-        {/* Floating Price Badge — uniformly -8px outside on all four edges */}
-        {!isCorner && tile.price > 0 && tile.type !== ETileType.TAX && (
-          <div
-            className="absolute z-40 flex items-center justify-center pointer-events-none"
-            style={{
-              ...(isTop ? { top: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(isBottom ? { bottom: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(isLeft ? { left: '-8px', top: '50%', transform: 'translateY(-50%)' } : {}),
-              ...(isRight ? { right: '-8px', top: '50%', transform: 'translateY(-50%)' } : {})
-            }}
-          >
-            <div style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}>
-              <Badge variant="secondary" className="px-1.5 py-0 h-[15px] min-h-[15px] text-[8.5px] font-black font-mono tracking-tighter shadow-md border border-slate-700/50 leading-none whitespace-nowrap bg-[#1a1f2e] text-slate-200 hover:bg-[#1a1f2e] cursor-default">
-                ${tile.price}
-              </Badge>
-            </div>
-          </div>
-        )}
-
-        {/* Floating Flag Icons — uniformly -8px inside the board on all four edges */}
-        {!isCorner && tile.countryCode && (
-          <div
-            className="absolute z-40 flex items-center justify-center pointer-events-none"
-            style={{
-              ...(isTop ? { bottom: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(isBottom ? { top: '-8px', left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(isLeft ? { right: '-8px', top: '50%', transform: 'translateY(-50%)' } : {}),
-              ...(isRight ? { left: '-8px', top: '50%', transform: 'translateY(-50%)' } : {})
-            }}
-          >
-            <div style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}>
-              <img
-                src={`https://flagcdn.com/w40/${tile.countryCode}.png`}
-                srcSet={`https://flagcdn.com/w80/${tile.countryCode}.png 2x`}
-                alt={tile.countryCode}
-                className="w-[20px] h-[16px] object-cover rounded-[2px] shadow-md border border-white/25"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Owner Color Strip — 4px inset on the inner board-facing edge */}
-        {ownerColor && !tile.isMortgaged && (
-          <div
-            className="absolute pointer-events-none z-10 inset-0 rounded-[4px] transition-all duration-300"
-            style={{
-              boxShadow: isTop
-                ? `inset 0 -4px 0 0 ${ownerColor}`
-                : isBottom
-                  ? `inset 0 4px 0 0 ${ownerColor}`
-                  : isLeft
-                    ? `inset -4px 0 0 0 ${ownerColor}`
-                    : `inset 4px 0 0 0 ${ownerColor}`
-            }}
-          />
-        )}
-
 
         {/* Players on tile */}
         {players.length > 0 && (

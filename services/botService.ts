@@ -244,8 +244,12 @@ export function getBotAction(gameState: GameState): BotAction {
       return { type: 'BUY_PROPERTY' };
     }
 
+    // Only auction if the bot can't afford it, or a rare 5% random chance
     if (gameState.settings.rules.auctionEnabled) {
-      return { type: 'START_AUCTION' };
+      const cantAfford = !tile.price || currentPlayer.money < tile.price;
+      if (cantAfford || decide(0.05)) {
+        return { type: 'START_AUCTION' };
+      }
     }
     return { type: 'END_TURN' };
   }
