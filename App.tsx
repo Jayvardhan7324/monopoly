@@ -32,7 +32,7 @@ import {
   DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'motion/react';
-import { initParty, getPartySocket, resetParty, partyFetch, PARTYKIT_HTTP } from './services/partyService';
+import { initSocket, getSocket, resetSocket } from './services/socketService';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
@@ -114,7 +114,7 @@ const App: React.FC = () => {
   // Tracks whether isOnline=true was set from a session restore (reload) vs new join
   const isSessionRestoreRef = useRef(false);
 
-  // Auto-join from URL: restores session on reload, or joins as new player via shared link
+  // Reconnect after page refresh — only restores an existing session, never auto-joins new players
   useEffect(() => {
     if (autoJoinAttemptedRef.current) return;
     const pathMatch = window.location.pathname.match(/^\/rooms\/([A-Z0-9]+)$/i);
@@ -122,50 +122,17 @@ const App: React.FC = () => {
     if (!roomFromUrl) return;
     autoJoinAttemptedRef.current = true;
     const cleanId = roomFromUrl.toUpperCase();
-    // Never auto-fill the room code input — URL is processed silently
-    setIsAutoJoining(true);
-    (async () => {
-      try {
-        const stored = JSON.parse(sessionStorage.getItem('richup_session') || 'null');
-        if (stored?.roomId === cleanId && stored?.playerId) {
-          // Page reload: restore existing session, skip appearance modal
-          isSessionRestoreRef.current = true;
-          setIsOnline(true);
-          setRoomId(cleanId);
-          setSessionPlayerId(stored.playerId);
-          setIsAutoJoining(false);
-          return;
-        }
-        // Shared link: join as a new player
-        const res = await partyFetch(`/parties/monopoly/${cleanId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'join', name: humanName, avatar: selectedAvatar }),
-        }).then(r => r.json());
-        if (res.success) {
-          setIsOnline(true);
-          setRoomId(res.roomId);
-          setSessionPlayerId(res.playerId);
-          setIsHost(false);
-          setLobbyPlayers(res.players);
-          setShowRoomBrowser(false);
-          sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
-          window.history.replaceState({}, '', `/rooms/${res.roomId}`);
-          if (res.isSpectator) {
-            setIsSpectator(true);
-            setMyPlayerId(-1);
-            setGameStarted(true);
-          }
-        } else {
-          setSystemAlert(res.error || 'Failed to join room');
-          window.history.replaceState({}, '', '/');
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsAutoJoining(false);
-      }
-    })();
+    const stored = JSON.parse(sessionStorage.getItem('richup_session') || 'null');
+    if (stored?.roomId === cleanId && stored?.playerId) {
+      // Restore session on reload — socket will reconnect via join_session
+      isSessionRestoreRef.current = true;
+      setIsOnline(true);
+      setRoomId(cleanId);
+      setSessionPlayerId(stored.playerId);
+    } else {
+      // No stored session — clear the URL, player must enter room code manually
+      window.history.replaceState({}, '', '/');
+    }
   }, []);
 
   // Show appearance modal when entering the lobby (skip on page-reload session restore)
@@ -190,92 +157,98 @@ const App: React.FC = () => {
     }
   }, [gameState.lastSoundEffect, soundEnabled]);
 
-  // ── Multiplayer PartyKit Setup ─────────────────────────────────────────────
+  // ── Multiplayer Socket Setup ───────────────────────────────────────────────
   useEffect(() => {
     if (!roomId || !sessionPlayerId) return;
-    const socket = initParty(roomId, sessionPlayerId);
+    const socket = initSocket(roomId, sessionPlayerId);
 
-    const handleMessage = (evt: MessageEvent) => {
-      let msg: any;
-      try { msg = JSON.parse(evt.data); } catch { return; }
-
-      switch (msg.type) {
-        case 'room_updated': {
-          const newCount = msg.players.length;
-          const prevCount = prevLobbyCountRef.current;
-          if (prevCount >= 0 && soundEnabled) {
-            if (newCount > prevCount) playSound('player_join');
-            else if (newCount < prevCount) playSound('player_leave');
-          }
-          prevLobbyCountRef.current = newCount;
-          setLobbyPlayers(msg.players);
-          const me = msg.players.find((p: any) => p.originalId === sessionPlayerId || p.id === socket.id);
-          if (me && !me.isSpectator) {
-            setIsHost(me.isHost);
-            setMyPlayerId(msg.players.indexOf(me));
-          }
-          break;
-        }
-        case 'game_started':
-          if (msg.state) {
-            dispatch({ type: 'SYNC_STATE', payload: msg.state });
-            setGameStarted(true);
-          }
-          break;
-        case 'host_process_action':
-          if (isHost) dispatch(msg.action);
-          break;
-        case 'sync_state':
-          if (!isHost && msg.state) {
-            dispatch({ type: 'SYNC_STATE', payload: msg.state });
-            setGameStarted(true);
-          }
-          break;
-        case 'settings_updated':
-          setSettings(msg.settings);
-          break;
-        case 'kicked':
-          resetParty();
-          setIsOnline(false);
-          setRoomId("");
-          setLobbyPlayers([]);
-          setIsHost(false);
-          setGameStarted(false);
-          setIsSpectator(false);
-          setSystemAlert("You have been kicked from the room.");
-          window.history.replaceState({}, '', '/');
-          break;
-        case 'chat_message':
-          setChatMessages(prev => [...prev, msg]);
-          if (soundEnabled) playSound('notification');
-          break;
-        case 'rooms_list':
-          setActiveRooms(msg.rooms ?? []);
-          break;
-        case 'you_are_host':
-          setIsHost(true);
-          break;
-        case 'game_reset':
-          dispatch({ type: 'RESET_GAME' });
-          setGameStarted(false);
-          break;
+    const handleRoomUpdated = (data: any) => {
+      const newCount = data.players.length;
+      const prevCount = prevLobbyCountRef.current;
+      if (prevCount >= 0 && soundEnabled) {
+        if (newCount > prevCount) playSound('player_join');
+        else if (newCount < prevCount) playSound('player_leave');
+      }
+      prevLobbyCountRef.current = newCount;
+      setLobbyPlayers(data.players);
+      const me = data.players.find((p: any) => p.id === socket.id);
+      if (me && !me.isSpectator) {
+        setIsHost(me.isHost);
+        setMyPlayerId(data.players.indexOf(me));
       }
     };
 
-    const handleOpen = () => setIsSocketDisconnected(false);
-    const handleClose = () => setIsSocketDisconnected(true);
-    const handleError = () => setIsSocketDisconnected(true);
+    const handleGameStarted = (data: any) => {
+      if (data.state) {
+        dispatch({ type: 'SYNC_STATE', payload: data.state });
+        setGameStarted(true);
+      }
+    };
 
-    socket.addEventListener('message', handleMessage);
-    socket.addEventListener('open', handleOpen);
-    socket.addEventListener('close', handleClose);
-    socket.addEventListener('error', handleError);
+    const handleHostProcessAction = (action: any) => {
+      if (isHost) {
+        dispatch(action);
+      }
+    };
+
+    const handleSyncState = (data: any) => {
+      if (!isHost && data.state) {
+        dispatch({ type: 'SYNC_STATE', payload: data.state });
+        setGameStarted(true);
+      }
+    };
+
+    const handleSettingsUpdated = (newSettings: any) => {
+      setSettings(newSettings);
+    };
+
+    const handleKicked = () => {
+      resetSocket(); // BUG-7 FIX: Reset socket singleton so player can join another room
+      setIsOnline(false);
+      setRoomId("");
+      setLobbyPlayers([]);
+      setIsHost(false);
+      setGameStarted(false);
+      setIsSpectator(false);
+      setSystemAlert("You have been kicked from the room.");
+      window.history.replaceState({}, '', '/');
+    };
+
+    const handleChatMessage = (data: any) => {
+      setChatMessages(prev => [...prev, data]);
+      if (soundEnabled) playSound('notification');
+    };
+
+    const handleSocketDisconnect = () => setIsSocketDisconnected(true);
+    const handleSocketConnect = () => setIsSocketDisconnected(false);
+    const handleYouAreHost = () => setIsHost(true); // B4: server promotes us to host after original host permanently left
+
+    socket.on("room_updated", handleRoomUpdated);
+    socket.on("game_started", handleGameStarted);
+    socket.on("host_process_action", handleHostProcessAction);
+    socket.on("sync_state", handleSyncState);
+    socket.on("settings_updated", handleSettingsUpdated);
+    socket.on("kicked", handleKicked);
+    socket.on("chat_message", handleChatMessage);
+    socket.on("rooms_list", (rooms: any[]) => setActiveRooms(rooms));
+    socket.on("disconnect", handleSocketDisconnect);
+    socket.on("connect", handleSocketConnect);
+    socket.on("connect_error", handleSocketDisconnect);
+    socket.on("you_are_host", handleYouAreHost);
 
     return () => {
-      socket.removeEventListener('message', handleMessage);
-      socket.removeEventListener('open', handleOpen);
-      socket.removeEventListener('close', handleClose);
-      socket.removeEventListener('error', handleError);
+      socket.off("room_updated", handleRoomUpdated);
+      socket.off("game_started", handleGameStarted);
+      socket.off("host_process_action", handleHostProcessAction);
+      socket.off("sync_state", handleSyncState);
+      socket.off("settings_updated", handleSettingsUpdated);
+      socket.off("kicked", handleKicked);
+      socket.off("chat_message", handleChatMessage);
+      socket.off("rooms_list");
+      socket.off("disconnect", handleSocketDisconnect);
+      socket.off("you_are_host", handleYouAreHost);
+      socket.off("connect", handleSocketConnect);
+      socket.off("connect_error", handleSocketDisconnect);
     };
   }, [isHost, roomId, sessionPlayerId]);
 
@@ -290,10 +263,11 @@ const App: React.FC = () => {
       const stablePhases = ['ROLL', 'TURN_END', 'AUCTION', 'ACTION'];
       if (!stablePhases.includes(gameState.phase)) return; // BUG-C7: Only sync on stable phases
 
-      const socket = getPartySocket();
+      const socket = getSocket();
       if (socket) {
+        // Debounce the sync emission
         const timeoutId = setTimeout(() => {
-          socket.send(JSON.stringify({ type: "sync_state", state: gameState }));
+          socket.emit("sync_state", { state: gameState });
         }, 0);
         return () => clearTimeout(timeoutId);
       }
@@ -310,21 +284,10 @@ const App: React.FC = () => {
   // Intercept dispatch for online play
   const handleDispatch = (action: any) => {
     if (action.type === 'BUY_PROPERTY') sfx('buy');
-
-    // RESET_GAME: host resets server + all clients; offline: reset locally
-    if (action.type === 'RESET_GAME') {
-      dispatch(action);
-      setGameStarted(false);
-      if (isOnline && isHost) {
-        getPartySocket()?.send(JSON.stringify({ type: 'reset_game' }));
-      }
-      return;
-    }
-
     if (isOnline && !isHost) {
-      const socket = getPartySocket();
+      const socket = getSocket();
       if (socket) {
-        socket.send(JSON.stringify({ type: "game_action", action }));
+        socket.emit("game_action", action);
       }
     } else {
       dispatch(action);
@@ -449,9 +412,12 @@ const App: React.FC = () => {
     setGameStarted(true);
 
     if (isOnline && isHost) {
-      const socket = getPartySocket();
+      const socket = getSocket();
       if (socket) {
-        socket.send(JSON.stringify({ type: "start_game", initialState: null }));
+        // We need to wait for the state to update, but we can just send the action
+        // Actually, the server expects the full initial state.
+        // We'll let the sync_state effect handle it.
+        socket.emit("start_game", { initialState: null }); // sync_state will send the real state
       }
     }
   };
@@ -459,11 +425,10 @@ const App: React.FC = () => {
   const createRoom = async (isPrivate = false) => {
     setIsCreatingRoom(true);
     try {
-      const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const res = await partyFetch(`/parties/monopoly/${roomId}`, {
+      const res = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "create", name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }),
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }),
       }).then(r => r.json());
 
       if (res.success) {
@@ -491,10 +456,10 @@ const App: React.FC = () => {
     const cleanId = specificRoomId.trim().toUpperCase();
     setIsJoiningRoom(true);
     try {
-      const res = await partyFetch(`/parties/monopoly/${cleanId}`, {
+      const res = await fetch(`/api/rooms/${cleanId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "join", name: humanName, avatar: selectedAvatar }),
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
       }).then(r => r.json());
 
       if (res.success) {
@@ -518,29 +483,17 @@ const App: React.FC = () => {
 
   const joinRandomRoom = async () => {
     try {
-      // Ask lobby for an available room
-      const lobby = await partyFetch('/parties/lobby/main', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'join_random' }),
-      }).then(r => r.json());
-
-      const targetRoomId = lobby.found
-        ? lobby.roomId
-        : Math.random().toString(36).substring(2, 8).toUpperCase();
-      const action = lobby.found ? 'join' : 'create';
-
-      const res = await partyFetch(`/parties/monopoly/${targetRoomId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, name: humanName, avatar: selectedAvatar }),
+      const res = await fetch("/api/rooms/random", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
       }).then(r => r.json());
 
       if (res.success) {
         setIsOnline(true);
         setRoomId(res.roomId);
         setSessionPlayerId(res.playerId);
-        setIsHost(!lobby.found); // creator is host
+        setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
         sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         window.history.pushState({}, '', `/rooms/${res.roomId}`);
@@ -553,7 +506,7 @@ const App: React.FC = () => {
   };
 
   const leaveRoom = () => {
-    resetParty();
+    resetSocket();
     sessionStorage.removeItem('richup_session');
     prevLobbyCountRef.current = -1;
     setIsOnline(false);
@@ -607,8 +560,8 @@ const App: React.FC = () => {
 
   const fetchRooms = async () => {
     try {
-      const rooms = await partyFetch('/parties/lobby/main').then(r => r.json());
-      setActiveRooms(Array.isArray(rooms) ? rooms : []);
+      const rooms = await fetch("/api/rooms").then(r => r.json());
+      setActiveRooms(rooms);
     } catch (e) {
       console.error(e);
     }
@@ -633,7 +586,7 @@ const App: React.FC = () => {
     const newSettings = { ...settings, rules: { ...settings.rules, [key]: value } };
     setSettings(newSettings);
     if (isOnline && isHost) {
-      getPartySocket()?.send(JSON.stringify({ type: "update_settings", settings: newSettings }));
+      getSocket()?.emit("update_settings", { settings: newSettings });
     }
   };
 
@@ -641,7 +594,7 @@ const App: React.FC = () => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
     if (isOnline && isHost) {
-      getPartySocket()?.send(JSON.stringify({ type: "update_settings", settings: newSettings }));
+      getSocket()?.emit("update_settings", { settings: newSettings });
     }
   };
 
@@ -654,7 +607,7 @@ const App: React.FC = () => {
         text: chatInput,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
-      getPartySocket()?.send(JSON.stringify({ type: "send_chat", ...msg }));
+      socket.emit("send_chat", msg);
       setChatInput('');
     }
   };
@@ -1550,7 +1503,7 @@ const App: React.FC = () => {
                                 setSelectedAvatar(idx);
                                 sfx('buy');
                                 const socket = getSocket();
-                                getPartySocket()?.send(JSON.stringify({ type: 'update_player', avatar: idx }));
+                                if (socket) socket.emit('update_player', { avatar: idx });
                               }}
                               title={isTaken ? 'Taken by another player' : undefined}
                               className={`w-7 h-7 rounded-full transition-all relative ${
@@ -1654,7 +1607,7 @@ const App: React.FC = () => {
                 {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
                 {isHost && !player.isHost && player.id !== sessionPlayerId && (
                   <button
-                    onClick={() => getPartySocket()?.send(JSON.stringify({ type: 'kick_player', playerId: player.id }))}
+                    onClick={() => getSocket()?.emit('kick_player', { playerId: player.id })}
                     className="p-1 text-slate-600 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-950/30"
                     title={`Kick ${player.name}`}
                   >
@@ -1740,84 +1693,10 @@ const App: React.FC = () => {
 
       {/* Disconnect overlay */}
       {isSocketDisconnected && (
-        <div className="fixed inset-0 z-[999] bg-red-900/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
-          <WifiOff size={56} className="text-red-300 animate-pulse drop-shadow-lg" />
-          <p className="text-white text-xl font-black uppercase tracking-widest drop-shadow-lg">Disconnected</p>
-          <p className="text-red-200 text-sm font-medium drop-shadow-md">Trying to reconnect…</p>
-        </div>
-      )}
-
-      {/* Winner popup overlay */}
-      {gameState.winnerId !== null && (
-        <div className="fixed inset-0 z-[998] flex items-center justify-center p-4" style={{ background: 'radial-gradient(ellipse at center, rgba(251,191,36,0.08) 0%, rgba(0,0,0,0.85) 100%)' }}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.85, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ type: 'spring', stiffness: 220, damping: 22, delay: 0.1 }}
-            className="bg-[#13141f] border border-amber-500/20 rounded-3xl p-8 shadow-[0_0_80px_rgba(251,191,36,0.15)] w-full max-w-md flex flex-col items-center gap-5 text-center"
-          >
-            <motion.div
-              animate={{ y: [0, -10, 0], rotate: [0, 5, -5, 0] }}
-              transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-            >
-              <Trophy size={60} className="text-amber-400 drop-shadow-[0_0_24px_rgba(251,191,36,0.6)]" />
-            </motion.div>
-
-            <div>
-              <h1 className="text-4xl font-black tracking-tighter uppercase bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent">
-                Empire Restored
-              </h1>
-              <p className="text-amber-400/80 text-sm font-bold uppercase tracking-widest mt-1">
-                {gameState.players.find(p => p.id === gameState.winnerId)?.name} wins
-              </p>
-            </div>
-
-            {/* Full leaderboard */}
-            <div className="flex flex-col gap-2 w-full mt-1">
-              {[...gameState.players]
-                .sort((a, b) => {
-                  const nw = (p: any) => p.money + gameState.tiles.filter((t: any) => t.ownerId === p.id).reduce((s: number, t: any) => s + t.price, 0);
-                  return nw(b) - nw(a);
-                })
-                .map((p, idx) => {
-                  const props = gameState.tiles.filter((t: any) => t.ownerId === p.id);
-                  const netWorth = p.money + props.reduce((s: number, t: any) => s + t.price, 0);
-                  const isWinner = p.id === gameState.winnerId;
-                  return (
-                    <motion.div
-                      key={p.id}
-                      initial={{ opacity: 0, x: -16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.2 + idx * 0.07, type: 'spring', stiffness: 280, damping: 24 }}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${isWinner ? 'bg-amber-500/10 border-amber-500/30' : 'bg-slate-800/40 border-white/5'}`}
-                    >
-                      <span className={`text-sm font-black w-6 ${isWinner ? 'text-amber-400' : 'text-slate-500'}`}>#{idx + 1}</span>
-                      <Avatar avatarId={p.avatarId} color={p.color} isBankrupt={p.isBankrupt} className="w-7 h-7 shrink-0" />
-                      <div className="flex-1 text-left min-w-0">
-                        <p className="text-sm font-black text-white truncate uppercase tracking-tight">{p.name}</p>
-                        <p className="text-[10px] text-slate-500">{props.length} propert{props.length === 1 ? 'y' : 'ies'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-sm font-mono font-bold ${p.isBankrupt ? 'text-rose-500/60 line-through' : 'text-emerald-400'}`}>${netWorth.toLocaleString()}</p>
-                        <p className="text-[10px] text-slate-500">${p.money.toLocaleString()} cash</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-            </div>
-
-            {/* New Empire button — host only in online, always in offline */}
-            {(!isOnline || isHost) ? (
-              <button
-                onClick={() => handleDispatch({ type: 'RESET_GAME' })}
-                className="mt-2 w-full py-3.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-900 rounded-2xl font-black text-lg uppercase tracking-tight transition-all active:scale-95 shadow-[0_0_30px_rgba(251,191,36,0.3)]"
-              >
-                New Empire
-              </button>
-            ) : (
-              <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2">Waiting for host to continue…</p>
-            )}
-          </motion.div>
+        <div className="fixed inset-0 z-[999] bg-red-950 flex flex-col items-center justify-center gap-4">
+          <WifiOff size={56} className="text-red-400 animate-pulse" />
+          <p className="text-white text-xl font-black uppercase tracking-widest">Disconnected</p>
+          <p className="text-red-300 text-sm font-medium">Trying to reconnect…</p>
         </div>
       )}
 

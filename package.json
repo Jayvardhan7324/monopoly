@@ -5,12 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "dev:party": "npx partykit dev",
     "start": "tsx server.ts",
     "build": "vite build",
     "lint": "tsc --noEmit",
-    "preview": "vite preview",
-    "deploy:party": "npx partykit deploy"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@google/genai": "^1.39.0",
@@ -22,7 +20,6 @@
     "express": "^5.2.1",
     "lucide-react": "^0.468.0",
     "motion": "^12.34.3",
-    "partysocket": "^1.1.16",
     "radix-ui": "^1.4.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
