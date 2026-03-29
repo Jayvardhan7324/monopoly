@@ -89,59 +89,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
         {/* Main action */}
         <div className="flex-1 flex flex-col items-center relative overflow-hidden justify-center translate-y-[8%]">
-          {gameState.winnerId !== null ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.2 }}
-              className="flex flex-col items-center gap-4 text-center"
-            >
-              <motion.div
-                animate={{ y: [0, -10, 0], rotate: [0, 5, -5, 0] }}
-                transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-              >
-                <Trophy size={52} className="text-amber-400 mb-2 drop-shadow-[0_0_20px_rgba(251,191,36,0.5)]" />
-              </motion.div>
-              <h1 className="text-4xl font-black text-white tracking-tighter uppercase bg-gradient-to-r from-amber-200 via-white to-amber-200 bg-clip-text text-transparent">Empire Restored</h1>
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-                {gameState.players.find(p => p.id === gameState.winnerId)?.name} is the last one standing
-              </p>
-              {/* Leaderboard */}
-              <div className="flex flex-col gap-1.5 w-full max-w-[260px] mt-1">
-                {[...gameState.players]
-                  .sort((a, b) => {
-                    const netA = a.money + gameState.tiles.filter(t => t.ownerId === a.id).reduce((s, t) => s + t.price, 0);
-                    const netB = b.money + gameState.tiles.filter(t => t.ownerId === b.id).reduce((s, t) => s + t.price, 0);
-                    return netB - netA;
-                  })
-                  .map((p, idx) => {
-                    const netWorth = p.money + gameState.tiles.filter(t => t.ownerId === p.id).reduce((s, t) => s + t.price, 0);
-                    return (
-                      <motion.div
-                        key={p.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.3 + idx * 0.07, type: 'spring', stiffness: 300, damping: 25 }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${idx === 0 ? 'bg-amber-500/10 border border-amber-500/25' : 'bg-slate-800/50 border border-white/5'}`}
-                      >
-                        <span className={`text-xs font-black w-5 ${idx === 0 ? 'text-amber-400' : 'text-slate-500'}`}>#{idx + 1}</span>
-                        <Avatar avatarId={p.avatarId} color={p.color} isBankrupt={p.isBankrupt} className="w-5 h-5 shrink-0" />
-                        <span className="text-xs font-black text-white flex-1 truncate uppercase tracking-tight">{p.name}</span>
-                        <span className={`text-xs font-mono font-bold ${p.isBankrupt ? 'text-rose-500/60 line-through' : 'text-emerald-400'}`}>${netWorth.toLocaleString()}</span>
-                      </motion.div>
-                    );
-                  })
-                }
-              </div>
-              <button
-                onClick={() => dispatch({ type: 'RESET_GAME' })}
-                aria-label="Start a new game"
-                className="mt-4 px-10 py-3 bg-gradient-to-r from-white to-slate-100 text-slate-900 rounded-xl font-black text-base hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all uppercase tracking-tight active:scale-95"
-              >
-                New Empire
-              </button>
-            </motion.div>
-          ) : (
+          {gameState.winnerId === null && (
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
                 <div className="flex flex-col items-center gap-3 mt-6">

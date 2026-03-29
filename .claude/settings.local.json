@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/jayva/Downloads/monopoly -not -path */node_modules/* -not -path */.git/* -not -path */dist/* -type f)"
+      "Bash(find /c/Users/jayva/Downloads/monopoly -not -path */node_modules/* -not -path */.git/* -not -path */dist/* -type f)",
+      "Bash(git commit:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute"
     ]
   }
 }
