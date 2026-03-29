@@ -111,8 +111,10 @@ const App: React.FC = () => {
 
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
   const botBidFiringRef = useRef(false);
+  // Tracks whether isOnline=true was set from a session restore (reload) vs new join
+  const isSessionRestoreRef = useRef(false);
 
-  // Auto-join from URL on first load (also handles reconnect after refresh)
+  // Reconnect after page refresh — only restores an existing session, never auto-joins new players
   useEffect(() => {
     if (autoJoinAttemptedRef.current) return;
     const pathMatch = window.location.pathname.match(/^\/rooms\/([A-Z0-9]+)$/i);
@@ -120,55 +122,27 @@ const App: React.FC = () => {
     if (!roomFromUrl) return;
     autoJoinAttemptedRef.current = true;
     const cleanId = roomFromUrl.toUpperCase();
-    setJoinRoomId(cleanId);
-    setIsAutoJoining(true);
-    (async () => {
-      try {
-        // Check if we have a stored session for this room (page refresh / accidental close)
-        const stored = JSON.parse(sessionStorage.getItem('richup_session') || 'null');
-        if (stored?.roomId === cleanId && stored?.playerId) {
-          // Restore session — socket will reconnect via join_session with originalId
-          setIsOnline(true);
-          setRoomId(cleanId);
-          setSessionPlayerId(stored.playerId);
-          setIsAutoJoining(false);
-          return;
-        }
-
-        const res = await fetch(`/api/rooms/${cleanId}/join`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
-        }).then(r => r.json());
-        if (res.success) {
-          setIsOnline(true);
-          setRoomId(res.roomId);
-          setSessionPlayerId(res.playerId);
-          setIsHost(false);
-          setLobbyPlayers(res.players);
-          setShowRoomBrowser(false);
-          sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
-          window.history.replaceState({}, '', `/rooms/${res.roomId}`);
-          if (res.isSpectator) {
-            setIsSpectator(true);
-            setMyPlayerId(-1);
-            setGameStarted(true);
-          }
-        } else {
-          setSystemAlert(res.error || 'Failed to join room');
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsAutoJoining(false);
-      }
-    })();
+    const stored = JSON.parse(sessionStorage.getItem('richup_session') || 'null');
+    if (stored?.roomId === cleanId && stored?.playerId) {
+      // Restore session on reload — socket will reconnect via join_session
+      isSessionRestoreRef.current = true;
+      setIsOnline(true);
+      setRoomId(cleanId);
+      setSessionPlayerId(stored.playerId);
+    } else {
+      // No stored session — clear the URL, player must enter room code manually
+      window.history.replaceState({}, '', '/');
+    }
   }, []);
 
-  // Show appearance modal whenever entering the lobby
+  // Show appearance modal when entering the lobby (skip on page-reload session restore)
   useEffect(() => {
     if (isOnline && !gameStarted) {
-      setShowAppearanceModal(true);
+      if (isSessionRestoreRef.current) {
+        isSessionRestoreRef.current = false;
+      } else {
+        setShowAppearanceModal(true);
+      }
     }
   }, [isOnline]);
 
@@ -1472,10 +1446,10 @@ const App: React.FC = () => {
       >
         {/* Disconnect overlay */}
         {isSocketDisconnected && (
-          <div className="fixed inset-0 z-[999] bg-red-950 flex flex-col items-center justify-center gap-4">
-            <WifiOff size={56} className="text-red-400 animate-pulse" />
-            <p className="text-white text-xl font-black uppercase tracking-widest">Disconnected</p>
-            <p className="text-red-300 text-sm font-medium">Trying to reconnect…</p>
+          <div className="fixed inset-0 z-[999] bg-red-900/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+            <WifiOff size={56} className="text-red-300 animate-pulse drop-shadow-lg" />
+            <p className="text-white text-xl font-black uppercase tracking-widest drop-shadow-lg">Disconnected</p>
+            <p className="text-red-200 text-sm font-medium drop-shadow-md">Trying to reconnect…</p>
           </div>
         )}
 

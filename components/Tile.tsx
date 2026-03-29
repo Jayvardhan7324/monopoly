@@ -40,6 +40,9 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
             ) : (
               <Zap size={13} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
             )}
+            <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">
+              {tile.name.includes('Water') ? 'Water' : 'Electric'}
+            </span>
             <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">Company</span>
           </div>
         );

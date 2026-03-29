@@ -5,12 +5,11 @@ let socket: Socket | null = null;
 export const initSocket = (roomId: string, playerId: string) => {
   if (!socket) {
     socket = io(window.location.origin, {
-      transports: ["polling", "websocket"],
-      upgrade: true,
+      transports: ["websocket"],
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnectionDelay: 500,
     });
 
     socket.connect();
