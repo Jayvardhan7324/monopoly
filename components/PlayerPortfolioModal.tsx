@@ -64,9 +64,9 @@ export const PlayerPortfolioModal: React.FC<PlayerPortfolioModalProps> = ({ play
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-white"
+            className="p-2 hover:bg-white/5 rounded-full transition-colors text-slate-400 hover:text-white group/close"
           >
-            <X size={24} />
+            <span className="inline-flex transition-transform duration-200 group-hover/close:rotate-90"><X size={24} /></span>
           </button>
         </div>
 

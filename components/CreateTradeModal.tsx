@@ -84,8 +84,8 @@ export const CreateTradeModal: React.FC<CreateTradeModalProps> = ({
               {step === 1 ? 'Select Partner' : step === 2 ? 'Select Target Asset' : 'Build Offer'}
             </p>
           </div>
-          <button onClick={handleClose} className="w-8 h-8 rounded-full bg-indigo-500/20 hover:bg-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0 transition-colors">
-            <X size={16} />
+          <button onClick={handleClose} className="w-8 h-8 rounded-full bg-indigo-500/20 hover:bg-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0 transition-colors group/close">
+            <span className="inline-flex transition-transform duration-200 group-hover/close:rotate-90"><X size={16} /></span>
           </button>
         </div>
 

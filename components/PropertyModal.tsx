@@ -120,9 +120,11 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             {/* Small X button */}
             <button
               onClick={handleClose}
-              className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white/70 hover:text-white transition-colors z-20"
+              className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white/70 hover:text-white transition-colors z-20 group/close"
             >
-              <X size={14} />
+              <span className="inline-flex transition-transform duration-200 group-hover/close:rotate-90">
+                <X size={14} />
+              </span>
             </button>
           </CardHeader>
 
