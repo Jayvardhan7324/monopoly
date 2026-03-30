@@ -394,7 +394,18 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
       socket.join(roomId);
 
-      // Notify everyone else that player is back
+      // Auto-promote: if the room's host slot has no active player (stale id or disconnected),
+      // make the reconnecting player host. Covers the reload-alone-in-room scenario.
+      const currentHostPlayer = room.players.find((p: any) => p.id === room.host);
+      if (!currentHostPlayer || currentHostPlayer.disconnected) {
+        room.players.forEach((p: any) => { p.isHost = false; });
+        player.isHost = true;
+        room.host = socket.id;
+        room.hostName = player.name || 'Player';
+        socket.emit("you_are_host");
+      }
+
+      // Notify everyone that player is back (with updated host flags)
       io.to(roomId).emit("room_updated", { players: room.players });
 
       // If game is already in progress, send current state to the rejoining player
