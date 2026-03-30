@@ -410,8 +410,22 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             player.id,
             null
           );
+          // BUG-12: Advance turn past the now-bankrupt player so the game doesn't freeze
+          const activePlayers = bp.filter(p => !p.isBankrupt);
+          if (activePlayers.length === 1 && state.players.length > 1) {
+            return withSound(
+              { ...state, players: bp, tiles: bt, taxPool: newTaxPool, logs: addLog(bl, `${activePlayers[0].name} WINS!`), winnerId: activePlayers[0].id, phase: 'TURN_END' },
+              'win'
+            );
+          }
+          let nextIdx = (state.currentPlayerIndex + 1) % bp.length;
+          let loopGuard = 0;
+          while (bp[nextIdx]?.isBankrupt && loopGuard < bp.length) {
+            nextIdx = (nextIdx + 1) % bp.length;
+            loopGuard++;
+          }
           return withSound(
-            { ...state, players: bp, tiles: bt, taxPool: newTaxPool, logs: bl, phase: 'TURN_END' },
+            { ...state, players: bp, tiles: bt, taxPool: newTaxPool, logs: bl, phase: 'ROLL', currentPlayerIndex: nextIdx, doublesCount: 0, auction: null, turnCount: state.turnCount + 1 },
             'pay'
           );
         }
@@ -1275,7 +1289,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         existingVote = {
           targetId,
           voterIds: [voterId],
-          expiresAt: Date.now() + 120000 // 2-minute real-time timer
+          // BUG-06: Accept timestamp from payload so reducer stays deterministic
+          expiresAt: action.payload.expiresAt ?? Date.now() + 120000,
         };
         newVotekicks.push(existingVote);
       } else {
@@ -1315,8 +1330,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       let nextState = { ...state };
       const expiredTargetIds: number[] = [];
 
+      // BUG-07: Use timestamp from payload so reducer stays deterministic across host/client
+      const checkNow = action.payload?.now ?? Date.now();
       for (const vote of state.votekicks) {
-        if (Date.now() >= vote.expiresAt) {
+        if (checkNow >= vote.expiresAt) {
           expiredTargetIds.push(vote.targetId);
         }
       }

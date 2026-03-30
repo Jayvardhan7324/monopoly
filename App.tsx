@@ -90,6 +90,9 @@ const App: React.FC = () => {
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const isOnlineRef = useRef(false);
   useEffect(() => { isOnlineRef.current = isOnline; }, [isOnline]);
+  // NET-01: Use a ref so socket handlers always read the latest isHost value without stale closures
+  const isHostRef = useRef(false);
+  useEffect(() => { isHostRef.current = isHost; }, [isHost]);
   // 100ms per-action-type throttle — prevents double-fire from rapid clicks
   const lastActionTimeRef = useRef<Map<string, number>>(new Map());
   const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
@@ -119,7 +122,7 @@ const App: React.FC = () => {
   // Reconnect after page refresh — only restores an existing session, never auto-joins new players
   useEffect(() => {
     if (autoJoinAttemptedRef.current) return;
-    const pathMatch = window.location.pathname.match(/^\/rooms\/([A-Z0-9]+)$/i);
+    const pathMatch = window.location.pathname.match(/^\/room\/([A-Z0-9]+)$/i);
     const roomFromUrl = pathMatch?.[1] || new URLSearchParams(window.location.search).get('room');
     if (!roomFromUrl) return;
     autoJoinAttemptedRef.current = true;
@@ -176,7 +179,10 @@ const App: React.FC = () => {
       const me = data.players.find((p: any) => p.id === socket.id);
       if (me && !me.isSpectator) {
         setIsHost(me.isHost);
-        setMyPlayerId(data.players.indexOf(me));
+        // STATE-01: Use the player's stable index in the non-disconnected list
+        // so myPlayerId doesn't shift when other players disconnect and are spliced.
+        const activeIndex = data.players.filter((p: any) => !p.disconnected).indexOf(me);
+        setMyPlayerId(activeIndex >= 0 ? activeIndex : data.players.indexOf(me));
       }
     };
 
@@ -187,14 +193,29 @@ const App: React.FC = () => {
       }
     };
 
+    // NET-01: Read isHostRef.current (not closed-over isHost) so handler never goes stale
+    // SEC-05: Only dispatch allowlisted action types from non-host players
+    const PLAYER_ALLOWED_ACTIONS = new Set([
+      'ROLL_DICE', 'BUY_PROPERTY', 'DECLINE_BUY', 'PAY_RENT', 'PAY_TAX',
+      'PAY_BAIL', 'USE_JAIL_CARD', 'ATTEMPT_JAIL_ROLL',
+      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY', 'DOWNGRADE_PROPERTY',
+      'PROPOSE_TRADE', 'ACCEPT_TRADE', 'DECLINE_TRADE', 'CANCEL_TRADE',
+      'BID_AUCTION', 'START_AUCTION', 'END_TURN', 'DECLARE_BANKRUPT',
+      'VOTE_KICK', 'CANCEL_VOTE_KICK',
+    ]);
     const handleHostProcessAction = (action: any) => {
-      if (isHost) {
+      if (isHostRef.current && action?.type && PLAYER_ALLOWED_ACTIONS.has(action.type)) {
         dispatch(action);
       }
     };
 
+    // SYNC-02: Validate shape before dispatching to prevent malicious/malformed state injection
+    const isValidGameState = (s: any): boolean =>
+      s && Array.isArray(s.players) && Array.isArray(s.tiles) &&
+      typeof s.phase === 'string' && typeof s.currentPlayerIndex === 'number';
+
     const handleSyncState = (data: any) => {
-      if (!isHost && data.state) {
+      if (!isHostRef.current && data.state && isValidGameState(data.state)) {
         dispatch({ type: 'SYNC_STATE', payload: data.state });
         setGameStarted(true);
       }
@@ -217,8 +238,14 @@ const App: React.FC = () => {
     };
 
     const handleChatMessage = (data: any) => {
-      setChatMessages(prev => [...prev, data]);
+      // MEM-03: Cap chat history at 200 messages to prevent unbounded memory growth
+      setChatMessages(prev => [...prev.slice(-199), data]);
       if (soundEnabled) playSound('notification');
+    };
+
+    // ERR-04: Surface action rejections from the server (rate limit or not-a-player)
+    const handleActionError = (data: any) => {
+      console.warn('[action_error]', data?.error);
     };
 
     const handleSocketDisconnect = () => setIsSocketDisconnected(true);
@@ -232,6 +259,7 @@ const App: React.FC = () => {
     socket.on("settings_updated", handleSettingsUpdated);
     socket.on("kicked", handleKicked);
     socket.on("chat_message", handleChatMessage);
+    socket.on("action_error", handleActionError);
     socket.on("rooms_list", (rooms: any[]) => setActiveRooms(rooms));
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
@@ -246,6 +274,7 @@ const App: React.FC = () => {
       socket.off("settings_updated", handleSettingsUpdated);
       socket.off("kicked", handleKicked);
       socket.off("chat_message", handleChatMessage);
+      socket.off("action_error", handleActionError);
       socket.off("rooms_list");
       socket.off("disconnect", handleSocketDisconnect);
       socket.off("you_are_host", handleYouAreHost);
@@ -258,6 +287,22 @@ const App: React.FC = () => {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Tracks whether we've already broadcast the initial start_game state (BUG-02)
+  const startGameBroadcastedRef = useRef(false);
+  useEffect(() => {
+    if (!isOnline || !isHost) return;
+    // BUG-02: Broadcast start_game using the real post-dispatch state from React,
+    // not a manually pre-computed state (which would use different Math.random() calls).
+    if (gameStarted && !startGameBroadcastedRef.current && gameState.phase !== undefined) {
+      startGameBroadcastedRef.current = true;
+      const socket = getSocket();
+      if (socket) {
+        socket.emit("start_game", { initialState: gameState });
+      }
+      return;
+    }
+  }, [gameStarted, gameState, isOnline, isHost]);
 
   // Sync state to clients if host
   useEffect(() => {
@@ -304,6 +349,9 @@ const App: React.FC = () => {
   useEffect(() => {
     // BUG-06: Guard by winnerId so timer doesn't fire after game ends
     if (!gameStarted || gameState.winnerId !== null || gameState.phase === 'AUCTION') return;
+    // RACE-03: Only the host (or local singleplayer) drives MOVING/RESOLVING transitions.
+    // Non-host clients must NOT fire these or the host receives duplicate actions.
+    if (isOnline && !isHost) return;
     let timer: ReturnType<typeof setTimeout>;
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
@@ -321,22 +369,29 @@ const App: React.FC = () => {
   useEffect(() => {
     if (gameState.votekicks && gameState.votekicks.length > 0) {
       const interval = setInterval(() => {
-        handleDispatch({ type: 'CHECK_VOTEKICKS' });
+        // BUG-07: Pass current timestamp so reducer stays deterministic
+        handleDispatch({ type: 'CHECK_VOTEKICKS', payload: { now: Date.now() } });
       }, 1000);
       return () => clearInterval(interval);
     }
   }, [gameState.votekicks?.length, gameStarted]);
 
-  // ── Auction timer ──────────────────────────────────────────────────────────
+  // RACE-04: Prevent END_AUCTION from firing while a DECREMENT is still in flight
+  const auctionEndFiredRef = useRef(false);
   useEffect(() => {
     // BUG-06: Guard by winnerId
-    if (gameState.phase !== 'AUCTION' || !gameState.auction || gameState.winnerId !== null) return;
+    if (gameState.phase !== 'AUCTION' || !gameState.auction || gameState.winnerId !== null) {
+      auctionEndFiredRef.current = false;
+      return;
+    }
     if (isOnline && !isHost) return; // Only host handles timers
 
     if (gameState.auction.timer > 0) {
+      auctionEndFiredRef.current = false;
       const interval = setInterval(() => handleDispatch({ type: 'DECREMENT_AUCTION_TIMER' }), 1000);
       return () => clearInterval(interval);
-    } else {
+    } else if (!auctionEndFiredRef.current) {
+      auctionEndFiredRef.current = true;
       handleDispatch({ type: 'END_AUCTION' });
     }
   }, [gameState.phase, gameState.auction?.timer, gameState.winnerId, isOnline, isHost]);
@@ -375,6 +430,8 @@ const App: React.FC = () => {
   ]);
 
   // ── Bot auction bids (IMP-11: via botService, BUG-11: ref guard) ───────────
+  // RACE-02: Use a stable timer ref so cleanup always cancels the correct timeout
+  const botBidTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (gameState.phase !== 'AUCTION' || !gameState.auction || gameState.winnerId !== null) return;
     if (isOnline && !isHost) return; // Only host handles bots
@@ -384,7 +441,7 @@ const App: React.FC = () => {
     const auction = gameState.auction;
     const botsToAct = gameState.players.filter(p => p.isBot && !p.isBankrupt && p.id !== auction.highestBidderId);
 
-    const timer = setTimeout(() => {
+    botBidTimerRef.current = setTimeout(() => {
       for (const bot of botsToAct) {
         const action = getBotBidAction(gameState, bot.id, auction);
         if (action) handleDispatch(action);
@@ -393,7 +450,7 @@ const App: React.FC = () => {
     }, 800 + Math.random() * 1500);
 
     return () => {
-      clearTimeout(timer);
+      if (botBidTimerRef.current) clearTimeout(botBidTimerRef.current);
       botBidFiringRef.current = false;
     };
   }, [gameState.phase, gameState.auction?.timer, gameState.auction?.highestBidderId, gameState.winnerId, isOnline, isHost]);
@@ -414,26 +471,23 @@ const App: React.FC = () => {
       },
     };
 
-    const computedInitialState = gameReducer(gameState, action as any);
+    // BUG-02: dispatch first so React's state update holds the real computed state.
+    // The start_game socket emit is handled in the sync useEffect below which reads
+    // the post-dispatch gameState, avoiding a double reducer execution with Math.random().
     dispatch(action as any);
     setGameStarted(true);
-
-    if (isOnline && isHost) {
-      const socket = getSocket();
-      if (socket) {
-        socket.emit("start_game", { initialState: computedInitialState });
-      }
-    }
   };
 
   const createRoom = async (isPrivate = false) => {
     setIsCreatingRoom(true);
     try {
-      const res = await fetch("/api/rooms", {
+      const r = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }),
-      }).then(r => r.json());
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const res = await r.json();
 
       if (res.success) {
         setIsOnline(true);
@@ -446,7 +500,7 @@ const App: React.FC = () => {
         if (isPrivate) {
           setSettings(prev => ({ ...prev, isPrivate: true }));
         }
-        window.history.pushState({}, '', `/rooms/${res.roomId}`);
+        window.history.pushState({}, '', `/room/${res.roomId}`);
       }
     } catch (e) {
       console.error(e);
@@ -460,11 +514,13 @@ const App: React.FC = () => {
     const cleanId = specificRoomId.trim().toUpperCase();
     setIsJoiningRoom(true);
     try {
-      const res = await fetch(`/api/rooms/${cleanId}/join`, {
+      const r = await fetch(`/api/rooms/${cleanId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
-      }).then(r => r.json());
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const res = await r.json();
 
       if (res.success) {
         setIsOnline(true);
@@ -474,7 +530,7 @@ const App: React.FC = () => {
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
         sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
-        window.history.replaceState({}, '', `/rooms/${res.roomId}`);
+        window.history.replaceState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join room");
       }
@@ -487,11 +543,13 @@ const App: React.FC = () => {
 
   const joinRandomRoom = async () => {
     try {
-      const res = await fetch("/api/rooms/random", {
+      const r = await fetch("/api/rooms/random", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
-      }).then(r => r.json());
+      });
+      if (!r.ok) throw new Error(await r.text());
+      const res = await r.json();
 
       if (res.success) {
         setIsOnline(true);
@@ -500,7 +558,7 @@ const App: React.FC = () => {
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
         sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
-        window.history.pushState({}, '', `/rooms/${res.roomId}`);
+        window.history.pushState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join random room");
       }
@@ -510,8 +568,15 @@ const App: React.FC = () => {
   };
 
   const leaveRoom = () => {
+    // NET-05: Tell server we're intentionally leaving so slot is freed immediately
+    const socket = getSocket();
+    if (socket) socket.emit("leave_room");
     resetSocket();
     sessionStorage.removeItem('richup_session');
+    startGameBroadcastedRef.current = false;
+    // MEM-04: Clear bot-kick timers so they don't fire into a stale session
+    kickTimersRef.current.forEach(t => clearTimeout(t));
+    kickTimersRef.current.clear();
     prevLobbyCountRef.current = -1;
     setIsOnline(false);
     setRoomId(null);
@@ -580,9 +645,12 @@ const App: React.FC = () => {
   }, [showRoomBrowser]);
 
   // S3: Auto-join when room code reaches 6 characters
+  // RACE-01: Use a ref flag set synchronously before the async call to prevent double-fire
+  const autoJoinTriggeredRef = useRef(false);
   useEffect(() => {
-    if (joinRoomId.length === 6 && !isOnline && !isJoiningRoom && !isAutoJoining) {
-      joinRoom(joinRoomId);
+    if (joinRoomId.length === 6 && !isOnline && !isJoiningRoom && !isAutoJoining && !autoJoinTriggeredRef.current) {
+      autoJoinTriggeredRef.current = true;
+      joinRoom(joinRoomId).finally(() => { autoJoinTriggeredRef.current = false; });
     }
   }, [joinRoomId]);
 
@@ -1831,6 +1899,13 @@ const App: React.FC = () => {
               }
               dispatch={handleDispatch}
               onViewPlayer={id => setViewingPlayerId(id)}
+              onReset={() => {
+                // STATE-03: Reset both the game reducer state AND all React online state
+                dispatch({ type: 'RESET_GAME' });
+                setGameStarted(false);
+                startGameBroadcastedRef.current = false;
+                if (isOnline) leaveRoom();
+              }}
             />
           </Board>
         </motion.div>
@@ -1924,7 +1999,7 @@ const App: React.FC = () => {
                 disabled={!canVotekick}
                 onClick={() => {
                   if (canVotekick) {
-                    handleDispatch({ type: 'VOTE_KICK', payload: { targetId: turnPlayer.id, voterId: myPlayerId } });
+                    handleDispatch({ type: 'VOTE_KICK', payload: { targetId: turnPlayer.id, voterId: myPlayerId, expiresAt: Date.now() + 120000 } });
                   }
                 }}
                 className="flex-1 text-xs border-slate-700 bg-slate-900 hover:bg-slate-800 disabled:opacity-40 text-slate-300 gap-1.5 flex items-center justify-center"
@@ -2079,7 +2154,7 @@ const App: React.FC = () => {
             tile={gameState.tiles[selectedTileId]}
             owner={gameState.players.find(p => p.id === gameState.tiles[selectedTileId].ownerId)}
             onClose={() => setSelectedTileId(null)}
-            onUpgrade={() => dispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
+            onUpgrade={() => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
             canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId}
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
             myProperties={myProperties}

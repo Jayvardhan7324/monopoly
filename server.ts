@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
+import { randomBytes, randomUUID } from "crypto";
 
 interface RoomData {
   host: string;
@@ -16,9 +17,13 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = createHttpServer(app);
+  // SEC-01: Restrict CORS to known origins; fall back to wildcard only in dev
+  const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : (process.env.NODE_ENV === 'production' ? [] : ['*']);
   const io = new Server(httpServer, {
     cors: {
-      origin: "*",
+      origin: allowedOrigins.length === 1 && allowedOrigins[0] === '*' ? '*' : allowedOrigins,
       methods: ["GET", "POST"]
     }
   });
@@ -34,6 +39,55 @@ async function startServer() {
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });
   });
+
+  // SEC-07: Gemini API key is never sent to the client — all AI calls go through this proxy.
+  // ERR-02: Use gemini-2.0-flash (correct model name).
+  app.post("/api/ai-advice", async (req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ advice: "AI advisor is not configured on this server." });
+    }
+    try {
+      const { context } = req.body || {};
+      if (!context) return res.status(400).json({ advice: "Missing context." });
+
+      const prompt = `You are a Monopoly expert advisor.
+Game State:
+- Current Player: ${context.playerName} (Cash: $${context.playerMoney})
+- Position: ${context.tileName} (Type: ${context.tileType}, Price: $${context.tilePrice}, Owned By: ${context.tileOwnerId ?? 'None'})
+- My Properties: ${context.myPropertyCount}
+- Opponents: ${(context.opponents || []).map((p: any) => `${p.name} ($${p.money})`).join(', ')}
+
+Advice needed on what to do (Buy? Pass? Trade strategy?).
+Keep it very short (under 30 words), punchy, and strategic.`;
+
+      const { GoogleGenAI } = await import("@google/genai");
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.0-flash',
+        contents: prompt,
+      });
+      res.json({ advice: response.text || "No advice generated." });
+    } catch (err: any) {
+      console.error("AI advice error:", err?.message);
+      res.status(500).json({ advice: "Unable to reach the advisor. Please try again." });
+    }
+  });
+
+  // SEC-02: Simple per-IP rate limiter for join endpoints (10 req/min)
+  const joinRateLimitMap = new Map<string, number[]>();
+  function isJoinRateLimited(ip: string): boolean {
+    const now = Date.now();
+    const timestamps = joinRateLimitMap.get(ip) || [];
+    const filtered = timestamps.filter(t => now - t < 60000);
+    if (filtered.length >= 10) {
+      joinRateLimitMap.set(ip, filtered);
+      return true;
+    }
+    filtered.push(now);
+    joinRateLimitMap.set(ip, filtered);
+    return false;
+  }
 
   const rooms = new Map<string, RoomData>();
   const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
@@ -65,7 +119,11 @@ async function startServer() {
             disconnectTimers.delete(key);
           }
         }
-        roomIdleTimers.delete(roomId);
+        // MEM-02: Also cancel the idle timer if GC fires before it does
+        if (roomIdleTimers.has(roomId)) {
+          clearTimeout(roomIdleTimers.get(roomId)!);
+          roomIdleTimers.delete(roomId);
+        }
         rooms.delete(roomId);
         console.log(`GC: deleted stale room ${roomId} (all disconnected > 1hr)`);
       }
@@ -183,8 +241,9 @@ async function startServer() {
   // REST API: Create a room
   app.post("/api/rooms", (req, res) => {
     const data = req.body;
-    const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+    // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
+    const roomId = randomBytes(3).toString('hex').toUpperCase();
+    const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, isHost: true };
     rooms.set(roomId, {
       host: playerId, // Will be updated to socket.id when they connect
@@ -203,6 +262,10 @@ async function startServer() {
 
   // REST API: Join a random room
   app.post("/api/rooms/random", (req, res) => {
+    const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '');
+    if (isJoinRateLimited(ip)) {
+      return res.status(429).json({ success: false, error: "Too many requests. Please wait." });
+    }
     const data = req.body;
     // Find a room that is not full, not private, and hasn't started
     let targetRoomId = null;
@@ -215,7 +278,7 @@ async function startServer() {
 
     if (targetRoomId) {
       const room = rooms.get(targetRoomId)!;
-      const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+      const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
       const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
       room.players.push(player);
@@ -224,8 +287,8 @@ async function startServer() {
       res.json({ success: true, roomId: targetRoomId, playerId, players: room.players });
     } else {
       // Create a new room
-      const roomId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+      const roomId = randomBytes(3).toString('hex').toUpperCase();
+      const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, isHost: true };
       rooms.set(roomId, {
         host: playerId,
@@ -243,6 +306,10 @@ async function startServer() {
 
   // REST API: Join a specific room
   app.post("/api/rooms/:id/join", (req, res) => {
+    const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '');
+    if (isJoinRateLimited(ip)) {
+      return res.status(429).json({ success: false, error: "Too many requests. Please wait." });
+    }
     const roomId = req.params.id.trim().toUpperCase();
     const data = req.body;
     const room = rooms.get(roomId);
@@ -252,7 +319,7 @@ async function startServer() {
     }
     if (room.state) {
       // Game already started — allow joining as spectator
-      const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+      const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
       const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false, isSpectator: true };
       room.players.push(player);
@@ -263,7 +330,7 @@ async function startServer() {
       return res.status(400).json({ success: false, error: "Room is full" });
     }
 
-    const playerId = "p_" + Math.random().toString(36).substring(2, 10);
+    const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
     const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
     room.players.push(player);
@@ -437,13 +504,57 @@ async function startServer() {
       return false;
     }
 
+    // NET-05: Intentional leave — immediately frees the player slot without waiting for reconnect window
+    socket.on("leave_room", () => {
+      const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
+      if (playerIndex === -1) return;
+      const player = room.players[playerIndex];
+      const timerKey = player.originalId || player.id;
+      // Cancel any pending reconnect timer for this player
+      if (disconnectTimers.has(timerKey)) {
+        clearTimeout(disconnectTimers.get(timerKey)!);
+        disconnectTimers.delete(timerKey);
+      }
+      room.players.splice(playerIndex, 1);
+      socket.leave(roomId);
+      if (room.players.length === 0) {
+        rooms.delete(roomId);
+      } else {
+        if (room.host === player.id) {
+          const next = room.players.find((p: any) => !p.disconnected) || room.players[0];
+          room.host = next.id;
+          next.isHost = true;
+          room.hostName = next.name || 'Player';
+          io.to(next.id).emit("you_are_host");
+        }
+        io.to(roomId).emit("room_updated", { players: room.players });
+      }
+      scheduleRoomsListBroadcast();
+    });
+
     socket.on("send_chat", (data) => {
       if (isRateLimited('chat')) return;
+      // NET-07: Reject oversized or malformed chat messages
+      if (typeof data?.text !== 'string' || data.text.length > 500) return;
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
-        io.to(roomId).emit("chat_message", data);
+        io.to(roomId).emit("chat_message", { sender: data.sender, text: data.text, time: data.time });
       }
     });
+
+    // SEC-05: Allowlist of action types non-host players may submit
+    const PLAYER_ALLOWED_ACTIONS = new Set([
+      'ROLL_DICE', 'BUY_PROPERTY', 'DECLINE_BUY', 'PAY_RENT', 'PAY_TAX',
+      'PAY_BAIL', 'USE_JAIL_CARD', 'ATTEMPT_JAIL_ROLL',
+      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY', 'DOWNGRADE_PROPERTY',
+      'PROPOSE_TRADE', 'ACCEPT_TRADE', 'DECLINE_TRADE', 'CANCEL_TRADE',
+      'BID_AUCTION', 'START_AUCTION', 'END_TURN', 'DECLARE_BANKRUPT',
+      'VOTE_KICK', 'CANCEL_VOTE_KICK',
+    ]);
 
     socket.on("game_action", (data) => {
       if (isRateLimited('action')) {
@@ -457,6 +568,11 @@ async function startServer() {
           const isPlayer = room.players.some((p: any) => p.id === socket.id);
           if (!isPlayer) {
             socket.emit("action_error", { error: "Not a player in this room" });
+            return;
+          }
+          // SEC-05: Reject unknown/dangerous action types before forwarding to host
+          if (!data?.type || !PLAYER_ALLOWED_ACTIONS.has(data.type)) {
+            socket.emit("action_error", { error: `Action '${data?.type}' is not allowed` });
             return;
           }
           io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
@@ -483,6 +599,10 @@ async function startServer() {
 
     socket.on("disconnect", () => {
       console.log("Client disconnected:", socket.id);
+      // MEM-01: Clean up rate-limit entries for this socket to prevent unbounded growth
+      for (const key of rateLimitMap.keys()) {
+        if (key.startsWith(socket.id + ':')) rateLimitMap.delete(key);
+      }
       for (const [roomId, room] of rooms.entries()) {
         const playerIndex = room.players.findIndex((p: any) => p.id === socket.id);
         if (playerIndex !== -1) {

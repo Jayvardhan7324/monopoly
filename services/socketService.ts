@@ -15,7 +15,15 @@ export const initSocket = (roomId: string, playerId: string) => {
     socket.connect();
 
     socket.on("connect", () => {
-      socket?.emit("join_session", { roomId, playerId });
+      // Always re-read from sessionStorage so reconnects after transport drop
+      // use the latest roomId/playerId, not stale closure values (NET-02).
+      const stored = sessionStorage.getItem('richup_session');
+      const session = stored ? JSON.parse(stored) : null;
+      const sid = session?.playerId || playerId;
+      const rid = session?.roomId || roomId;
+      if (rid && sid) {
+        socket?.emit("join_session", { roomId: rid, playerId: sid });
+      }
     });
   }
   return socket;

@@ -318,6 +318,9 @@ export function getBotAction(gameState: GameState): BotAction {
     }
 
     // 3. Propose trades — probabilistic with strategic targeting
+    // BUG-09: Don't propose a trade while one is already pending (would overwrite it)
+    if (gameState.pendingTrade !== null) return { type: 'END_TURN' };
+
     const tradeChance = personality === BotPersonalityType.AGGRESSIVE ? 0.35 :
       personality === BotPersonalityType.OPPORTUNISTIC ? 0.30 :
         personality === BotPersonalityType.CONSERVATIVE ? 0.15 : 0.25;

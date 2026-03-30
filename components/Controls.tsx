@@ -22,6 +22,7 @@ interface ControlsProps {
   onTrade: (offer: { cash: number; properties: number[]; requestCash: number }, targetTileId: number) => void;
   dispatch: React.Dispatch<any>;
   onViewPlayer: (playerId: number) => void;
+  onReset?: () => void;
 }
 
 const colorMap: Record<ColorGroup, string> = {
@@ -37,7 +38,7 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const Controls: React.FC<ControlsProps> = ({
-  gameState, myPlayerId, logs, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer,
+  gameState, myPlayerId, logs, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer, onReset,
 }) => {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
@@ -134,7 +135,7 @@ export const Controls: React.FC<ControlsProps> = ({
                 }
               </div>
               <button
-                onClick={() => dispatch({ type: 'RESET_GAME' })}
+                onClick={() => onReset ? onReset() : dispatch({ type: 'RESET_GAME' })}
                 aria-label="Start a new game"
                 className="mt-4 px-10 py-3 bg-gradient-to-r from-white to-slate-100 text-slate-900 rounded-xl font-black text-base hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all uppercase tracking-tight active:scale-95"
               >
