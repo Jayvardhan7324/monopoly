@@ -357,9 +357,9 @@ const App: React.FC = () => {
     const isBot = currentPlayer?.isBot;
 
     if (gameState.phase === 'MOVING') {
-      timer = setTimeout(() => handleDispatch({ type: 'MOVE_PLAYER' }), isBot ? 2000 : 800);
+      timer = setTimeout(() => handleDispatch({ type: 'MOVE_PLAYER' }), isBot ? 800 : 800);
     } else if (gameState.phase === 'RESOLVING') {
-      timer = setTimeout(() => handleDispatch({ type: 'LAND_ON_TILE' }), isBot ? 1200 : 600);
+      timer = setTimeout(() => handleDispatch({ type: 'LAND_ON_TILE' }), isBot ? 500 : 600);
     }
     return () => clearTimeout(timer);
   }, [gameState.phase, gameStarted, gameState.winnerId, gameState.currentPlayerIndex]);
@@ -404,16 +404,21 @@ const App: React.FC = () => {
     // Spectator mode uses same bot timing — works automatically since bots handle all turns
 
     const delays: Record<string, number> = {
-      ROLL: 600,
-      ACTION: 700,
-      TURN_END: 900,
+      ROLL: 400,
+      ACTION: 500,
+      TURN_END: 600,
     };
     const delay = delays[gameState.phase] ?? 0;
     if (!delay) return;
 
     const timer = setTimeout(() => {
       const action = getBotAction(gameState);
-      if (action) handleDispatch(action);
+      if (action) {
+        handleDispatch(action);
+      } else if (gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') {
+        // Safety fallback: if bot returned null (e.g. pending trade blocked it), force end turn
+        handleDispatch({ type: 'END_TURN' });
+      }
     }, delay);
 
     return () => clearTimeout(timer);
@@ -446,7 +451,7 @@ const App: React.FC = () => {
         if (action) handleDispatch(action);
       }
       botBidFiringRef.current = false;
-    }, 800 + Math.random() * 1500);
+    }, 400 + Math.random() * 600);
 
     return () => {
       if (botBidTimerRef.current) clearTimeout(botBidTimerRef.current);

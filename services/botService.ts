@@ -155,7 +155,8 @@ function getSafetyBuffer(bot: Player, gameState: GameState): number {
 export function getBotAction(gameState: GameState): BotAction {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   if (!currentPlayer || !currentPlayer.isBot || gameState.winnerId !== null) return null;
-  if (gameState.pendingTrade !== null) return null;
+  // Note: pendingTrade does NOT block the bot from rolling/acting — only from proposing new trades.
+  // (trade proposals are guarded at the TURN_END section below)
 
   const { phase, tiles } = gameState;
   const personality = currentPlayer.personality || BotPersonalityType.BALANCED;
