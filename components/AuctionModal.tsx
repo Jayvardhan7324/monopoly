@@ -61,7 +61,11 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
           <div className="w-full flex gap-3">
             <button
               onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: myPlayerId, amount: (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT } })}
-              disabled={(myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT || (myPlayer?.isBankrupt ?? false)}
+              disabled={
+                gameState.auction.highestBidderId === myPlayerId ||
+                (myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT ||
+                (myPlayer?.isBankrupt ?? false)
+              }
               className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center group"
             >
               <span className="text-[8px] opacity-60 font-bold uppercase tracking-widest group-hover:opacity-100 transition-opacity">Min Bid</span>
@@ -69,7 +73,11 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
             </button>
             <button
               onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: myPlayerId, amount: (gameState.auction?.currentBid || 0) + 20 } })}
-              disabled={(myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + 20 || (myPlayer?.isBankrupt ?? false)}
+              disabled={
+                gameState.auction.highestBidderId === myPlayerId ||
+                (myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + 20 ||
+                (myPlayer?.isBankrupt ?? false)
+              }
               className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-emerald-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center group"
             >
               <span className="text-[8px] opacity-60 font-bold uppercase tracking-widest group-hover:opacity-100 transition-opacity">Aggressive</span>

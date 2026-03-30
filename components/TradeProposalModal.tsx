@@ -24,9 +24,16 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   const proposer = players.find(p => p.id === trade.proposerId);
   const target = players.find(p => p.id === trade.targetId);
   const targetTile = tiles[trade.targetPropertyId];
-  const offeredTiles = trade.offerPropertyIds.map(id => tiles[id]);
+  const offeredTiles = trade.offerPropertyIds.map(id => tiles[id]).filter(Boolean);
+  const isTarget = myPlayerId === trade.targetId;
 
-  if (!proposer || !target) return null;
+  if (!proposer || !target || !targetTile) return null;
+
+  const groupColor: Record<string, string> = {
+    BROWN: '#78350f', LIGHT_BLUE: '#38bdf8', PINK: '#ec4899',
+    ORANGE: '#f97316', RED: '#dc2626', YELLOW: '#ca8a04',
+    GREEN: '#059669', DARK_BLUE: '#1d4ed8',
+  };
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -62,7 +69,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
               )}
               {offeredTiles.map(tile => (
                 <div key={tile.id} className="bg-white/5 border border-white/5 rounded-lg p-2 flex items-center gap-2">
-                  <div className={`w-1 h-4 rounded-full bg-slate-500`} style={{ backgroundColor: tile.group !== 'NONE' ? undefined : '#64748b' }} />
+                  <div className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: groupColor[tile.group] ?? '#64748b' }} />
                   <span className="text-[10px] font-bold text-white uppercase truncate">{tile.name}</span>
                 </div>
               ))}
@@ -86,7 +93,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
             </div>
             <div className="grid grid-cols-1 gap-1.5">
               <div className="bg-white/5 border border-white/5 rounded-lg p-2 flex items-center gap-2">
-                <div className={`w-1 h-4 rounded-full bg-slate-500`} style={{ backgroundColor: targetTile.group !== 'NONE' ? undefined : '#64748b' }} />
+                <div className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: groupColor[targetTile.group] ?? '#64748b' }} />
                 <span className="text-[10px] font-bold text-white uppercase truncate">{targetTile.name}</span>
               </div>
               {trade.requestCash > 0 && (
@@ -100,19 +107,27 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="p-3 bg-black/40 border-t border-white/5 grid grid-cols-2 gap-2 mt-auto">
-          <button
-            onClick={onDecline}
-            className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
-          >
-            Decline
-          </button>
-          <button
-            onClick={onAccept}
-            className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
-          >
-            Accept Deal
-          </button>
+        <div className="p-3 bg-black/40 border-t border-white/5 mt-auto">
+          {isTarget ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={onDecline}
+                className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95"
+              >
+                Decline
+              </button>
+              <button
+                onClick={onAccept}
+                className="py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-widest text-[10px] transition-all shadow-lg shadow-indigo-600/20 active:scale-95"
+              >
+                Accept Deal
+              </button>
+            </div>
+          ) : (
+            <p className="text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest py-2">
+              Waiting for {target.name} to respond…
+            </p>
+          )}
         </div>
       </motion.div>
     </div>

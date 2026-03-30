@@ -72,7 +72,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
   if (!currentPlayer) return null;
 
-  const canBuy = currentTile.price > 0 && currentPlayer.money >= currentTile.price && currentTile.ownerId === null;
+  const canBuy = !!currentTile && currentTile.price > 0 && currentPlayer.money >= currentTile.price && currentTile.ownerId === null;
 
   const myPlayer = gameState.players.find(p => p.id === myPlayerId);
 

@@ -345,7 +345,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                         <Button
                           size="sm"
                           onClick={submitTrade}
-                          disabled={tradeOfferCash === 0 && tradeOfferPropertyIds.length === 0 && tradeRequestCash === 0}
+                          disabled={tradeOfferCash === 0 && tradeOfferPropertyIds.length === 0}
                           className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] shadow-lg shadow-indigo-600/20"
                         >
                           <ArrowRightLeft size={11} /> Send Offer

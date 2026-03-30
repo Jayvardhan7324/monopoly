@@ -106,13 +106,13 @@ export const PlayerPortfolioModal: React.FC<PlayerPortfolioModalProps> = ({ play
                               </div>
                             ) : (
                               <div className="flex gap-0.5 mt-1">
-                                {[...Array(tile.buildingCount)].map((_, i) => (
-                                  i === 4 ? (
-                                    <Building2 key={i} size={10} className="text-rose-500" fill="currentColor" />
-                                  ) : (
+                                {tile.buildingCount === 5 ? (
+                                  <Building2 key="hotel" size={10} className="text-rose-500" fill="currentColor" />
+                                ) : (
+                                  [...Array(tile.buildingCount)].map((_, i) => (
                                     <Home key={i} size={10} className="text-emerald-500" fill="currentColor" />
-                                  )
-                                ))}
+                                  ))
+                                )}
                               </div>
                             )}
                           </div>
