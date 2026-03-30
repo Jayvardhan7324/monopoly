@@ -50,6 +50,7 @@ export type Action =
   | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
   | { type: 'ACCEPT_TRADE' }
   | { type: 'DECLINE_TRADE' }
+  | { type: 'CANCEL_TRADE' }
   | { type: 'PAY_JAIL_FINE' }
   | { type: 'ATTEMPT_JAIL_ROLL' }
   | { type: 'SKIP_JAIL_TURN' }
@@ -1002,6 +1003,20 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const proposer = state.players.find(p => p.id === proposerId);
       if (!proposer) return state;
 
+      // BUG-03 / BUG-13: Do not allow offering mortgaged properties (applies to all trades, not just bot)
+      const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
+      if (offerContainsMortgaged) {
+        return withSound(
+          { ...state, logs: addLog(state.logs, 'Cannot offer mortgaged properties in a trade.') },
+          'error'
+        );
+      }
+
+      // BUG-14: Proposer must have enough cash to cover their cash offer
+      if (offerCash > 0 && proposer.money < offerCash) {
+        return withSound({ ...state, logs: addLog(state.logs, 'Insufficient funds to make this trade offer.') }, 'error');
+      }
+
       // If target is human, store as pending
       if (!targetPlayer.isBot) {
         return withSound(
@@ -1024,15 +1039,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // If target is bot, evaluate immediately
       const bot = targetPlayer;
       const personality = bot.personality || BotPersonalityType.BALANCED;
-
-      // BUG-03: Do not allow offering mortgaged properties (guard on reducer side too)
-      const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
-      if (offerContainsMortgaged) {
-        return withSound(
-          { ...state, logs: addLog(state.logs, 'Cannot offer mortgaged properties in a trade.') },
-          'error'
-        );
-      }
 
       // ── Strategic AI valuation ──────────────────────────────────────────────
       const targetGroup = state.tiles.filter(t => t.group === targetTile.group);
@@ -1169,6 +1175,16 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           pendingTrade: null,
           logs: addLog(state.logs, `Trade declined by ${target.name}.`),
         },
+        'trade_decline'
+      );
+    }
+
+    // ─── CANCEL_TRADE ───────────────────────────────────────────────────────────
+    case 'CANCEL_TRADE': {
+      if (!state.pendingTrade) return state;
+      const proposerName = state.players.find(p => p.id === state.pendingTrade!.proposerId)?.name ?? 'A player';
+      return withSound(
+        { ...state, pendingTrade: null, logs: addLog(state.logs, `${proposerName} cancelled their trade offer.`) },
         'trade_decline'
       );
     }
