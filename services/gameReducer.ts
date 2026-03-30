@@ -210,7 +210,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
 
       let players: Player[] = [];
-      const botColors = ['#3b82f6', '#22c55e', '#eab308', '#a855f7', '#ec4899', '#06b6d4', '#f97316', '#8b5cf6'];
+      // BUG-09: Derive bot colors by excluding colors already used by human players
+      const humanPlayers = players;
+      const usedColors = new Set(humanPlayers.map((p: any) => p.color));
+      const availableBotColors = PLAYER_COLORS.filter(c => !usedColors.has(c));
 
       if (lobbyPlayers && lobbyPlayers.length > 0) {
         // Online multiplayer setup
@@ -262,7 +265,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         players.push({
           id: botId,
           name: shuffledBotNames[i] || `Bot ${botId}`,
-          color: botColors[i] || '#888',
+          color: availableBotColors[i % availableBotColors.length] || '#888',
           money: settings.rules.startingCash,
           position: 0,
           isBot: true,
@@ -487,7 +490,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
         if (card.type === 'MOVE' && card.value !== undefined) {
           const targetPos = card.value;
-          const passedGo = targetPos < updatedPlayers[state.currentPlayerIndex].position;
+          const currentPos = updatedPlayers[state.currentPlayerIndex].position;
+          const passedGo = targetPos < currentPos && targetPos !== GAME_CONSTANTS.JAIL_POSITION;
           updatedPlayers[state.currentPlayerIndex] = {
             ...updatedPlayers[state.currentPlayerIndex],
             position: targetPos,

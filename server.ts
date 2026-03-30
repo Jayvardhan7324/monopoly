@@ -163,6 +163,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       if (room.state && room.state.players) {
         const removedRoomPlayer = room.players.find((p: any) => (p.originalId || p.id) === originalPlayerId);
         if (removedRoomPlayer) {
+          // TODO: match by gamePlayerId instead of name to prevent wrong-player removal (BUG-11)
           const removedGamePlayer = room.state.players.find((p: any) => p.name === removedRoomPlayer.name);
           const currentGamePlayer = room.state.players[room.state.currentPlayerIndex];
           if (removedGamePlayer && currentGamePlayer && removedGamePlayer.id === currentGamePlayer.id) {
@@ -553,7 +554,12 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       if (typeof data?.text !== 'string' || data.text.length > 500) return;
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
       if (roomId) {
-        io.to(roomId).emit("chat_message", { sender: data.sender, text: data.text, time: data.time });
+        // BUG-19: Look up sender name server-side to prevent client impersonation
+        const room = rooms.get(roomId);
+        if (!room) return;
+        const chatPlayer = room.players.find((p: any) => p.id === socket.id);
+        if (!chatPlayer) return;
+        io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: data.text, time: data.time });
       }
     });
 
