@@ -66,6 +66,9 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [sessionPlayerId, setSessionPlayerId] = useState<string | null>(null);
+  const [savedSession, setSavedSession] = useState<{ playerId: string; roomId: string } | null>(() => {
+    try { return JSON.parse(localStorage.getItem('richup_session') || 'null'); } catch { return null; }
+  });
   const [isHost, setIsHost] = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
@@ -127,7 +130,7 @@ const App: React.FC = () => {
     if (!roomFromUrl) return;
     autoJoinAttemptedRef.current = true;
     const cleanId = roomFromUrl.toUpperCase();
-    const stored = JSON.parse(sessionStorage.getItem('richup_session') || 'null');
+    const stored = JSON.parse(localStorage.getItem('richup_session') || 'null');
     if (stored?.roomId === cleanId && stored?.playerId) {
       // Restore session on reload — socket will reconnect via join_session
       isSessionRestoreRef.current = true;
@@ -500,7 +503,7 @@ const App: React.FC = () => {
         setIsHost(true);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
+        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         if (isPrivate) {
           setSettings(prev => ({ ...prev, isPrivate: true }));
         }
@@ -533,7 +536,7 @@ const App: React.FC = () => {
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
+        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         window.history.replaceState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join room");
@@ -561,7 +564,7 @@ const App: React.FC = () => {
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
-        sessionStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
+        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
         window.history.pushState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join random room");
@@ -576,7 +579,9 @@ const App: React.FC = () => {
     const socket = getSocket();
     if (socket) socket.emit("leave_room");
     resetSocket();
-    sessionStorage.removeItem('richup_session');
+    localStorage.removeItem('richup_session');
+    setSavedSession(null);
+    dispatch({ type: 'RESET_GAME' });
     startGameBroadcastedRef.current = false;
     // MEM-04: Clear bot-kick timers so they don't fire into a stale session
     kickTimersRef.current.forEach(t => clearTimeout(t));
@@ -595,6 +600,14 @@ const App: React.FC = () => {
     window.history.replaceState({}, '', '/');
   };
 
+  const handleRejoin = () => {
+    if (!savedSession) return;
+    setIsOnline(true);
+    setRoomId(savedSession.roomId);
+    setSessionPlayerId(savedSession.playerId);
+    window.history.pushState({}, '', `/room/${savedSession.roomId}`);
+  };
+
   // Back-button: leave room when browser navigates to /
   useEffect(() => {
     const handlePopState = () => {
@@ -603,6 +616,7 @@ const App: React.FC = () => {
         setIsOnline(false); setRoomId(null); setSessionPlayerId(null);
         setIsHost(false); setLobbyPlayers([]); setGameStarted(false);
         setIsSpectator(false); setShowAppearanceModal(false); setMyPlayerId(0);
+        dispatch({ type: 'RESET_GAME' });
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -1370,6 +1384,27 @@ const App: React.FC = () => {
                             placeholder="Enter name"
                           />
                         </div>
+
+                        {savedSession && (
+                          <div className="w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Previous game found</p>
+                              <p className="text-xs text-slate-300 font-mono mt-0.5">Room: <span className="font-black text-white">{savedSession.roomId}</span></p>
+                            </div>
+                            <button
+                              onClick={handleRejoin}
+                              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black uppercase tracking-widest rounded-lg transition-colors active:scale-95 shrink-0"
+                            >
+                              Rejoin
+                            </button>
+                            <button
+                              onClick={() => { localStorage.removeItem('richup_session'); setSavedSession(null); }}
+                              className="p-1 text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+                        )}
 
                         <button
                           onClick={joinRandomRoom}
