@@ -281,7 +281,7 @@ const App: React.FC = () => {
       socket.off("connect", handleSocketConnect);
       socket.off("connect_error", handleSocketDisconnect);
     };
-  }, [isHost, roomId, sessionPlayerId]);
+  }, [roomId, sessionPlayerId]);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -760,11 +760,11 @@ const App: React.FC = () => {
       </div>
       <div className="flex items-center gap-2">
         <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
-          {window.location.origin}/rooms/{roomId}
+          {window.location.origin}/room/{roomId}
         </div>
         <button
           onClick={() => {
-            const textToCopy = `${window.location.origin}/rooms/${roomId || ''}`;
+            const textToCopy = `${window.location.origin}/room/${roomId || ''}`;
 
             if (navigator.clipboard && window.isSecureContext) {
               navigator.clipboard.writeText(textToCopy)
@@ -1965,7 +1965,7 @@ const App: React.FC = () => {
                     {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
                     {/* I5: Disconnected countdown — 2 min window */}
                     {(player as any).disconnected && (player as any).disconnectedAt && (() => {
-                      const secondsLeft = Math.max(0, 120 - Math.floor((nowTs - (player as any).disconnectedAt) / 1000));
+                      const secondsLeft = Math.max(0, 30 * 60 - Math.floor((nowTs - (player as any).disconnectedAt) / 1000));
                       return secondsLeft > 0
                         ? <span className="text-[8px] font-mono text-amber-400 animate-pulse ml-0.5">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}</span>
                         : <span className="text-[8px] text-slate-600 ml-0.5">away</span>;
@@ -2083,6 +2083,14 @@ const App: React.FC = () => {
                 {gameState.pendingTrade.offerCash > 0 && <span className="text-emerald-400">+${gameState.pendingTrade.offerCash} cash</span>}
                 {gameState.pendingTrade.requestCash > 0 && <span className="text-rose-400 ml-1">-${gameState.pendingTrade.requestCash} cash</span>}
               </div>
+              {gameState.pendingTrade.proposerId === myPlayerId && (
+                <button
+                  onClick={() => dispatch({ type: 'CANCEL_TRADE' })}
+                  className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest transition-colors mt-1"
+                >
+                  Cancel offer
+                </button>
+              )}
               <div className="flex gap-1.5">
                 <Button size="sm" onClick={() => handleDispatch({ type: 'ACCEPT_TRADE' })} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] h-7">
                   Accept
