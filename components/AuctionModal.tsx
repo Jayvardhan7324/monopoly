@@ -9,9 +9,10 @@ interface AuctionModalProps {
   gameState: GameState;
   myPlayerId: number;
   dispatch: React.Dispatch<any>;
+  isSpectator?: boolean;
 }
 
-export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerId, dispatch }) => {
+export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerId, dispatch, isSpectator = false }) => {
   if (gameState.phase !== 'AUCTION' || !gameState.auction) return null;
 
   const myPlayer = gameState.players.find(p => p.id === myPlayerId);
@@ -62,6 +63,7 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
             <button
               onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: myPlayerId, amount: (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT } })}
               disabled={
+                isSpectator ||
                 gameState.auction.highestBidderId === myPlayerId ||
                 (myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT ||
                 (myPlayer?.isBankrupt ?? false)
@@ -74,6 +76,7 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
             <button
               onClick={() => dispatch({ type: 'PLACE_BID', payload: { playerId: myPlayerId, amount: (gameState.auction?.currentBid || 0) + 20 } })}
               disabled={
+                isSpectator ||
                 gameState.auction.highestBidderId === myPlayerId ||
                 (myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + 20 ||
                 (myPlayer?.isBankrupt ?? false)

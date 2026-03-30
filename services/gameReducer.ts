@@ -1414,10 +1414,12 @@ export const gameReducer = (state: GameState, action: Action): GameState => {
   const newState = coreReducer(state, action);
 
   // Accumulate new log entries into turnLogs
-  if (newState.logs.length > state.logs.length) {
-    const newLogsCount = newState.logs.length - state.logs.length;
-    const addedLogs = newState.logs.slice(0, newLogsCount).reverse();
-    newState.turnLogs = [...state.turnLogs, ...addedLogs];
+  // BUG-04 fix: compare newest entry (not length) — length-diff breaks when log hits LOG_MAX_ENTRIES capacity
+  const newestNew = newState.logs[0];
+  const newestOld = state.logs[0];
+  if (newestNew && newestNew !== newestOld) {
+    const newEntries = newState.logs.filter(e => !state.logs.includes(e));
+    newState.turnLogs = [...state.turnLogs, ...newEntries.reverse()];
   } else {
     newState.turnLogs = state.turnLogs;
   }

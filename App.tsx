@@ -196,11 +196,10 @@ const App: React.FC = () => {
     // NET-01: Read isHostRef.current (not closed-over isHost) so handler never goes stale
     // SEC-05: Only dispatch allowlisted action types from non-host players
     const PLAYER_ALLOWED_ACTIONS = new Set([
-      'ROLL_DICE', 'BUY_PROPERTY', 'DECLINE_BUY', 'PAY_RENT', 'PAY_TAX',
-      'PAY_BAIL', 'USE_JAIL_CARD', 'ATTEMPT_JAIL_ROLL',
-      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY', 'DOWNGRADE_PROPERTY',
+      'ROLL_DICE', 'BUY_PROPERTY', 'ATTEMPT_JAIL_ROLL', 'SKIP_JAIL_TURN', 'PAY_JAIL_FINE',
+      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY',
       'PROPOSE_TRADE', 'ACCEPT_TRADE', 'DECLINE_TRADE', 'CANCEL_TRADE',
-      'BID_AUCTION', 'START_AUCTION', 'END_TURN', 'DECLARE_BANKRUPT',
+      'PLACE_BID', 'END_TURN', 'DECLARE_BANKRUPT',
       'VOTE_KICK', 'CANCEL_VOTE_KICK',
     ]);
     const handleHostProcessAction = (action: any) => {
@@ -2210,6 +2209,7 @@ const App: React.FC = () => {
           gameState={gameState}
           myPlayerId={myPlayerId}
           dispatch={handleDispatch}
+          isSpectator={isSpectator}
         />
 
         {showSettingsModal && (
