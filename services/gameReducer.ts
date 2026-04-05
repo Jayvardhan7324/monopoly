@@ -213,27 +213,42 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       let players: Player[] = [];
 
+      // BUG-09 FIX: Track used colors dynamically as players are assigned so no two
+      // players ever share a color regardless of spectators, wrap-around, or edge cases.
+      const usedColors = new Set<string>();
+      const nextColor = (): string => {
+        const pick = PLAYER_COLORS.find(c => !usedColors.has(c));
+        if (pick) { usedColors.add(pick); return pick; }
+        // Fallback if somehow all colors exhausted (>8 players)
+        const fallback = PLAYER_COLORS[usedColors.size % PLAYER_COLORS.length];
+        usedColors.add(fallback);
+        return fallback;
+      };
+
       if (lobbyPlayers && lobbyPlayers.length > 0) {
-        // Online multiplayer setup
-        players = lobbyPlayers.map((p, i) => ({
-          id: i,
-          name: p.name,
-          color: PLAYER_COLORS[i % PLAYER_COLORS.length],
-          money: settings.rules.startingCash,
-          position: 0,
-          isBot: false,
-          isBankrupt: false,
-          inJail: false,
-          jailTurns: 0,
-          avatarId: p.avatar,
-        }));
+        // Online multiplayer setup — only non-spectator players get unique game colors
+        players = lobbyPlayers
+          .filter((p: any) => !p.isSpectator)
+          .map((p: any) => ({
+            id: players.length,  // will be reassigned below via index
+            name: p.name,
+            color: nextColor(),
+            money: settings.rules.startingCash,
+            position: 0,
+            isBot: false,
+            isBankrupt: false,
+            inJail: false,
+            jailTurns: 0,
+            avatarId: p.avatar,
+          }))
+          .map((p: any, i: number) => ({ ...p, id: i }));
       } else {
         // Local game setup
         players = [
           {
             id: 0,
             name: humanName || 'Player 1',
-            color: '#ef4444',
+            color: nextColor(),
             money: settings.rules.startingCash,
             position: 0,
             isBot: false,
@@ -244,11 +259,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           },
         ];
       }
-
-      // BUG-09 FIX: Compute usedColors AFTER players is populated — previously snapshot
-      // an empty array so bots always started from index 0, colliding with humans.
-      const usedColors = new Set(players.map(p => p.color));
-      const availableBotColors = PLAYER_COLORS.filter(c => !usedColors.has(c));
 
       const botCount = settings.allowBots ? settings.maxPlayers - players.length : 0;
 
@@ -268,7 +278,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         players.push({
           id: botId,
           name: shuffledBotNames[i] || `Bot ${botId}`,
-          color: availableBotColors[i % availableBotColors.length] || '#888',
+          color: nextColor(),
           money: settings.rules.startingCash,
           position: 0,
           isBot: true,
