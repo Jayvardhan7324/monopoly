@@ -103,7 +103,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     }, 50);
   }
   const RECONNECT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes per-player reconnect window
-  const ROOM_IDLE_TTL = 60 * 60 * 1000; // 1 hour — room survives fully disconnected before deletion
+  const ROOM_IDLE_TTL = 10 * 60 * 1000; // 10 minutes — room deleted if all players disconnected
 
   // Background GC: delete zombie rooms every 15 min
   setInterval(() => {
@@ -319,12 +319,29 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       return res.status(404).json({ success: false, error: "Room not found" });
     }
     if (room.state) {
-      // Game already started — allow joining as spectator
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
-      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false, isSpectator: true };
-      room.players.push(player);
-      res.json({ success: true, roomId: roomId, playerId, players: room.players, isSpectator: true });
+      const realPlayers = room.players.filter((p: any) => !p.isSpectator);
+      const allDisconnected = realPlayers.length > 0 && realPlayers.every((p: any) => p.disconnected);
+      if (allDisconnected) {
+        // All game players are gone — new joiner becomes host so they can control/restart
+        room.players.forEach((p: any) => { p.isHost = false; });
+        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: true };
+        room.players.push(player);
+        room.host = playerId; // updated to socket.id on join_session
+        room.hostName = uniqueName;
+        // Cancel idle timer — someone is joining
+        if (roomIdleTimers.has(roomId)) {
+          clearTimeout(roomIdleTimers.get(roomId)!);
+          roomIdleTimers.delete(roomId);
+        }
+        res.json({ success: true, roomId, playerId, players: room.players, isSpectator: false, becameHost: true });
+      } else {
+        // Game in progress with active players — join as spectator
+        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false, isSpectator: true };
+        room.players.push(player);
+        res.json({ success: true, roomId, playerId, players: room.players, isSpectator: true });
+      }
       return;
     }
     if (room.players.length >= room.maxPlayers) {
@@ -404,6 +421,19 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         room.host = socket.id;
         room.hostName = player.name || 'Player';
         socket.emit("you_are_host");
+      } else if (player.isSpectator) {
+        // NEW-JOIN: Spectator joining an all-disconnected in-game room gets promoted to host
+        const realPlayers = room.players.filter((p: any) => !p.isSpectator && p.id !== socket.id);
+        const allDisconnected = realPlayers.length > 0 && realPlayers.every((p: any) => p.disconnected);
+        if (allDisconnected) {
+          player.isSpectator = false;
+          room.players.forEach((p: any) => { p.isHost = false; });
+          player.isHost = true;
+          room.host = socket.id;
+          room.hostName = player.name || 'Player';
+          socket.emit("you_are_host");
+          console.log(`New player ${player.name} promoted to host in abandoned room ${roomId}.`);
+        }
       }
 
       // Notify everyone that player is back (with updated host flags)
