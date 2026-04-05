@@ -23,6 +23,7 @@ const BAND = '30%';
 const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp   = tile.type === ETileType.PROPERTY;
+  const isBandTile = isProp || tile.type === ETileType.RAILROAD || tile.type === ETileType.UTILITY;
 
   const isTop    = tile.id >= 0  && tile.id <= 10;
   const isRight  = tile.id >= 11 && tile.id <= 19;
@@ -30,7 +31,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
   const isLeft   = tile.id >= 31 && tile.id <= 39;
 
   const ownerColor  = tile.ownerId !== null ? (PLAYER_COLORS[tile.ownerId] || '#888') : null;
-  const isPropertyOwned = isProp && ownerColor !== null;
+  const isPropertyOwned = isBandTile && ownerColor !== null;
   const contentRotate = isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none';
 
   const getIcon = () => {
@@ -151,13 +152,6 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
           transformOrigin: 'center',
         }}
       >
-        {/* Monopoly Crown */}
-        {isMonopoly && tile.buildingCount > 0 && (
-          <div className="absolute top-0.5 right-0.5 z-30 text-amber-400 drop-shadow-md animate-pulse">
-            <Crown size={12} fill="currentColor" />
-          </div>
-        )}
-
         {/* Mortgaged overlay */}
         {tile.isMortgaged && !isCorner && (
           <div className="absolute inset-0 z-40 pointer-events-none rounded-[4px] overflow-hidden">

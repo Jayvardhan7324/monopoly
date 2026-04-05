@@ -868,22 +868,22 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const canAfford = player.money >= rent;
 
       if (!canAfford) {
-        // Pay what they have, then go bankrupt — assets to creditor
+        // Player can't afford rent — deduct full amount (goes negative) and give creditor the rent.
+        // Player keeps all properties and must mortgage/trade to recover. No auto-bankruptcy.
         const newPlayers = state.players.map(p => {
-          if (p.id === player.id) return { ...p, money: p.money - rent }; // goes negative
-          if (p.id === owner.id) return { ...p, money: p.money + player.money }; // gets what's left
+          if (p.id === player.id) return { ...p, money: p.money - rent };
+          if (p.id === owner.id) return { ...p, money: p.money + rent };
           return p;
         });
-        const partialState = { ...state, players: newPlayers };
-        const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
+        return withSound(
           {
-            ...partialState,
-            logs: addLog(state.logs, `${player.name} paid $${rent} rent to ${owner.name} at ${tile.name}.`),
+            ...state,
+            players: newPlayers,
+            phase: 'TURN_END',
+            logs: addLog(state.logs, `${player.name} owes $${rent} rent to ${owner.name} at ${tile.name} and is now in debt!`),
           },
-          player.id,
-          owner.id
+          'pay'
         );
-        return withSound({ ...state, players: bp, tiles: bt, logs: bl, phase: 'TURN_END' }, 'pay');
       }
 
       const newPlayers = state.players.map(p => {
@@ -943,20 +943,22 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (!state.settings.rules.mortgageEnabled) return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
-      if (tile.ownerId === null || tile.buildingCount > 0 || tile.isMortgaged) return state;
+      if (tile.ownerId === null || tile.isMortgaged) return state;
       const mortgageValue = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE);
+      // If buildings exist, sell them at half the house cost before mortgaging
+      const buildingRefund = tile.buildingCount > 0
+        ? Math.floor(tile.houseCost * tile.buildingCount * 0.5)
+        : 0;
       const newPlayers = [...state.players];
       const pIdx = newPlayers.findIndex(p => p.id === tile.ownerId);
-      newPlayers[pIdx] = { ...newPlayers[pIdx], money: newPlayers[pIdx].money + mortgageValue };
+      newPlayers[pIdx] = { ...newPlayers[pIdx], money: newPlayers[pIdx].money + mortgageValue + buildingRefund };
       const newTiles = [...state.tiles];
-      newTiles[tileId] = { ...tile, isMortgaged: true };
+      newTiles[tileId] = { ...tile, isMortgaged: true, buildingCount: 0 };
+      const logMsg = tile.buildingCount > 0
+        ? `${newPlayers[pIdx].name} sold ${tile.buildingCount} building(s) on ${tile.name} (+$${buildingRefund}) and mortgaged it (+$${mortgageValue}).`
+        : `${newPlayers[pIdx].name} mortgaged ${tile.name} (+$${mortgageValue}).`;
       return withSound(
-        {
-          ...state,
-          players: newPlayers,
-          tiles: newTiles,
-          logs: addLog(state.logs, `${newPlayers[pIdx].name} mortgaged ${tile.name} (+$${mortgageValue}).`),
-        },
+        { ...state, players: newPlayers, tiles: newTiles, logs: addLog(state.logs, logMsg) },
         'buy'
       );
     }
