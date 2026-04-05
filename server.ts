@@ -408,14 +408,16 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       // Transfer host reference if this player was host
       if (room.host === oldId) {
         room.host = socket.id;
+        player.isHost = true; // ensure flag matches host status
       }
 
       socket.join(roomId);
 
-      // Auto-promote: if the room's host slot has no active player (stale id or disconnected),
-      // make the reconnecting player host. Covers the reload-alone-in-room scenario.
+      // Auto-promote: if the room's host slot has no active player (stale id, disconnected,
+      // or a zombie player whose socket never completed join_session), promote this player.
       const currentHostPlayer = room.players.find((p: any) => p.id === room.host);
-      if (!currentHostPlayer || currentHostPlayer.disconnected) {
+      const hostSocketActive = io.sockets.sockets.has(room.host);
+      if (!currentHostPlayer || currentHostPlayer.disconnected || !hostSocketActive) {
         room.players.forEach((p: any) => { p.isHost = false; });
         player.isHost = true;
         room.host = socket.id;
