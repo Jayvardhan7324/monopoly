@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/Users/jayva/Downloads/monopoly -not -path */node_modules/* -not -path */.git/* -not -path */dist/* -type f)"
+      "Bash(find /c/Users/jayva/Downloads/monopoly -not -path */node_modules/* -not -path */.git/* -not -path */dist/* -type f)",
+      "Bash(find C:Usersjayvadownloadsmonopoly -type f -name *.js -o -name *.json -o -name *.py -o -name *.java -o -name *.ts -o -name *.tsx)",
+      "Bash(grep -r \"Unlock\\\\|AlertCircle\" /c/Users/jayva/downloads/monopoly/components --include=*.tsx)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_run_code",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_click",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_tabs",
+      "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "mcp__plugin_context-mode_context-mode__ctx_execute_file",
+      "Bash(npm run:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)"
     ]
   }
 }
