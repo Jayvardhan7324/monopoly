@@ -212,10 +212,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
 
       let players: Player[] = [];
-      // BUG-09: Derive bot colors by excluding colors already used by human players
-      const humanPlayers = players;
-      const usedColors = new Set(humanPlayers.map((p: any) => p.color));
-      const availableBotColors = PLAYER_COLORS.filter(c => !usedColors.has(c));
 
       if (lobbyPlayers && lobbyPlayers.length > 0) {
         // Online multiplayer setup
@@ -248,6 +244,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           },
         ];
       }
+
+      // BUG-09 FIX: Compute usedColors AFTER players is populated — previously snapshot
+      // an empty array so bots always started from index 0, colliding with humans.
+      const usedColors = new Set(players.map(p => p.color));
+      const availableBotColors = PLAYER_COLORS.filter(c => !usedColors.has(c));
 
       const botCount = settings.allowBots ? settings.maxPlayers - players.length : 0;
 
