@@ -3,6 +3,7 @@
  *
  * Bug fixes applied:
  *  BUG-01  Bankruptcy now triggers mid-turn in PAY_RENT; assets forfeited (IMP-01)
+ *  BUG-02  B2: UPGRADE_PROPERTY blocked if any group tile is mortgaged
  *  BUG-04  turnLogs now resets ONLY on END_TURN action, not on phase cycling
  *  BUG-05  "Go to prison" tile now resets doublesCount & lastDiceRollDoubles
  *  BUG-06  Auction timer effect guarded by winnerId in App.tsx (flag set here)
@@ -900,6 +901,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const groupTiles = state.tiles.filter(t => t.group === tile.group);
       const hasMonopoly = groupTiles.every(t => t.ownerId === player.id);
       if (!hasMonopoly) return state;
+
+      // B2: Cannot build while any property in the color group is mortgaged
+      if (groupTiles.some(t => t.isMortgaged)) return state;
 
       if (state.settings.rules.evenBuild) {
         const minBuildings = Math.min(...groupTiles.map(t => t.buildingCount));

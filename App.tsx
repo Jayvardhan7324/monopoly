@@ -22,7 +22,6 @@ import {
 } from './constants';
 import { Avatar, APPEARANCE_COLORS } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
-import { Label } from './components/ui/label';
 import { Button } from './components/ui/button';
 import {
   DropdownMenu,
@@ -66,9 +65,10 @@ const App: React.FC = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [sessionPlayerId, setSessionPlayerId] = useState<string | null>(null);
-  const [savedSession, setSavedSession] = useState<{ playerId: string; roomId: string } | null>(() => {
+  const [savedSession, setSavedSession] = useState<{ playerId: string; roomId: string; playerName?: string; savedAt?: number } | null>(() => {
     try { return JSON.parse(localStorage.getItem('richup_session') || 'null'); } catch { return null; }
   });
+  const [showRulesModal, setShowRulesModal] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
@@ -122,24 +122,37 @@ const App: React.FC = () => {
   // Tracks whether isOnline=true was set from a session restore (reload) vs new join
   const isSessionRestoreRef = useRef(false);
 
-  // Reconnect after page refresh — only restores an existing session, never auto-joins new players
+  // B6: Reconnect after page refresh — works from any URL, not just /room/XXX paths
   useEffect(() => {
     if (autoJoinAttemptedRef.current) return;
+    const stored: { playerId?: string; roomId?: string; playerName?: string; savedAt?: number } | null =
+      JSON.parse(localStorage.getItem('richup_session') || 'null');
     const pathMatch = window.location.pathname.match(/^\/room\/([A-Z0-9]+)$/i);
     const roomFromUrl = pathMatch?.[1] || new URLSearchParams(window.location.search).get('room');
-    if (!roomFromUrl) return;
-    autoJoinAttemptedRef.current = true;
-    const cleanId = roomFromUrl.toUpperCase();
-    const stored = JSON.parse(localStorage.getItem('richup_session') || 'null');
-    if (stored?.roomId === cleanId && stored?.playerId) {
-      // Restore session on reload — socket will reconnect via join_session
-      isSessionRestoreRef.current = true;
-      setIsOnline(true);
-      setRoomId(cleanId);
-      setSessionPlayerId(stored.playerId);
-    } else {
-      // No stored session — clear the URL, player must enter room code manually
-      window.history.replaceState({}, '', '/');
+
+    if (roomFromUrl) {
+      // URL-based restore (e.g. shared link or reload on /room/XXXX)
+      autoJoinAttemptedRef.current = true;
+      const cleanId = roomFromUrl.toUpperCase();
+      if (stored?.roomId === cleanId && stored?.playerId) {
+        isSessionRestoreRef.current = true;
+        setIsOnline(true);
+        setRoomId(cleanId);
+        setSessionPlayerId(stored.playerId);
+      } else {
+        window.history.replaceState({}, '', '/');
+      }
+    } else if (stored?.playerId && stored?.roomId) {
+      // B6: No room URL but have a recent session — auto-rejoin if < 30 min old
+      const sessionAge = stored.savedAt ? Date.now() - stored.savedAt : Infinity;
+      if (sessionAge < 30 * 60 * 1000) {
+        autoJoinAttemptedRef.current = true;
+        isSessionRestoreRef.current = true;
+        setIsOnline(true);
+        setRoomId(stored.roomId);
+        setSessionPlayerId(stored.playerId);
+        window.history.pushState({}, '', `/room/${stored.roomId}`);
+      }
     }
   }, []);
 
@@ -462,6 +475,28 @@ const App: React.FC = () => {
     };
   }, [gameState.phase, gameState.auction?.timer, gameState.auction?.highestBidderId, gameState.winnerId, isOnline, isHost]);
 
+  // F13: Keyboard shortcuts — Space=roll, B=buy, E=end turn, A=auction
+  useEffect(() => {
+    if (!gameStarted || gameState.winnerId !== null) return;
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (currentPlayer?.id !== myPlayerId || currentPlayer?.isBot) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Space' && gameState.phase === 'ROLL') {
+        e.preventDefault();
+        handleDispatch({ type: 'ROLL_DICE' });
+      } else if ((e.key === 'b' || e.key === 'B') && gameState.phase === 'ACTION') {
+        handleDispatch({ type: 'BUY_PROPERTY' });
+      } else if ((e.key === 'a' || e.key === 'A') && gameState.phase === 'ACTION') {
+        handleDispatch({ type: 'START_AUCTION' });
+      } else if ((e.key === 'e' || e.key === 'E') && (gameState.phase === 'TURN_END' || gameState.phase === 'ACTION')) {
+        handleDispatch({ type: 'END_TURN' });
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [gameStarted, gameState.phase, gameState.currentPlayerIndex, gameState.winnerId, myPlayerId]);
+
   const handleStartGame = () => {
     // In spectator mode, make all players bots
     const effectiveSettings = spectatorMode
@@ -503,7 +538,7 @@ const App: React.FC = () => {
         setIsHost(true);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
+        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         if (isPrivate) {
           setSettings(prev => ({ ...prev, isPrivate: true }));
         }
@@ -536,7 +571,7 @@ const App: React.FC = () => {
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
+        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.replaceState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join room");
@@ -564,7 +599,7 @@ const App: React.FC = () => {
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
-        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId }));
+        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.pushState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join random room");
@@ -1385,26 +1420,35 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {savedSession && (
-                          <div className="w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Previous game found</p>
-                              <p className="text-xs text-slate-300 font-mono mt-0.5">Room: <span className="font-black text-white">{savedSession.roomId}</span></p>
+                        {savedSession && (() => {
+                          const minsLeft = savedSession.savedAt
+                            ? Math.max(0, Math.floor((30 * 60 * 1000 - (nowTs - savedSession.savedAt)) / 60000))
+                            : 30;
+                          return minsLeft > 0 ? (
+                            <div className="w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Game in progress</p>
+                                <p className="text-xs text-slate-300 font-mono mt-0.5">
+                                  Room: <span className="font-black text-white">{savedSession.roomId}</span>
+                                  {savedSession.playerName && <span className="text-slate-500"> · {savedSession.playerName}</span>}
+                                </p>
+                                <p className="text-[9px] text-amber-400 font-bold mt-0.5">{minsLeft} min left to rejoin</p>
+                              </div>
+                              <button
+                                onClick={handleRejoin}
+                                className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black uppercase tracking-widest rounded-lg transition-colors active:scale-95 shrink-0"
+                              >
+                                Rejoin
+                              </button>
+                              <button
+                                onClick={() => { localStorage.removeItem('richup_session'); setSavedSession(null); }}
+                                className="p-1 text-slate-500 hover:text-slate-300 transition-colors shrink-0"
+                              >
+                                <X size={14} />
+                              </button>
                             </div>
-                            <button
-                              onClick={handleRejoin}
-                              className="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black uppercase tracking-widest rounded-lg transition-colors active:scale-95 shrink-0"
-                            >
-                              Rejoin
-                            </button>
-                            <button
-                              onClick={() => { localStorage.removeItem('richup_session'); setSavedSession(null); }}
-                              className="p-1 text-slate-500 hover:text-slate-300 transition-colors shrink-0"
-                            >
-                              <X size={14} />
-                            </button>
-                          </div>
-                        )}
+                          ) : null;
+                        })()}
 
                         <button
                           onClick={joinRandomRoom}
@@ -1684,15 +1728,27 @@ const App: React.FC = () => {
                       );
                     })()}
 
-                    <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
-                      <Users size={16} className="text-indigo-400" />
-                      <span className="text-sm font-bold text-slate-300">{lobbyPlayers.length} / {settings.maxPlayers} Players</span>
-                      {settings.allowBots && Math.max(0, settings.maxPlayers - lobbyPlayers.length - kickedBotIds.size) > 0 && (
-                        <span className="flex items-center gap-1 text-[10px] text-violet-400 font-bold">
-                          <Bot size={11} /> {Math.max(0, settings.maxPlayers - lobbyPlayers.length - kickedBotIds.size)} bots
-                        </span>
-                      )}
-                    </div>
+                    {(() => {
+                      const humanCount = lobbyPlayers.filter((p: any) => !p.isSpectator).length;
+                      const spectatorCount = lobbyPlayers.filter((p: any) => p.isSpectator).length;
+                      const botCount = settings.allowBots ? Math.max(0, settings.maxPlayers - humanCount - kickedBotIds.size) : 0;
+                      return (
+                        <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
+                          <Users size={16} className="text-indigo-400" />
+                          <span className="text-sm font-bold text-slate-300">{humanCount} / {settings.maxPlayers} Players</span>
+                          {botCount > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-violet-400 font-bold">
+                              <Bot size={11} /> {botCount} bots
+                            </span>
+                          )}
+                          {spectatorCount > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold">
+                              <Eye size={11} /> {spectatorCount}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </div>
@@ -1818,8 +1874,15 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Sound toggle + Leave button */}
+      {/* Sound toggle + Rules button */}
       <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button
+          onClick={() => setShowRulesModal(true)}
+          className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-indigo-400 transition-colors backdrop-blur-sm shadow-lg"
+          title="Rules reference"
+        >
+          <Info size={18} />
+        </button>
         <button
           onClick={() => setSoundEnabled(!soundEnabled)}
           className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-slate-200 transition-colors backdrop-blur-sm shadow-lg"
@@ -2321,6 +2384,76 @@ const App: React.FC = () => {
                   Confirm
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* F8: Rules reference modal */}
+        {showRulesModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowRulesModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl flex flex-col gap-5 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700"
+            >
+              <div className="flex items-center justify-between shrink-0">
+                <h3 className="text-lg font-black text-white flex items-center gap-2"><Info size={18} className="text-indigo-400" /> Rules Reference</h3>
+                <button onClick={() => setShowRulesModal(false)} className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"><X size={18} /></button>
+              </div>
+
+              {[
+                { title: 'Rent', rows: [
+                  ['No buildings (no monopoly)', 'Base rent'],
+                  ['No buildings (monopoly)', 'Base rent ×2 (if rule on)'],
+                  ['1 House', 'rent[1]'],
+                  ['2 Houses', 'rent[2]'],
+                  ['3 Houses', 'rent[3]'],
+                  ['4 Houses', 'rent[4]'],
+                  ['Hotel (5)', 'rent[5]'],
+                ]},
+                { title: 'Railroads', rows: [
+                  ['1 owned', '$25'],
+                  ['2 owned', '$50'],
+                  ['3 owned', '$100'],
+                  ['4 owned', '$200'],
+                ]},
+                { title: 'Utilities', rows: [
+                  ['1 owned', 'Dice × 4'],
+                  ['2 owned', 'Dice × 10'],
+                ]},
+                { title: 'Mortgage', rows: [
+                  ['Mortgage value', '50% of price'],
+                  ['Unmortgage cost', '55% of price'],
+                  ['Cannot build if mortgaged', '—'],
+                ]},
+                { title: 'Jail', rows: [
+                  ['Fine to leave', '$50'],
+                  ['Max turns in jail', '3'],
+                  ['3 doubles → sent to jail', '—'],
+                ]},
+                { title: 'Keyboard Shortcuts', rows: [
+                  ['Space', 'Roll dice'],
+                  ['B', 'Buy property'],
+                  ['A', 'Start auction'],
+                  ['E', 'End turn'],
+                ]},
+              ].map(section => (
+                <div key={section.title}>
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">{section.title}</p>
+                  <div className="rounded-xl overflow-hidden border border-slate-800">
+                    {section.rows.map(([label, value], i) => (
+                      <div key={i} className={`flex items-center justify-between px-3 py-2 text-xs ${i % 2 === 0 ? 'bg-slate-900/60' : 'bg-slate-900/30'}`}>
+                        <span className="text-slate-400">{label}</span>
+                        <span className="font-bold text-slate-200">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </motion.div>
           </motion.div>
         )}
