@@ -1109,19 +1109,19 @@ const App: React.FC = () => {
   if (!gameStarted) {
     if (!isOnline) {
       return (
-        <div className="relative">
-        {/* Static left ad — sits in page flow, scrolls away with content */}
+        <div className="flex flex-row">
+        {/* Left ad sidebar — standard 160×600 placement */}
         {!showRoomBrowser && (
-          <div className="hidden lg:flex absolute left-0 top-0 h-full w-36 z-[5] flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
-            <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
-            <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
+          <div className="hidden lg:flex w-40 shrink-0 flex-col items-center pt-10 gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
+            <span className="text-[7px] font-bold text-slate-600 uppercase tracking-widest">Ad</span>
+            <div className="w-full h-[600px] bg-slate-800/10 rounded-xl border border-slate-800/30" />
           </div>
         )}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25 }}
-          className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto"
+          className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto flex-1"
         >
           {/* Creating room overlay */}
           <AnimatePresence>
