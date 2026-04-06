@@ -143,9 +143,9 @@ const App: React.FC = () => {
         window.history.replaceState({}, '', '/');
       }
     } else if (stored?.playerId && stored?.roomId) {
-      // B6: No room URL but have a recent session — auto-rejoin if < 30 min old
+      // B6: No room URL but have a recent session — auto-rejoin if < 5 min old
       const sessionAge = stored.savedAt ? Date.now() - stored.savedAt : Infinity;
-      if (sessionAge < 30 * 60 * 1000) {
+      if (sessionAge < 5 * 60 * 1000) {
         autoJoinAttemptedRef.current = true;
         isSessionRestoreRef.current = true;
         setIsOnline(true);
@@ -267,6 +267,19 @@ const App: React.FC = () => {
     const handleSocketConnect = () => setIsSocketDisconnected(false);
     const handleYouAreHost = () => setIsHost(true); // B4: server promotes us to host after original host permanently left
 
+    const handleSessionRejected = () => {
+      localStorage.removeItem('richup_session');
+      setSavedSession(null);
+      resetSocket();
+      setIsOnline(false);
+      setRoomId(null);
+      setSessionPlayerId(null);
+      setIsHost(false);
+      setLobbyPlayers([]);
+      setGameStarted(false);
+      window.history.replaceState({}, '', '/');
+    };
+
     socket.on("room_updated", handleRoomUpdated);
     socket.on("game_started", handleGameStarted);
     socket.on("host_process_action", handleHostProcessAction);
@@ -280,6 +293,7 @@ const App: React.FC = () => {
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
     socket.on("you_are_host", handleYouAreHost);
+    socket.on("session_rejected", handleSessionRejected);
 
     return () => {
       socket.off("room_updated", handleRoomUpdated);
@@ -295,6 +309,7 @@ const App: React.FC = () => {
       socket.off("you_are_host", handleYouAreHost);
       socket.off("connect", handleSocketConnect);
       socket.off("connect_error", handleSocketDisconnect);
+      socket.off("session_rejected", handleSessionRejected);
     };
   }, [roomId, sessionPlayerId]);
 
@@ -1422,8 +1437,8 @@ const App: React.FC = () => {
 
                         {savedSession && (() => {
                           const minsLeft = savedSession.savedAt
-                            ? Math.max(0, Math.floor((30 * 60 * 1000 - (nowTs - savedSession.savedAt)) / 60000))
-                            : 30;
+                            ? Math.max(0, Math.floor((5 * 60 * 1000 - (nowTs - savedSession.savedAt)) / 60000))
+                            : 5;
                           return minsLeft > 0 ? (
                             <div className="w-full bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-4 py-3 flex items-center gap-3">
                               <div className="flex-1 min-w-0">
@@ -2067,7 +2082,7 @@ const App: React.FC = () => {
                     {player.isBot && <span className="text-[8px] bg-slate-800 text-slate-500 px-1 rounded-sm border border-slate-700">AI</span>}
                     {/* I5: Disconnected countdown — 2 min window */}
                     {(player as any).disconnected && (player as any).disconnectedAt && (() => {
-                      const secondsLeft = Math.max(0, 30 * 60 - Math.floor((nowTs - (player as any).disconnectedAt) / 1000));
+                      const secondsLeft = Math.max(0, 5 * 60 - Math.floor((nowTs - (player as any).disconnectedAt) / 1000));
                       return secondsLeft > 0
                         ? <span className="text-[8px] font-mono text-amber-400 animate-pulse ml-0.5">{Math.floor(secondsLeft / 60)}:{String(secondsLeft % 60).padStart(2, '0')}</span>
                         : <span className="text-[8px] text-slate-600 ml-0.5">away</span>;

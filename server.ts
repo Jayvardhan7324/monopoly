@@ -102,7 +102,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       io.emit('rooms_list', getPublicRoomsList());
     }, 50);
   }
-  const RECONNECT_WINDOW_MS = 30 * 60 * 1000; // 30 minutes per-player reconnect window
+  const RECONNECT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes per-player reconnect window
   const ROOM_IDLE_TTL = 10 * 60 * 1000; // 10 minutes — room deleted if all players disconnected
 
   // Background GC: delete zombie rooms every 15 min
@@ -368,6 +368,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       const room = rooms.get(roomId);
 
       if (!room) {
+        socket.emit("session_rejected", { error: "Room not found" });
         if (callback) callback({ success: false, error: "Room not found" });
         return;
       }
@@ -379,6 +380,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       );
 
       if (playerIndex === -1) {
+        socket.emit("session_rejected", { error: "Player session not found in room" });
         if (callback) callback({ success: false, error: "Player session not found in room" });
         return;
       }
