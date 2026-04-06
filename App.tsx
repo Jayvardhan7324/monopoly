@@ -123,6 +123,7 @@ const App: React.FC = () => {
   const botBidFiringRef = useRef(false);
   // Tracks whether isOnline=true was set from a session restore (reload) vs new join
   const isSessionRestoreRef = useRef(false);
+  const isRestoringSessionRef = useRef(false);
 
   // B6: Reconnect after page refresh — works from any URL, not just /room/XXX paths
   useEffect(() => {
@@ -138,6 +139,7 @@ const App: React.FC = () => {
       const cleanId = roomFromUrl.toUpperCase();
       if (stored?.roomId === cleanId && stored?.playerId) {
         isSessionRestoreRef.current = true;
+        isRestoringSessionRef.current = true;
         setIsRestoringSession(true);
         setIsOnline(true);
         setRoomId(cleanId);
@@ -151,6 +153,7 @@ const App: React.FC = () => {
       if (sessionAge < 5 * 60 * 1000) {
         autoJoinAttemptedRef.current = true;
         isSessionRestoreRef.current = true;
+        isRestoringSessionRef.current = true;
         setIsRestoringSession(true);
         setIsOnline(true);
         setRoomId(stored.roomId);
@@ -174,9 +177,28 @@ const App: React.FC = () => {
   // Safety-net: clear loading screen after 5s in case sync_state never arrives (e.g. host refresh)
   useEffect(() => {
     if (!isRestoringSession) return;
-    const t = setTimeout(() => setIsRestoringSession(false), 5000);
+    const t = setTimeout(() => {
+      isRestoringSessionRef.current = false;
+      setIsRestoringSession(false);
+    }, 5000);
     return () => clearTimeout(t);
   }, [isRestoringSession]);
+
+  // On session restore, immediately apply cached game state so the board shows while waiting for server sync
+  useEffect(() => {
+    if (!isRestoringSession || !roomId) return;
+    try {
+      const cached = localStorage.getItem(`richup_game_${roomId}`);
+      if (cached) {
+        const s = JSON.parse(cached);
+        if (s && Array.isArray(s.players) && Array.isArray(s.tiles) && typeof s.phase === 'string') {
+          dispatch({ type: 'SYNC_STATE', payload: s });
+          setGameStarted(true);
+          // Keep isRestoringSession=true — server sync will clear it and overwrite with authoritative state
+        }
+      }
+    } catch {}
+  }, [isRestoringSession, roomId]);
 
   // Play sound proxy — respects toggle
   const sfx = (type: Parameters<typeof playSound>[0]) => {
@@ -242,9 +264,11 @@ const App: React.FC = () => {
       typeof s.phase === 'string' && typeof s.currentPlayerIndex === 'number';
 
     const handleSyncState = (data: any) => {
-      if (!isHostRef.current && data.state && isValidGameState(data.state)) {
+      // Accept sync when: not the host (normal), OR restoring session (host promoted on reconnect)
+      if ((!isHostRef.current || isRestoringSessionRef.current) && data.state && isValidGameState(data.state)) {
         dispatch({ type: 'SYNC_STATE', payload: data.state });
         setGameStarted(true);
+        isRestoringSessionRef.current = false;
         setIsRestoringSession(false);
       }
     };
@@ -283,8 +307,10 @@ const App: React.FC = () => {
 
     const handleSessionRejected = () => {
       localStorage.removeItem('richup_session');
+      if (roomId) localStorage.removeItem(`richup_game_${roomId}`);
       setSavedSession(null);
       resetSocket();
+      isRestoringSessionRef.current = false;
       setIsRestoringSession(false);
       setIsOnline(false);
       setRoomId(null);
@@ -663,6 +689,7 @@ const App: React.FC = () => {
     if (socket) socket.emit("leave_room");
     resetSocket();
     localStorage.removeItem('richup_session');
+    if (roomId) localStorage.removeItem(`richup_game_${roomId}`);
     setSavedSession(null);
     dispatch({ type: 'RESET_GAME' });
     startGameBroadcastedRef.current = false;
@@ -721,6 +748,10 @@ const App: React.FC = () => {
           savedAt: Date.now(),
           turnCount: gameState.turnCount,
         }));
+      }
+      // Cache full game state so page refresh can restore instantly before server sync arrives
+      if (roomId) {
+        localStorage.setItem(`richup_game_${roomId}`, JSON.stringify(gameState));
       }
     } catch {}
   }, [gameState.turnCount]); // eslint-disable-line react-hooks/exhaustive-deps
