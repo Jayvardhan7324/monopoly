@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
+// Boneyard skeleton registry — populated after running: npx boneyard-js build
+if (typeof window !== 'undefined') {
+  import('./bones/registry').catch(() => { /* bones not yet generated — run npx boneyard-js build */ });
+}
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

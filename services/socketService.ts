@@ -8,16 +8,17 @@ export const initSocket = (roomId: string, playerId: string) => {
       transports: ["websocket"],
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 500,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 8000,
     });
 
     socket.connect();
 
     socket.on("connect", () => {
-      // Always re-read from sessionStorage so reconnects after transport drop
+      // Always re-read from localStorage so reconnects after transport drop
       // use the latest roomId/playerId, not stale closure values (NET-02).
-      const stored = sessionStorage.getItem('richup_session');
+      const stored = localStorage.getItem('richup_session');
       const session = stored ? JSON.parse(stored) : null;
       const sid = session?.playerId || playerId;
       const rid = session?.roomId || roomId;

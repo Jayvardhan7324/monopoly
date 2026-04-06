@@ -113,6 +113,7 @@ export interface TradeOffer {
   offerPropertyIds: number[];
   targetPropertyId: number;
   requestCash: number;
+  botDecision?: 'accept' | 'decline'; // pre-computed for bot targets, auto-resolved after delay
 }
 
 export interface VotekickState {

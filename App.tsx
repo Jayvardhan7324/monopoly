@@ -16,6 +16,7 @@ import {
   TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff
 } from 'lucide-react';
 import { playSound } from './services/audioService';
+import { Skeleton } from 'boneyard-js/react';
 import {
   INITIAL_TILES,
   PLAYER_COLORS,
@@ -485,6 +486,17 @@ const App: React.FC = () => {
     gameState.turnLogs.length,
     gameState.pendingTrade
   ]);
+
+  // ── Auto-resolve bot-target trades after a brief delay so all players see it ─
+  useEffect(() => {
+    const trade = gameState.pendingTrade;
+    if (!trade?.botDecision) return;
+    if (isOnline && !isHost) return; // Only host resolves bot trades
+    const t = setTimeout(() => {
+      handleDispatch({ type: trade.botDecision === 'accept' ? 'ACCEPT_TRADE' : 'DECLINE_TRADE' });
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [gameState.pendingTrade?.proposerId, gameState.pendingTrade?.targetId, gameState.pendingTrade?.botDecision]);
 
   // ── Bot auction bids (IMP-11: via botService, BUG-11: ref guard) ───────────
   // RACE-02: Use a stable timer ref so cleanup always cancels the correct timeout
@@ -1298,12 +1310,41 @@ const App: React.FC = () => {
 
           {/* Auto-join loading overlay */}
           {isAutoJoining && (
-            <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-[#111116]/95 backdrop-blur-sm gap-4">
-              <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                <Dices size={40} className="text-indigo-400" />
-              </motion.div>
-              <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Joining room…</p>
-            </div>
+            <Skeleton
+              name="lobby-joining"
+              loading={true}
+              animate="shimmer"
+              darkColor="rgba(255,255,255,0.06)"
+              className="absolute inset-0 z-[200]"
+              fallback={
+                <div className="absolute inset-0 z-[200] flex flex-col gap-3 p-6 bg-[#111116]/95 backdrop-blur-sm">
+                  <div className="h-10 w-48 rounded-xl bg-white/5 animate-pulse mx-auto mt-8" />
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-14 rounded-2xl bg-white/5 animate-pulse" />
+                  ))}
+                  <div className="h-10 rounded-xl bg-indigo-500/20 animate-pulse mt-2" />
+                </div>
+              }
+              fixture={
+                <div className="absolute inset-0 z-[200] flex flex-col gap-3 p-6 bg-[#111116]/95">
+                  <div className="h-10 w-48 rounded-xl bg-[#1e1e24] mx-auto mt-8" />
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-14 rounded-2xl bg-[#1e1e24] flex items-center gap-3 px-4">
+                      <div className="w-9 h-9 rounded-full bg-slate-700" />
+                      <div className="flex-1 h-4 rounded-lg bg-slate-700" />
+                    </div>
+                  ))}
+                  <div className="h-10 rounded-xl bg-indigo-900/40 mt-2" />
+                </div>
+              }
+            >
+              <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-[#111116]/95 backdrop-blur-sm gap-4">
+                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                  <Dices size={40} className="text-indigo-400" />
+                </motion.div>
+                <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Joining room…</p>
+              </div>
+            </Skeleton>
           )}
 
           {/* Top Navigation Bar */}
@@ -1639,22 +1680,55 @@ const App: React.FC = () => {
     // Session restore loading screen — shown while rejoining an in-progress game
     if (isRestoringSession) {
       return (
-        <div className="fixed inset-0 z-[999] bg-[#111116] flex flex-col items-center justify-center gap-6">
-          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-            <Dices size={48} className="text-indigo-400" />
-          </motion.div>
-          <div className="flex flex-col items-center gap-1">
-            <p className="text-white font-black text-xl tracking-tight">Rejoining game…</p>
-            <p className="text-slate-500 text-sm">Restoring your session</p>
+        <Skeleton
+          name="game-restore"
+          loading={true}
+          animate="shimmer"
+          darkColor="rgba(255,255,255,0.06)"
+          fallback={
+            <div className="fixed inset-0 bg-[#111116] flex flex-col items-center justify-center gap-4 p-6">
+              <div className="w-full max-w-[600px] aspect-square rounded-2xl bg-white/5 animate-pulse" />
+              <div className="flex gap-3 mt-2">
+                {[80, 120, 80].map((w, i) => (
+                  <div key={i} className="h-8 rounded-xl bg-white/5 animate-pulse" style={{ width: w }} />
+                ))}
+              </div>
+            </div>
+          }
+          fixture={
+            <div className="fixed inset-0 bg-[#111116] flex flex-col items-center justify-center gap-4 p-6">
+              <div className="w-full max-w-[600px] aspect-square rounded-2xl bg-[#1a212e]">
+                <div className="w-full h-full grid grid-cols-11 grid-rows-11 gap-[1.5px] p-[1.5px]">
+                  {Array.from({ length: 40 }).map((_, i) => (
+                    <div key={i} className="bg-[#2a303c] rounded-[4px]" />
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="w-20 h-8 bg-[#1e1e24] rounded-xl" />
+                <div className="w-32 h-8 bg-[#1e1e24] rounded-xl" />
+                <div className="w-20 h-8 bg-[#1e1e24] rounded-xl" />
+              </div>
+            </div>
+          }
+        >
+          <div className="fixed inset-0 z-[999] bg-[#111116] flex flex-col items-center justify-center gap-6">
+            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+              <Dices size={48} className="text-indigo-400" />
+            </motion.div>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-white font-black text-xl tracking-tight">Rejoining game…</p>
+              <p className="text-slate-500 text-sm">Restoring your session</p>
+            </div>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map(i => (
+                <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-500"
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.4 }} />
+              ))}
+            </div>
           </div>
-          <div className="flex gap-1.5">
-            {[0, 1, 2].map(i => (
-              <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-500"
-                animate={{ opacity: [0.3, 1, 0.3] }}
-                transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.4 }} />
-            ))}
-          </div>
-        </div>
+        </Skeleton>
       );
     }
 
@@ -1835,23 +1909,50 @@ const App: React.FC = () => {
               </h3>
               <span className="text-[10px] font-bold text-slate-600">{lobbyPlayers.length}/{settings.maxPlayers}</span>
             </div>
-            {lobbyPlayers.map((player: any) => (
-              <div key={player.id} className="flex items-center gap-3">
-                <Avatar avatarId={player.avatar ?? 0} className="w-8 h-8 shrink-0" />
-                <span className="text-sm font-bold text-slate-200 truncate flex-1">{player.name}</span>
-                {player.isHost && <Crown size={13} className="text-amber-400 shrink-0" />}
-                {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
-                {isHost && !player.isHost && player.id !== sessionPlayerId && (
-                  <button
-                    onClick={() => getSocket()?.emit('kick_player', { playerId: player.id })}
-                    className="p-1 text-slate-600 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-950/30"
-                    title={`Kick ${player.name}`}
-                  >
-                    <UserX size={12} />
-                  </button>
-                )}
-              </div>
-            ))}
+            <Skeleton
+              name="lobby-players"
+              loading={lobbyPlayers.length === 0}
+              animate="shimmer"
+              darkColor="rgba(255,255,255,0.06)"
+              fallback={
+                <div className="flex flex-col gap-3">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white/5 animate-pulse shrink-0" />
+                      <div className="flex-1 h-4 rounded-lg bg-white/5 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              }
+              fixture={
+                <div className="flex flex-col gap-3">
+                  {['Player 1', 'Player 2', 'Player 3'].map(name => (
+                    <div key={name} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-700 shrink-0" />
+                      <span className="text-sm font-bold text-slate-200 flex-1">{name}</span>
+                    </div>
+                  ))}
+                </div>
+              }
+            >
+              {lobbyPlayers.map((player: any) => (
+                <div key={player.id} className="flex items-center gap-3">
+                  <Avatar avatarId={player.avatar ?? 0} className="w-8 h-8 shrink-0" />
+                  <span className="text-sm font-bold text-slate-200 truncate flex-1">{player.name}</span>
+                  {player.isHost && <Crown size={13} className="text-amber-400 shrink-0" />}
+                  {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
+                  {isHost && !player.isHost && player.id !== sessionPlayerId && (
+                    <button
+                      onClick={() => getSocket()?.emit('kick_player', { playerId: player.id })}
+                      className="p-1 text-slate-600 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-950/30"
+                      title={`Kick ${player.name}`}
+                    >
+                      <UserX size={12} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </Skeleton>
             {/* Bot slots — shown when allowBots is on */}
             {(() => {
               const realCount = lobbyPlayers.length;
@@ -2263,7 +2364,9 @@ const App: React.FC = () => {
                 )}
                 <span className="text-slate-500">for {gameState.tiles[gameState.pendingTrade.targetPropertyId]?.name}</span>
               </div>
-              {gameState.pendingTrade.proposerId === myPlayerId ? (
+              {gameState.pendingTrade.botDecision ? (
+                <p className="text-[9px] text-slate-500 italic">Bot is deciding…</p>
+              ) : gameState.pendingTrade.proposerId === myPlayerId ? (
                 <button
                   onClick={() => handleDispatch({ type: 'CANCEL_TRADE' })}
                   className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest transition-colors"
@@ -2290,27 +2393,6 @@ const App: React.FC = () => {
                   </div>
                 </>
               )}
-            </div>
-          ) : gameState.lastTradeLog ? (
-            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 space-y-1.5">
-              <div className="flex items-center justify-between gap-1">
-                <div className="text-[10px] text-slate-300 font-bold leading-tight">
-                  {gameState.lastTradeLog.proposerName} → {gameState.lastTradeLog.targetName}
-                </div>
-                <span className={`text-[8px] font-black uppercase tracking-widest shrink-0 px-1.5 py-0.5 rounded ${
-                  gameState.lastTradeLog.result === 'accepted' ? 'bg-emerald-500/20 text-emerald-400' :
-                  gameState.lastTradeLog.result === 'declined' ? 'bg-rose-500/20 text-rose-400' :
-                  'bg-slate-700 text-slate-400'
-                }`}>{gameState.lastTradeLog.result}</span>
-              </div>
-              <div className="text-[9px] text-slate-500 flex flex-wrap gap-1">
-                {gameState.lastTradeLog.offerCash > 0 && <span className="text-emerald-400/70">+${gameState.lastTradeLog.offerCash}</span>}
-                {gameState.lastTradeLog.requestCash > 0 && <span className="text-rose-400/70">-${gameState.lastTradeLog.requestCash}</span>}
-                {gameState.lastTradeLog.offerPropertyCount > 0 && (
-                  <span className="text-indigo-300/70">{gameState.lastTradeLog.offerPropertyCount} prop{gameState.lastTradeLog.offerPropertyCount > 1 ? 's' : ''}</span>
-                )}
-                <span className="text-slate-600">for {gameState.lastTradeLog.targetPropertyName}</span>
-              </div>
             </div>
           ) : (
             <p className="text-[10px] text-slate-500 text-center py-1">No pending trades. Open a property to propose one.</p>

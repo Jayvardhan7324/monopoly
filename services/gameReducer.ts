@@ -1122,50 +1122,24 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (helpsBotCompleteSet) threshold = 0.5;
       }
 
-      if (botGainValue >= (botLossValue + proposerMonopolyPenalty) * threshold) {
-        const newPlayers = state.players.map(p => {
-          if (p.id === proposer.id) return { ...p, money: p.money - offerCash + requestCash };
-          if (p.id === bot.id) return { ...p, money: p.money + offerCash - requestCash };
-          return p;
-        });
-        const newTiles = state.tiles.map(t => {
-          if (t.id === targetTileId) return { ...t, ownerId: proposer.id };
-          if (offerPropertyIds.includes(t.id)) return { ...t, ownerId: bot.id };
-          return t;
-        });
-        const acceptedTradeLog: TradeLog = {
-          proposerName: proposer.name,
-          targetName: bot.name,
-          result: 'accepted',
-          offerCash,
-          requestCash,
-          offerPropertyCount: offerPropertyIds.length,
-          targetPropertyName: targetTile.name,
-        };
-        return withSound(
-          {
-            ...state,
-            players: newPlayers,
-            tiles: newTiles,
-            lastTradeLog: acceptedTradeLog,
-            logs: addLog(state.logs, `Trade accepted by ${bot.name}!`),
-          },
-          'trade_accept'
-        );
-      }
-
-      const declinedTradeLog: TradeLog = {
-        proposerName: proposer.name,
-        targetName: bot.name,
-        result: 'declined',
-        offerCash,
-        requestCash,
-        offerPropertyCount: offerPropertyIds.length,
-        targetPropertyName: targetTile.name,
-      };
+      // Bot decision is pre-computed here but resolved via App.tsx after a 1.5s delay
+      // so all players can see the trade in the trades section before it resolves.
+      const botAccepts = botGainValue >= (botLossValue + proposerMonopolyPenalty) * threshold;
       return withSound(
-        { ...state, lastTradeLog: declinedTradeLog, logs: addLog(state.logs, `Trade rejected by ${bot.name}. Offer insufficient.`) },
-        'trade_decline'
+        {
+          ...state,
+          pendingTrade: {
+            proposerId: proposer.id,
+            targetId: bot.id,
+            offerCash,
+            offerPropertyIds,
+            targetPropertyId: targetTileId,
+            requestCash,
+            botDecision: botAccepts ? 'accept' : 'decline',
+          },
+          logs: addLog(state.logs, `${proposer.name} proposed a trade to ${bot.name}.`),
+        },
+        'trade_offer'
       );
     }
 
