@@ -1109,10 +1109,10 @@ const App: React.FC = () => {
   if (!gameStarted) {
     if (!isOnline) {
       return (
-        <>
-        {/* Fixed left ad — outside motion.div so CSS transforms don't break position:fixed */}
+        <div className="relative">
+        {/* Static left ad — sits in page flow, scrolls away with content */}
         {!showRoomBrowser && (
-          <div className="hidden lg:flex fixed left-0 top-0 h-screen w-36 z-[5] flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
+          <div className="hidden lg:flex absolute left-0 top-0 h-full w-36 z-[5] flex-col items-center justify-start gap-2 p-3 border-r border-slate-800/30 bg-[#0d0d12]/80">
             <span className="text-[7px] font-bold text-slate-800 uppercase tracking-widest mt-8">Ad</span>
             <div className="w-full flex-1 bg-slate-800/10 rounded-xl border border-slate-800/30" />
           </div>
@@ -1600,7 +1600,7 @@ const App: React.FC = () => {
             </AnimatePresence>
           </div>
         </motion.div>
-        </>
+        </div>
       );
     }
 
