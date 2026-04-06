@@ -121,6 +121,16 @@ export interface VotekickState {
   expiresAt: number;
 }
 
+export interface TradeLog {
+  proposerName: string;
+  targetName: string;
+  result: 'accepted' | 'declined' | 'cancelled';
+  offerCash: number;
+  requestCash: number;
+  offerPropertyCount: number;
+  targetPropertyName: string;
+}
+
 export interface GameState {
   players: Player[];
   tiles: Tile[];
@@ -138,6 +148,7 @@ export interface GameState {
   settings: GameSettings;
   auction: AuctionState | null;
   pendingTrade: TradeOffer | null;
+  lastTradeLog: TradeLog | null;
   votekicks: VotekickState[];
 }
 

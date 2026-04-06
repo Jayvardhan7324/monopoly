@@ -24,6 +24,7 @@ import {
   GameSettings,
   AuctionState,
   BotPersonalityType,
+  TradeLog,
 } from '../types';
 import {
   INITIAL_TILES,
@@ -83,6 +84,7 @@ export const initialState: GameState = {
   taxPool: 0,
   auction: null,
   pendingTrade: null,
+  lastTradeLog: null,
   votekicks: [],
   settings: {
     maxPlayers: 4,
@@ -1131,19 +1133,38 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           if (offerPropertyIds.includes(t.id)) return { ...t, ownerId: bot.id };
           return t;
         });
+        const acceptedTradeLog: TradeLog = {
+          proposerName: proposer.name,
+          targetName: bot.name,
+          result: 'accepted',
+          offerCash,
+          requestCash,
+          offerPropertyCount: offerPropertyIds.length,
+          targetPropertyName: targetTile.name,
+        };
         return withSound(
           {
             ...state,
             players: newPlayers,
             tiles: newTiles,
+            lastTradeLog: acceptedTradeLog,
             logs: addLog(state.logs, `Trade accepted by ${bot.name}!`),
           },
           'trade_accept'
         );
       }
 
+      const declinedTradeLog: TradeLog = {
+        proposerName: proposer.name,
+        targetName: bot.name,
+        result: 'declined',
+        offerCash,
+        requestCash,
+        offerPropertyCount: offerPropertyIds.length,
+        targetPropertyName: targetTile.name,
+      };
       return withSound(
-        { ...state, logs: addLog(state.logs, `Trade rejected by ${bot.name}. Offer insufficient.`) },
+        { ...state, lastTradeLog: declinedTradeLog, logs: addLog(state.logs, `Trade rejected by ${bot.name}. Offer insufficient.`) },
         'trade_decline'
       );
     }
@@ -1184,12 +1205,22 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         return t;
       });
 
+      const acceptLog: TradeLog = {
+        proposerName: proposer.name,
+        targetName: target.name,
+        result: 'accepted',
+        offerCash,
+        requestCash,
+        offerPropertyCount: offerPropertyIds.length,
+        targetPropertyName: state.tiles[targetPropertyId]?.name ?? '',
+      };
       return withSound(
         {
           ...state,
           players: newPlayers,
           tiles: newTiles,
           pendingTrade: null,
+          lastTradeLog: acceptLog,
           logs: addLog(state.logs, `Trade accepted by ${target.name}!`),
         },
         'trade_accept'
@@ -1201,10 +1232,21 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (state.winnerId !== null) return state;
       if (!state.pendingTrade) return state;
       const target = state.players.find(p => p.id === state.pendingTrade!.targetId)!;
+      const proposerForDecline = state.players.find(p => p.id === state.pendingTrade!.proposerId);
+      const declineLog: TradeLog = {
+        proposerName: proposerForDecline?.name ?? '',
+        targetName: target.name,
+        result: 'declined',
+        offerCash: state.pendingTrade.offerCash,
+        requestCash: state.pendingTrade.requestCash,
+        offerPropertyCount: state.pendingTrade.offerPropertyIds.length,
+        targetPropertyName: state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '',
+      };
       return withSound(
         {
           ...state,
           pendingTrade: null,
+          lastTradeLog: declineLog,
           logs: addLog(state.logs, `Trade declined by ${target.name}.`),
         },
         'trade_decline'
@@ -1215,8 +1257,18 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'CANCEL_TRADE': {
       if (!state.pendingTrade) return state;
       const proposerName = state.players.find(p => p.id === state.pendingTrade!.proposerId)?.name ?? 'A player';
+      const targetForCancel = state.players.find(p => p.id === state.pendingTrade!.targetId);
+      const cancelLog: TradeLog = {
+        proposerName,
+        targetName: targetForCancel?.name ?? '',
+        result: 'cancelled',
+        offerCash: state.pendingTrade.offerCash,
+        requestCash: state.pendingTrade.requestCash,
+        offerPropertyCount: state.pendingTrade.offerPropertyIds.length,
+        targetPropertyName: state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '',
+      };
       return withSound(
-        { ...state, pendingTrade: null, logs: addLog(state.logs, `${proposerName} cancelled their trade offer.`) },
+        { ...state, pendingTrade: null, lastTradeLog: cancelLog, logs: addLog(state.logs, `${proposerName} cancelled their trade offer.`) },
         'trade_decline'
       );
     }

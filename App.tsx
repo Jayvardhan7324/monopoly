@@ -2233,7 +2233,7 @@ const App: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-xs font-black uppercase tracking-widest text-slate-300 flex items-center gap-1.5">
               <Handshake size={13} className="text-indigo-400" /> Trades
-              {gameState.pendingTrade?.targetId === myPlayerId && (
+              {gameState.pendingTrade && (
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse shadow-[0_0_6px_rgba(244,63,94,0.7)]" />
               )}
             </span>
@@ -2249,7 +2249,7 @@ const App: React.FC = () => {
             <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 space-y-2">
               <div className="flex items-start justify-between gap-1">
                 <div className="text-[10px] text-indigo-300 font-bold leading-tight">
-                  Trade offer from {gameState.players.find(p => p.id === gameState.pendingTrade?.proposerId)?.name}
+                  {gameState.players.find(p => p.id === gameState.pendingTrade?.proposerId)?.name} → {gameState.players.find(p => p.id === gameState.pendingTrade?.targetId)?.name}
                 </div>
                 {tradePopupDismissed && gameState.pendingTrade.targetId === myPlayerId && (
                   <span className="text-[8px] font-bold text-amber-400 uppercase tracking-widest shrink-0">Dismissed</span>
@@ -2261,6 +2261,7 @@ const App: React.FC = () => {
                 {gameState.pendingTrade.offerPropertyIds.length > 0 && (
                   <span className="text-indigo-300">{gameState.pendingTrade.offerPropertyIds.length} prop{gameState.pendingTrade.offerPropertyIds.length > 1 ? 's' : ''} offered</span>
                 )}
+                <span className="text-slate-500">for {gameState.tiles[gameState.pendingTrade.targetPropertyId]?.name}</span>
               </div>
               {gameState.pendingTrade.proposerId === myPlayerId ? (
                 <button
@@ -2289,6 +2290,27 @@ const App: React.FC = () => {
                   </div>
                 </>
               )}
+            </div>
+          ) : gameState.lastTradeLog ? (
+            <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-1">
+                <div className="text-[10px] text-slate-300 font-bold leading-tight">
+                  {gameState.lastTradeLog.proposerName} → {gameState.lastTradeLog.targetName}
+                </div>
+                <span className={`text-[8px] font-black uppercase tracking-widest shrink-0 px-1.5 py-0.5 rounded ${
+                  gameState.lastTradeLog.result === 'accepted' ? 'bg-emerald-500/20 text-emerald-400' :
+                  gameState.lastTradeLog.result === 'declined' ? 'bg-rose-500/20 text-rose-400' :
+                  'bg-slate-700 text-slate-400'
+                }`}>{gameState.lastTradeLog.result}</span>
+              </div>
+              <div className="text-[9px] text-slate-500 flex flex-wrap gap-1">
+                {gameState.lastTradeLog.offerCash > 0 && <span className="text-emerald-400/70">+${gameState.lastTradeLog.offerCash}</span>}
+                {gameState.lastTradeLog.requestCash > 0 && <span className="text-rose-400/70">-${gameState.lastTradeLog.requestCash}</span>}
+                {gameState.lastTradeLog.offerPropertyCount > 0 && (
+                  <span className="text-indigo-300/70">{gameState.lastTradeLog.offerPropertyCount} prop{gameState.lastTradeLog.offerPropertyCount > 1 ? 's' : ''}</span>
+                )}
+                <span className="text-slate-600">for {gameState.lastTradeLog.targetPropertyName}</span>
+              </div>
             </div>
           ) : (
             <p className="text-[10px] text-slate-500 text-center py-1">No pending trades. Open a property to propose one.</p>

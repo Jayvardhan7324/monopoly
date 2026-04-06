@@ -9,6 +9,7 @@ import { motion } from 'motion/react';
 interface TileProps {
   tile: TileType;
   players: Player[];
+  allPlayers?: Player[];
   onClick: () => void;
   isCurrent: boolean;
   isOwned?: boolean;
@@ -19,7 +20,7 @@ interface TileProps {
 // Height/width of the owner color band at the outer edge
 const BAND = '30%';
 
-const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
+const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp   = tile.type === ETileType.PROPERTY;
   const isBandTile = isProp || tile.type === ETileType.RAILROAD || tile.type === ETileType.UTILITY;
@@ -29,7 +30,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
   const isBottom = tile.id >= 20 && tile.id <= 30;
   const isLeft   = tile.id >= 31 && tile.id <= 39;
 
-  const ownerColor  = tile.ownerId !== null ? (players.find(p => p.id === tile.ownerId)?.color ?? null) : null;
+  const ownerColor  = tile.ownerId !== null ? ((allPlayers ?? players).find(p => p.id === tile.ownerId)?.color ?? null) : null;
   const isPropertyOwned = isBandTile && ownerColor !== null;
   const contentRotate = isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none';
 

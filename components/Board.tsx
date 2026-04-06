@@ -88,6 +88,7 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
               <Tile
                 tile={tile}
                 players={playersHere}
+                allPlayers={gameState.players}
                 onClick={() => onTileClick(tile.id)}
                 isCurrent={currentPlayer?.position === tile.id}
                 isOwned={isOwned}
