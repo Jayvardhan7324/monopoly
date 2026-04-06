@@ -1115,6 +1115,12 @@ const App: React.FC = () => {
           transition={{ duration: 0.25 }}
           className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto"
         >
+          {/* Left ad label — transparent, no box */}
+          {!showRoomBrowser && (
+            <div className="hidden lg:block fixed left-4 top-1/2 -translate-y-1/2 z-[5] pointer-events-none">
+              <span className="text-[11px] font-bold text-slate-600 uppercase tracking-widest">Ad</span>
+            </div>
+          )}
           {/* Creating room overlay */}
           <AnimatePresence>
             {isCreatingRoom && (
