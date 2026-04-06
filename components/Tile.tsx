@@ -29,7 +29,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
   const isBottom = tile.id >= 20 && tile.id <= 30;
   const isLeft   = tile.id >= 31 && tile.id <= 39;
 
-  const ownerColor  = tile.ownerId !== null ? (players.find(p => p.id === tile.ownerId)?.color ?? '#888') : null;
+  const ownerColor  = tile.ownerId !== null ? (players.find(p => p.id === tile.ownerId)?.color ?? null) : null;
   const isPropertyOwned = isBandTile && ownerColor !== null;
   const contentRotate = isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none';
 
@@ -189,8 +189,8 @@ const TileInner: React.FC<TileProps> = ({ tile, players, onClick, isCurrent, isO
               <div
                 className="absolute z-40 flex items-center justify-center pointer-events-none"
                 style={{
-                  ...(isTop    ? { top: '-9px',   left: '50%', transform: 'translateX(-50%)' } : {}),
-                  ...(isBottom ? { bottom: '-9px', left: '50%', transform: 'translateX(-50%)' } : {}),
+                  ...(isTop    ? { top: '-4px',   left: '50%', transform: 'translateX(-50%)' } : {}),
+                  ...(isBottom ? { bottom: '-4px', left: '50%', transform: 'translateX(-50%)' } : {}),
                   ...(isLeft   ? { left: '-9px',   top: '50%',  transform: 'translateY(-50%)' } : {}),
                   ...(isRight  ? { right: '-9px',  top: '50%',  transform: 'translateY(-50%)' } : {}),
                 }}
