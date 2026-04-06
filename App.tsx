@@ -673,6 +673,22 @@ const App: React.FC = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  // Keep savedAt fresh while game is running so the 5-min auto-rejoin check
+  // doesn't fail after playing for more than 5 minutes
+  useEffect(() => {
+    if (!gameStarted || !isOnline) return;
+    const t = setInterval(() => {
+      try {
+        const raw = localStorage.getItem('richup_session');
+        if (raw) {
+          const session = JSON.parse(raw);
+          localStorage.setItem('richup_session', JSON.stringify({ ...session, savedAt: Date.now() }));
+        }
+      } catch {}
+    }, 60 * 1000);
+    return () => clearInterval(t);
+  }, [gameStarted, isOnline]);
+
   // Reset kicked bots when allowBots or maxPlayers changes
   useEffect(() => { setKickedBotIds(new Set()); }, [settings.allowBots, settings.maxPlayers]);
 
