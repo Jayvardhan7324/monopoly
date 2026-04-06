@@ -90,6 +90,7 @@ const App: React.FC = () => {
   const [isSpectator, setIsSpectator] = useState(false);
   const [showAppearanceModal, setShowAppearanceModal] = useState(false);
   const [isAutoJoining, setIsAutoJoining] = useState(false);
+  const [isRestoringSession, setIsRestoringSession] = useState(false);
   const autoJoinAttemptedRef = useRef(false);
   const [isJoiningRoom, setIsJoiningRoom] = useState(false);
   const isOnlineRef = useRef(false);
@@ -137,6 +138,7 @@ const App: React.FC = () => {
       const cleanId = roomFromUrl.toUpperCase();
       if (stored?.roomId === cleanId && stored?.playerId) {
         isSessionRestoreRef.current = true;
+        setIsRestoringSession(true);
         setIsOnline(true);
         setRoomId(cleanId);
         setSessionPlayerId(stored.playerId);
@@ -149,6 +151,7 @@ const App: React.FC = () => {
       if (sessionAge < 5 * 60 * 1000) {
         autoJoinAttemptedRef.current = true;
         isSessionRestoreRef.current = true;
+        setIsRestoringSession(true);
         setIsOnline(true);
         setRoomId(stored.roomId);
         setSessionPlayerId(stored.playerId);
@@ -167,6 +170,13 @@ const App: React.FC = () => {
       }
     }
   }, [isOnline]);
+
+  // Safety-net: clear loading screen after 5s in case sync_state never arrives (e.g. host refresh)
+  useEffect(() => {
+    if (!isRestoringSession) return;
+    const t = setTimeout(() => setIsRestoringSession(false), 5000);
+    return () => clearTimeout(t);
+  }, [isRestoringSession]);
 
   // Play sound proxy — respects toggle
   const sfx = (type: Parameters<typeof playSound>[0]) => {
@@ -207,6 +217,7 @@ const App: React.FC = () => {
       if (data.state) {
         dispatch({ type: 'SYNC_STATE', payload: data.state });
         setGameStarted(true);
+        setIsRestoringSession(false);
       }
     };
 
@@ -234,6 +245,7 @@ const App: React.FC = () => {
       if (!isHostRef.current && data.state && isValidGameState(data.state)) {
         dispatch({ type: 'SYNC_STATE', payload: data.state });
         setGameStarted(true);
+        setIsRestoringSession(false);
       }
     };
 
@@ -243,6 +255,7 @@ const App: React.FC = () => {
 
     const handleKicked = () => {
       resetSocket(); // BUG-7 FIX: Reset socket singleton so player can join another room
+      setIsRestoringSession(false);
       setIsOnline(false);
       setRoomId("");
       setLobbyPlayers([]);
@@ -272,6 +285,7 @@ const App: React.FC = () => {
       localStorage.removeItem('richup_session');
       setSavedSession(null);
       resetSocket();
+      setIsRestoringSession(false);
       setIsOnline(false);
       setRoomId(null);
       setSessionPlayerId(null);
@@ -1619,6 +1633,28 @@ const App: React.FC = () => {
             </AnimatePresence>
           </div>
         </motion.div>
+      );
+    }
+
+    // Session restore loading screen — shown while rejoining an in-progress game
+    if (isRestoringSession) {
+      return (
+        <div className="fixed inset-0 z-[999] bg-[#111116] flex flex-col items-center justify-center gap-6">
+          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+            <Dices size={48} className="text-indigo-400" />
+          </motion.div>
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-white font-black text-xl tracking-tight">Rejoining game…</p>
+            <p className="text-slate-500 text-sm">Restoring your session</p>
+          </div>
+          <div className="flex gap-1.5">
+            {[0, 1, 2].map(i => (
+              <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-500"
+                animate={{ opacity: [0.3, 1, 0.3] }}
+                transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.4 }} />
+            ))}
+          </div>
+        </div>
       );
     }
 
