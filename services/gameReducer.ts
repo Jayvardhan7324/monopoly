@@ -32,9 +32,9 @@ import {
   GAME_CONSTANTS,
   CHANCE_CARDS,
   COMMUNITY_CHEST_CARDS,
-  PLAYER_COLORS,
   Card,
 } from '../constants';
+import { APPEARANCE_COLORS } from '../components/Avatar';
 
 export type Action =
   | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null; selectedAvatar?: number } }
@@ -213,26 +213,30 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       let players: Player[] = [];
 
-      // BUG-09 FIX: Track used colors dynamically as players are assigned so no two
-      // players ever share a color regardless of spectators, wrap-around, or edge cases.
+      // Assign each player their chosen appearance color (from APPEARANCE_COLORS palette
+      // selected in the lobby). Bots pick unused slots. Fallback cycles if exhausted.
       const usedColors = new Set<string>();
-      const nextColor = (): string => {
-        const pick = PLAYER_COLORS.find(c => !usedColors.has(c));
+      const colorFromAvatar = (avatarIdx: number): string => {
+        const color = APPEARANCE_COLORS[(avatarIdx ?? 0) % APPEARANCE_COLORS.length];
+        usedColors.add(color);
+        return color;
+      };
+      const nextUnusedColor = (): string => {
+        const pick = APPEARANCE_COLORS.find(c => !usedColors.has(c));
         if (pick) { usedColors.add(pick); return pick; }
-        // Fallback if somehow all colors exhausted (>8 players)
-        const fallback = PLAYER_COLORS[usedColors.size % PLAYER_COLORS.length];
+        const fallback = APPEARANCE_COLORS[usedColors.size % APPEARANCE_COLORS.length];
         usedColors.add(fallback);
         return fallback;
       };
 
       if (lobbyPlayers && lobbyPlayers.length > 0) {
-        // Online multiplayer setup — only non-spectator players get unique game colors
+        // Online multiplayer setup — use each player's chosen avatar color
         players = lobbyPlayers
           .filter((p: any) => !p.isSpectator)
           .map((p: any) => ({
             id: players.length,  // will be reassigned below via index
             name: p.name,
-            color: nextColor(),
+            color: colorFromAvatar(p.avatar ?? 0),
             money: settings.rules.startingCash,
             position: 0,
             isBot: false,
@@ -243,12 +247,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           }))
           .map((p: any, i: number) => ({ ...p, id: i }));
       } else {
-        // Local game setup
+        // Local game setup — use the player's chosen avatar color
         players = [
           {
             id: 0,
             name: humanName || 'Player 1',
-            color: nextColor(),
+            color: colorFromAvatar(selectedAvatar ?? 0),
             money: settings.rules.startingCash,
             position: 0,
             isBot: false,
@@ -262,9 +266,20 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       const botCount = settings.allowBots ? settings.maxPlayers - players.length : 0;
 
-      const botNames = ['Bot Alpha', 'Bot Beta', 'Bot Gamma', 'Bot Delta', 'Bot Epsilon', 'Bot Zeta', 'Bot Eta', 'Bot Theta'];
-      // Randomize bot names
-      const shuffledBotNames = [...botNames].sort(() => Math.random() - 0.5);
+      // Generate gamertag-style bot names (same style as the human auto-name)
+      const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
+      const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
+      const usedNames = new Set(players.map((p: any) => p.name));
+      const genBotName = (): string => {
+        let name = '';
+        let attempts = 0;
+        do {
+          name = BOT_ADJ[Math.floor(Math.random() * BOT_ADJ.length)] + ' ' + BOT_NOUN[Math.floor(Math.random() * BOT_NOUN.length)];
+          attempts++;
+        } while (usedNames.has(name) && attempts < 30);
+        usedNames.add(name);
+        return name;
+      };
 
       const botPersonalities = [
         BotPersonalityType.AGGRESSIVE,
@@ -277,8 +292,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         const botId = players.length;
         players.push({
           id: botId,
-          name: shuffledBotNames[i] || `Bot ${botId}`,
-          color: nextColor(),
+          name: genBotName(),
+          color: nextUnusedColor(),
           money: settings.rules.startingCash,
           position: 0,
           isBot: true,
