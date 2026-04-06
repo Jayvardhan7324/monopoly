@@ -163,8 +163,11 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       if (room.state && room.state.players) {
         const removedRoomPlayer = room.players.find((p: any) => (p.originalId || p.id) === originalPlayerId);
         if (removedRoomPlayer) {
-          // TODO: match by gamePlayerId instead of name to prevent wrong-player removal (BUG-11)
-          const removedGamePlayer = room.state.players.find((p: any) => p.name === removedRoomPlayer.name);
+          // B6 FIX: Match by gamePlayerId from the map built at start_game, fall back to name only if map is missing
+          const mappedGamePlayerId = room.socketToGamePlayerId?.[originalPlayerId];
+          const removedGamePlayer = mappedGamePlayerId != null
+            ? room.state.players.find((p: any) => p.id === mappedGamePlayerId)
+            : room.state.players.find((p: any) => p.name === removedRoomPlayer.name);
           const currentGamePlayer = room.state.players[room.state.currentPlayerIndex];
           if (removedGamePlayer && currentGamePlayer && removedGamePlayer.id === currentGamePlayer.id) {
             io.to(room.host).emit("host_process_action", {
@@ -484,6 +487,15 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         const room = rooms.get(roomId);
         if (room && room.host === socket.id) {
           room.state = data.initialState;
+          // B6 FIX: Build socket→gamePlayerId map at game-start using name matching (names are unique at this point)
+          if (data.initialState?.players && Array.isArray(data.initialState.players)) {
+            room.socketToGamePlayerId = {};
+            for (const rp of room.players) {
+              const socketKey = rp.originalId || rp.id;
+              const gp = data.initialState.players.find((g: any) => g.name === rp.name);
+              if (gp) room.socketToGamePlayerId[socketKey] = gp.id;
+            }
+          }
           io.to(roomId).emit("game_started", { state: data.initialState });
 
           // Room is now in-game, remove from public list

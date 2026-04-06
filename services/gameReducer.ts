@@ -150,7 +150,7 @@ const getRent = (
       const isMonopoly = groupTiles.every(t => t.ownerId === tile.ownerId && !t.isMortgaged);
       return isMonopoly && rules.doubleRentOnFullSet ? tile.rent[0] * 2 : tile.rent[0];
     }
-    return tile.rent[tile.buildingCount];
+    return tile.rent[Math.min(tile.buildingCount, tile.rent.length - 1)];
   }
   return 0;
 };
@@ -1153,6 +1153,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const target = state.players.find(p => p.id === targetId);
       if (!proposer || !target) return { ...state, pendingTrade: null };
 
+      // B3 FIX: Cancel trade if either party went bankrupt between propose and accept
+      if (proposer.isBankrupt || target.isBankrupt) {
+        return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — a party is no longer in the game.`) }, 'error');
+      }
+
       // BUG-2 FIX: Validate both parties can still afford the trade
       if (proposer.money < offerCash) {
         return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — ${proposer.name} can no longer afford the offer.`) }, 'error');
@@ -1166,6 +1171,13 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (!targetTileStillOwned || !offerTilesStillOwned) {
         return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — property ownership changed.`) }, 'error');
       }
+
+      // B4 FIX: Warn if any traded property was mortgaged after the proposal was made
+      const anyMortgaged = (targetPropertyId !== null && state.tiles[targetPropertyId]?.isMortgaged) ||
+        offerPropertyIds.some(id => state.tiles[id]?.isMortgaged);
+      const mortgageWarning = anyMortgaged
+        ? addLog(state.logs, `Note: this trade includes a mortgaged property — the new owner inherits the mortgage.`)
+        : state.logs;
 
       const newPlayers = state.players.map(p => {
         if (p.id === proposerId) return { ...p, money: p.money - offerCash + requestCash };
@@ -1195,7 +1207,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           tiles: newTiles,
           pendingTrade: null,
           lastTradeLog: acceptLog,
-          logs: addLog(state.logs, `Trade accepted by ${target.name}!`),
+          logs: addLog(mortgageWarning, `Trade accepted by ${target.name}!`),
         },
         'trade_accept'
       );
