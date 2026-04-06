@@ -84,6 +84,7 @@ const App: React.FC = () => {
   const [showMobileChat, setShowMobileChat] = useState(false);
   const [isStacked, setIsStacked] = useState(false);
   const [showCreateTradeModal, setShowCreateTradeModal] = useState(false);
+  const [tradePopupDismissed, setTradePopupDismissed] = useState(false);
   const [systemAlert, setSystemAlert] = useState<string | null>(null);
   const [confirmAlert, setConfirmAlert] = useState<{ message: string, onConfirm: () => void } | null>(null);
   const [isSpectator, setIsSpectator] = useState(false);
@@ -357,6 +358,13 @@ const App: React.FC = () => {
       setShowCreateTradeModal(false);
     }
   }, [gameState.phase]);
+
+  // Reset popup dismissed state when a new trade comes in
+  useEffect(() => {
+    if (gameState.pendingTrade) {
+      setTradePopupDismissed(false);
+    }
+  }, [gameState.pendingTrade?.proposerId, gameState.pendingTrade?.targetId, gameState.pendingTrade?.targetPropertyId]);
 
   // Intercept dispatch for online play
   const handleDispatch = (action: any) => {
@@ -2203,29 +2211,48 @@ const App: React.FC = () => {
           </div>
           {gameState.pendingTrade ? (
             <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 space-y-2">
-              <div className="text-[10px] text-indigo-300 font-bold">
-                Trade offer from {gameState.players.find(p => p.id === gameState.pendingTrade?.proposerId)?.name}
+              <div className="flex items-start justify-between gap-1">
+                <div className="text-[10px] text-indigo-300 font-bold leading-tight">
+                  Trade offer from {gameState.players.find(p => p.id === gameState.pendingTrade?.proposerId)?.name}
+                </div>
+                {tradePopupDismissed && gameState.pendingTrade.targetId === myPlayerId && (
+                  <span className="text-[8px] font-bold text-amber-400 uppercase tracking-widest shrink-0">Dismissed</span>
+                )}
               </div>
-              <div className="text-[9px] text-slate-400">
+              <div className="text-[9px] text-slate-400 flex flex-wrap gap-1">
                 {gameState.pendingTrade.offerCash > 0 && <span className="text-emerald-400">+${gameState.pendingTrade.offerCash} cash</span>}
-                {gameState.pendingTrade.requestCash > 0 && <span className="text-rose-400 ml-1">-${gameState.pendingTrade.requestCash} cash</span>}
+                {gameState.pendingTrade.requestCash > 0 && <span className="text-rose-400">-${gameState.pendingTrade.requestCash} cash</span>}
+                {gameState.pendingTrade.offerPropertyIds.length > 0 && (
+                  <span className="text-indigo-300">{gameState.pendingTrade.offerPropertyIds.length} prop{gameState.pendingTrade.offerPropertyIds.length > 1 ? 's' : ''} offered</span>
+                )}
               </div>
-              {gameState.pendingTrade.proposerId === myPlayerId && (
+              {gameState.pendingTrade.proposerId === myPlayerId ? (
                 <button
-                  onClick={() => dispatch({ type: 'CANCEL_TRADE' })}
-                  className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest transition-colors mt-1"
+                  onClick={() => handleDispatch({ type: 'CANCEL_TRADE' })}
+                  className="text-[9px] text-rose-400 hover:text-rose-300 font-bold uppercase tracking-widest transition-colors"
                 >
                   Cancel offer
                 </button>
+              ) : gameState.pendingTrade.targetId === myPlayerId && (
+                <>
+                  {tradePopupDismissed && (
+                    <button
+                      onClick={() => setTradePopupDismissed(false)}
+                      className="w-full text-[9px] text-indigo-400 hover:text-indigo-300 font-bold uppercase tracking-widest transition-colors border border-indigo-500/30 rounded-lg py-1"
+                    >
+                      View Details
+                    </button>
+                  )}
+                  <div className="flex gap-1.5">
+                    <Button size="sm" onClick={() => { setTradePopupDismissed(false); handleDispatch({ type: 'ACCEPT_TRADE' }); }} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] h-7">
+                      Accept
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => { setTradePopupDismissed(false); handleDispatch({ type: 'DECLINE_TRADE' }); }} className="flex-1 border-slate-700 text-slate-300 text-[10px] h-7">
+                      Decline
+                    </Button>
+                  </div>
+                </>
               )}
-              <div className="flex gap-1.5">
-                <Button size="sm" onClick={() => handleDispatch({ type: 'ACCEPT_TRADE' })} className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] h-7">
-                  Accept
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleDispatch({ type: 'DECLINE_TRADE' })} className="flex-1 border-slate-700 text-slate-300 text-[10px] h-7">
-                  Decline
-                </Button>
-              </div>
             </div>
           ) : (
             <p className="text-[10px] text-slate-500 text-center py-1">No pending trades. Open a property to propose one.</p>
@@ -2322,14 +2349,16 @@ const App: React.FC = () => {
         />
 
         {gameState.pendingTrade && gameState.pendingTrade.targetId === myPlayerId &&
+         !tradePopupDismissed &&
          gameState.players.some(p => p.id === gameState.pendingTrade?.proposerId && !p.isBankrupt) && (
           <TradeProposalModal
             trade={gameState.pendingTrade}
             players={gameState.players}
             tiles={gameState.tiles}
             myPlayerId={myPlayerId}
-            onAccept={() => handleDispatch({ type: 'ACCEPT_TRADE' })}
-            onDecline={() => handleDispatch({ type: 'DECLINE_TRADE' })}
+            onAccept={() => { setTradePopupDismissed(false); handleDispatch({ type: 'ACCEPT_TRADE' }); }}
+            onDecline={() => { setTradePopupDismissed(false); handleDispatch({ type: 'DECLINE_TRADE' }); }}
+            onDismiss={() => setTradePopupDismissed(true)}
           />
         )}
 

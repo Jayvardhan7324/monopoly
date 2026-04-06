@@ -11,6 +11,7 @@ interface TradeProposalModalProps {
   myPlayerId: number;
   onAccept: () => void;
   onDecline: () => void;
+  onDismiss?: () => void;
 }
 
 export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
@@ -19,7 +20,8 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   tiles,
   myPlayerId,
   onAccept,
-  onDecline
+  onDecline,
+  onDismiss,
 }) => {
   const proposer = players.find(p => p.id === trade.proposerId);
   const target = players.find(p => p.id === trade.targetId);
@@ -48,8 +50,21 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
             <h2 className="text-lg font-black text-white uppercase tracking-tight leading-tight">Incoming Trade</h2>
             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{proposer.name} wants to deal</p>
           </div>
-          <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400 shrink-0">
-            <ArrowRightLeft size={16} />
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <ArrowRightLeft size={16} />
+            </div>
+            {onDismiss && (
+              <button
+                onClick={onDismiss}
+                title="Dismiss — you can review this trade in the Trades panel"
+                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors group/x"
+              >
+                <span className="inline-flex transition-transform duration-200 group-hover/x:rotate-90">
+                  <X size={14} />
+                </span>
+              </button>
+            )}
           </div>
         </div>
 
