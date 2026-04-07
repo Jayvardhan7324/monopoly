@@ -480,8 +480,6 @@ const App: React.FC = () => {
     if (!gameStarted || !currentPlayer?.isBot || gameState.winnerId !== null) return;
     if (isOnline && !isHost) return; // Only host handles bots
 
-    // Spectator mode uses same bot timing — works automatically since bots handle all turns
-
     const delays: Record<string, number> = {
       ROLL: 400,
       ACTION: 500,
@@ -494,9 +492,10 @@ const App: React.FC = () => {
       const action = getBotAction(gameState);
       if (action) {
         handleDispatch(action);
-      } else if (gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') {
-        // Safety fallback: if bot returned null (e.g. pending trade blocked it), force end turn
-        handleDispatch({ type: 'END_TURN' });
+      } else {
+        // Safety fallback for every phase — bot must never get stuck
+        if (gameState.phase === 'ROLL') handleDispatch({ type: 'ROLL_DICE' });
+        else handleDispatch({ type: 'END_TURN' });
       }
     }, delay);
 
@@ -509,7 +508,32 @@ const App: React.FC = () => {
     isOnline,
     isHost,
     gameState.turnLogs.length,
-    gameState.pendingTrade
+    // NOTE: pendingTrade deliberately excluded — trade resolution resets the roll
+    // timer causing bots to freeze. getBotAction reads pendingTrade from gameState
+    // directly at fire-time, so removing it from deps is safe.
+  ]);
+
+  // ── Bot ROLL watchdog: hard guarantee bot always rolls within 2 seconds ─────
+  // This fires only if the normal 400ms timer above keeps getting reset (e.g. by
+  // rapid log entries from an ongoing trade resolution).
+  useEffect(() => {
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (!gameStarted || !currentPlayer?.isBot || gameState.winnerId !== null) return;
+    if (gameState.phase !== 'ROLL') return;
+    if (isOnline && !isHost) return;
+
+    const watchdog = setTimeout(() => {
+      handleDispatch({ type: 'ROLL_DICE' });
+    }, 2000);
+
+    return () => clearTimeout(watchdog);
+  }, [
+    gameState.phase,
+    gameState.currentPlayerIndex,
+    gameStarted,
+    gameState.winnerId,
+    isOnline,
+    isHost,
   ]);
 
   // ── Auto-resolve bot-target trades after a brief delay so all players see it ─
