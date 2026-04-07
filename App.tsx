@@ -2466,7 +2466,9 @@ const App: React.FC = () => {
           }}
         />
 
-        {gameState.pendingTrade && gameState.pendingTrade.targetId === myPlayerId &&
+        {gameState.pendingTrade &&
+         !gameState.pendingTrade.botDecision &&
+         (gameState.pendingTrade.targetId === myPlayerId || gameState.pendingTrade.proposerId === myPlayerId) &&
          !tradePopupDismissed &&
          gameState.players.some(p => p.id === gameState.pendingTrade?.proposerId && !p.isBankrupt) && (
           <TradeProposalModal
@@ -2477,6 +2479,7 @@ const App: React.FC = () => {
             onAccept={() => { setTradePopupDismissed(false); handleDispatch({ type: 'ACCEPT_TRADE' }); }}
             onDecline={() => { setTradePopupDismissed(false); handleDispatch({ type: 'DECLINE_TRADE' }); }}
             onDismiss={() => setTradePopupDismissed(true)}
+            onCancel={() => { setTradePopupDismissed(false); handleDispatch({ type: 'CANCEL_TRADE' }); }}
           />
         )}
 

@@ -12,6 +12,7 @@ interface TradeProposalModalProps {
   onAccept: () => void;
   onDecline: () => void;
   onDismiss?: () => void;
+  onCancel?: () => void;
 }
 
 export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
@@ -22,6 +23,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   onAccept,
   onDecline,
   onDismiss,
+  onCancel,
 }) => {
   const proposer = players.find(p => p.id === trade.proposerId);
   const target = players.find(p => p.id === trade.targetId);
@@ -144,9 +146,20 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
               </button>
             </div>
           ) : (
-            <p className="text-center text-[10px] text-slate-500 font-bold uppercase tracking-widest py-2">
-              Waiting for {target.name} to respond…
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="flex-1 text-[10px] text-slate-500 font-bold uppercase tracking-widest py-2">
+                Waiting for {target.name}…
+              </p>
+              {onCancel && (
+                <button
+                  onClick={onCancel}
+                  className="py-2.5 px-4 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-400 font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 flex items-center gap-1.5"
+                >
+                  <X size={11} />
+                  Cancel
+                </button>
+              )}
+            </div>
           )}
         </div>
       </motion.div>
