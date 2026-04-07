@@ -21,6 +21,7 @@ interface PropertyModalProps {
   onMortgage?: () => void;
   onUnmortgage?: () => void;
   onSell?: () => void;
+  onDowngrade?: () => void;
 }
 
 const colorMap: Record<ColorGroup, string> = {
@@ -36,7 +37,7 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const PropertyModal: React.FC<PropertyModalProps> = ({
-  tile, owner, onClose, onUpgrade, canUpgrade, currentPlayer, myProperties, onTrade, onMortgage, onUnmortgage, onSell,
+  tile, owner, onClose, onUpgrade, canUpgrade, currentPlayer, myProperties, onTrade, onMortgage, onUnmortgage, onSell, onDowngrade,
 }) => {
   const [showSellConfirm, setShowSellConfirm] = useState(false);
   const [showTradeBuilder, setShowTradeBuilder] = useState(false);
@@ -192,6 +193,16 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                   className="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs shadow-lg shadow-indigo-600/20"
                 >
                   <ArrowUpCircle size={14} /> {tile.buildingCount === 4 ? 'Build Hotel' : 'Build Estate'} (-${tile.houseCost})
+                </Button>
+              )}
+              {isMine && isProperty && tile.buildingCount > 0 && onDowngrade && (
+                <Button
+                  onClick={onDowngrade}
+                  size="sm"
+                  variant="outline"
+                  className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/30 text-[10px]"
+                >
+                  <Home size={11} /> Sell Building (+${Math.floor(tile.houseCost * 0.5)})
                 </Button>
               )}
 

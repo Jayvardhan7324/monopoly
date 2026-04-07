@@ -62,6 +62,7 @@ export type Action =
   | { type: 'END_AUCTION' }
   | { type: 'KICK_PLAYER'; payload: { playerId: number } }
   | { type: 'DECLARE_BANKRUPT' }
+  | { type: 'DOWNGRADE_PROPERTY'; payload: { tileId: number } }
   | { type: 'VOTE_KICK'; payload: { targetId: number; voterId: number } }
   | { type: 'CHECK_VOTEKICKS' }
   | { type: 'SYNC_STATE'; payload: GameState }
@@ -166,35 +167,23 @@ const getWinnerId = (players: Player[]): number | null => {
 };
 
 /**
- * IMP-01 / BUG-01: Declare a player bankrupt and transfer their assets.
- * If creditorId is provided, properties go to them (rent bankruptcy).
- * Otherwise they revert to the bank.
+ * Declare a player bankrupt — all their assets return to the bank.
+ * No creditor transfer: players get a chance to sell/mortgage/trade
+ * before reaching this point.
  */
 const declareBankruptcy = (
   state: GameState,
-  bankruptPlayerId: number,
-  creditorId: number | null
+  bankruptPlayerId: number
 ): { players: Player[]; tiles: Tile[]; logs: string[] } => {
   const newPlayers = state.players.map(p =>
     p.id === bankruptPlayerId ? { ...p, isBankrupt: true, money: 0, inJail: false, jailTurns: 0 } : p
   );
-
   const newTiles = state.tiles.map(t => {
     if (t.ownerId !== bankruptPlayerId) return t;
-    if (creditorId !== null) {
-      // Transfer to creditor — buildings removed (house value lost), mortgage preserved
-      return { ...t, ownerId: creditorId, buildingCount: 0, isMortgaged: t.isMortgaged }; // BUG-C5: Preserve mortgage if transferred to creditor
-    }
-    // Return to bank
     return { ...t, ownerId: null, buildingCount: 0, isMortgaged: false };
   });
-
   const bankruptName = state.players.find(p => p.id === bankruptPlayerId)?.name ?? 'Player';
-  const creditorName = creditorId !== null
-    ? state.players.find(p => p.id === creditorId)?.name ?? 'Bank'
-    : 'the bank';
-
-  const logs = addLog(state.logs, `${bankruptName} is BANKRUPT! Assets transferred to ${creditorName}.`);
+  const logs = addLog(state.logs, `${bankruptName} is BANKRUPT! All properties returned to the bank.`);
   return { players: newPlayers, tiles: newTiles, logs };
 };
 
@@ -448,8 +437,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (newPlayers[state.currentPlayerIndex].money < 0) {
           const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
             { ...state, players: newPlayers, logs },
-            player.id,
-            null
+            player.id
           );
           // BUG-12: Advance turn past the now-bankrupt player so the game doesn't freeze
           const activePlayers = bp.filter(p => !p.isBankrupt);
@@ -530,10 +518,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           const targetPos = card.value;
           const currentPos = updatedPlayers[state.currentPlayerIndex].position;
           const passedGo = targetPos < currentPos && targetPos !== GAME_CONSTANTS.JAIL_POSITION;
+          // Landing exactly on START pays $300 (same as rolling there); passing pays GO_BONUS
+          const goBonus = targetPos === 0 ? 300 : passedGo ? GAME_CONSTANTS.GO_BONUS : 0;
           updatedPlayers[state.currentPlayerIndex] = {
             ...updatedPlayers[state.currentPlayerIndex],
             position: targetPos,
-            money: updatedPlayers[state.currentPlayerIndex].money + (passedGo ? GAME_CONSTANTS.GO_BONUS : 0),
+            money: updatedPlayers[state.currentPlayerIndex].money + goBonus,
           };
           logs = addLog(logs, `${player.name} drew: "${card.description}"`);
           return withSound({ ...state, players: updatedPlayers, logs, phase: 'RESOLVING' }, 'land');
@@ -569,8 +559,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
               if (victim.id !== player.id && !victim.isBankrupt && victim.money < 0) {
                 const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
                   tempState,
-                  victim.id,
-                  player.id // the card drawer is the creditor
+                  victim.id
                 );
                 tempState = { ...tempState, players: bp, tiles: bt, logs: bl };
               }
@@ -595,8 +584,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           if (updatedPlayers[state.currentPlayerIndex].money < 0) {
             const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
               { ...state, players: updatedPlayers, logs },
-              player.id,
-              null
+              player.id
             );
             return withSound(
               { ...state, players: bp, tiles: bt, logs: bl, phase: 'TURN_END' },
@@ -712,8 +700,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (newMoney < 0) {
           const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
             { ...state, players: newPlayers, logs: addLog(state.logs, `${player.name} couldn't afford the jail fine!`) },
-            player.id,
-            null
+            player.id
           );
           return withSound({ ...state, players: bp, tiles: bt, logs: bl, phase: 'TURN_END' }, 'pay');
         }
@@ -1036,6 +1023,35 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       );
     }
 
+    // ─── DOWNGRADE_PROPERTY ───────────────────────────────────────────────────
+    case 'DOWNGRADE_PROPERTY': {
+      const { tileId } = action.payload;
+      const tile = state.tiles[tileId];
+      if (!tile || tile.buildingCount === 0 || tile.ownerId === null) return state;
+
+      // Enforce even-build: can only sell from the tile with the MOST buildings in its group
+      const groupTiles = state.tiles.filter(t => t.group === tile.group && t.ownerId === tile.ownerId);
+      const maxBuildings = Math.max(...groupTiles.map(t => t.buildingCount));
+      if (tile.buildingCount < maxBuildings) return state;
+
+      const refund = Math.floor(tile.houseCost * 0.5);
+      const newPlayers = [...state.players];
+      const pIdx = newPlayers.findIndex(p => p.id === tile.ownerId);
+      newPlayers[pIdx] = { ...newPlayers[pIdx], money: newPlayers[pIdx].money + refund };
+      const newTiles = [...state.tiles];
+      newTiles[tileId] = { ...tile, buildingCount: tile.buildingCount - 1 };
+      const buildingLabel = tile.buildingCount === 1 ? 'house' : tile.buildingCount === 5 ? 'hotel' : 'house';
+      return withSound(
+        {
+          ...state,
+          players: newPlayers,
+          tiles: newTiles,
+          logs: addLog(state.logs, `${newPlayers[pIdx].name} sold a ${buildingLabel} on ${tile.name} (+$${refund}).`),
+        },
+        'buy'
+      );
+    }
+
     // ─── PROPOSE_TRADE ────────────────────────────────────────────────────────
     case 'PROPOSE_TRADE': {
       const { proposerId, offerCash, offerPropertyIds, targetTileId, targetPlayerId: explicitTargetPlayerId, requestCash } = action.payload;
@@ -1304,8 +1320,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (p.money < 0 && !p.isBankrupt) {
           const partial = declareBankruptcy(
             { ...state, players: processedPlayers, tiles: processedTiles, logs: processedLogs },
-            p.id,
-            null
+            p.id
           );
           processedPlayers = partial.players;
           processedTiles = partial.tiles;
@@ -1360,6 +1375,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           phase: 'ROLL',
           turnCount: state.turnCount + 1,
           auction: null,
+          pendingTrade: null,
           doublesCount: nextDoublesCount,
           votekicks: votekicksAfterTurn,
         },
@@ -1372,7 +1388,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const { playerId } = action.payload;
       const kicked = state.players.find(p => p.id === playerId);
       if (!kicked || kicked.isBankrupt) return state;
-      const { players, tiles, logs } = declareBankruptcy(state, playerId, null);
+      const { players, tiles, logs } = declareBankruptcy(state, playerId);
       const isActivePlayer = state.players[state.currentPlayerIndex]?.id === playerId;
       const winnerId = getWinnerId(players);
       if (winnerId !== null) {
@@ -1388,7 +1404,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'DECLARE_BANKRUPT': {
       const player = state.players[state.currentPlayerIndex];
       if (player.isBankrupt) return state;
-      const { players, tiles, logs } = declareBankruptcy(state, player.id, null);
+      const { players, tiles, logs } = declareBankruptcy(state, player.id);
       const winnerId = getWinnerId(players);
       if (winnerId !== null) {
         return withSound(
@@ -1429,7 +1445,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const requiredVotes = activePlayersCount - 1;
 
       if (existingVote!.voterIds.length >= requiredVotes && requiredVotes > 0) {
-        const { players, tiles, logs } = declareBankruptcy(state, targetId, null);
+        const { players, tiles, logs } = declareBankruptcy(state, targetId);
         newVotekicks = newVotekicks.filter(v => v.targetId !== targetId);
         const kickLogs = addLog(logs, `${target.name} was kicked by unanimous vote.`);
         const winnerId = getWinnerId(players);
@@ -1467,7 +1483,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         for (const tid of expiredTargetIds) {
           const target = nextState.players.find(p => p.id === tid);
           if (target && !target.isBankrupt) {
-            const { players, tiles, logs } = declareBankruptcy(nextState, tid, null);
+            const { players, tiles, logs } = declareBankruptcy(nextState, tid);
             nextState = { ...nextState, players, tiles };
             currentLogs = addLog(logs, `${target.name} was kicked (timer expired).`);
           }
@@ -1499,7 +1515,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (winnerId !== null) {
         return { ...state, winnerId, phase: 'TURN_END' };
       }
-      return { ...state, currentPlayerIndex: nextIndex, phase: 'ROLL', doublesCount: 0, auction: null, turnLogs: [] };
+      return { ...state, currentPlayerIndex: nextIndex, phase: 'ROLL', doublesCount: 0, auction: null, pendingTrade: null, turnLogs: [] };
     }
 
     // ─── RESET_GAME (rematch — returns to home without page reload) ────────────

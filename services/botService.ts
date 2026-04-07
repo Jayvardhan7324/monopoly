@@ -23,7 +23,9 @@ export type BotAction =
   | { type: 'UPGRADE_PROPERTY'; payload: { tileId: number } }
   | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number } }
-  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
+  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number | null; targetPlayerId?: number; requestCash: number } }
+  | { type: 'DOWNGRADE_PROPERTY'; payload: { tileId: number } }
+  | { type: 'DECLARE_BANKRUPT' }
   | null;
 
 // ─── Constants for game phase detection ────────────────────────────────────
@@ -257,6 +259,31 @@ export function getBotAction(gameState: GameState): BotAction {
 
   // ── TURN_END phase ───────────────────────────────────────────────────────────
   if (phase === 'TURN_END') {
+    // 0. Bankruptcy recovery: sell buildings → mortgage → declare bankrupt
+    if (currentPlayer.money < 0) {
+      // 0a. Sell a building (even-build: sell from the tile with max buildings in each monopoly)
+      const allMyTiles = tiles.filter(t => t.ownerId === currentPlayer.id);
+      const tilesWithBuildings = allMyTiles
+        .filter(t => t.buildingCount > 0)
+        .sort((a, b) => b.buildingCount - a.buildingCount);
+      for (const t of tilesWithBuildings) {
+        const group = allMyTiles.filter(g => g.group === t.group);
+        const maxInGroup = Math.max(...group.map(g => g.buildingCount));
+        if (t.buildingCount === maxInGroup) {
+          return { type: 'DOWNGRADE_PROPERTY', payload: { tileId: t.id } };
+        }
+      }
+      // 0b. Mortgage the cheapest unmortgaged property with no buildings
+      const mortgageable = allMyTiles
+        .filter(t => !t.isMortgaged && t.buildingCount === 0)
+        .sort((a, b) => a.price - b.price);
+      if (mortgageable.length > 0) {
+        return { type: 'MORTGAGE_PROPERTY', payload: { tileId: mortgageable[0].id } };
+      }
+      // 0c. Nothing left to liquidate — declare bankrupt
+      return { type: 'DECLARE_BANKRUPT' };
+    }
+
     // 1. Check for upgrades — target the 3-house sweet spot for return on investment
     const monopolyGroups = getPlayerMonopolies(currentPlayer.id, gameState);
 
@@ -571,16 +598,14 @@ function getBotTradeProposal(gameState: GameState, botId: number): BotAction {
         if (theirCount >= g.length - 2 && theirCount > 0) {
           const askPrice = Math.floor(singleton.price * 1.5);
           if (player.money >= askPrice) {
-            // Find a tile owned by this player to "target" for the trade
-            const theirTile = g.find(g2 => g2.ownerId === player.id);
-            if (!theirTile) continue;
             return {
               type: 'PROPOSE_TRADE',
               payload: {
                 proposerId: botId,
                 offerCash: 0,
                 offerPropertyIds: [singleton.id],
-                targetTileId: theirTile.id,
+                targetTileId: null,
+                targetPlayerId: player.id,
                 requestCash: askPrice
               }
             };

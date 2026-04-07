@@ -247,7 +247,7 @@ const App: React.FC = () => {
     // SEC-05: Only dispatch allowlisted action types from non-host players
     const PLAYER_ALLOWED_ACTIONS = new Set([
       'ROLL_DICE', 'BUY_PROPERTY', 'ATTEMPT_JAIL_ROLL', 'SKIP_JAIL_TURN', 'PAY_JAIL_FINE',
-      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY',
+      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY', 'DOWNGRADE_PROPERTY', 'SELL_PROPERTY',
       'PROPOSE_TRADE', 'ACCEPT_TRADE', 'DECLINE_TRADE', 'CANCEL_TRADE',
       'PLACE_BID', 'END_TURN', 'DECLARE_BANKRUPT',
       'VOTE_KICK', 'CANCEL_VOTE_KICK',
@@ -2444,6 +2444,7 @@ const App: React.FC = () => {
             onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
+            onDowngrade={() => handleDispatch({ type: 'DOWNGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
           />
         )}
 
