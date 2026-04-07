@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
 // BUG-08: Replaced `Palmtree` (removed in lucide-react v0.468) with `TreePalm`
-import { Plane, Zap, Droplets, TreePalm, Skull, ArrowRight, Package, Home, Building2, Crown, Lock } from 'lucide-react';
+import { Plane, Zap, Droplets, TreePalm, Skull, ArrowRight, Package, Lock } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Avatar } from './Avatar';
 import { motion } from 'motion/react';
@@ -107,24 +107,28 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
     }
   };
 
-  // Houses/hotel: icon + count badge
+  // Houses/hotel: count badge centered on the color band
   const renderBuildings = () => {
     if (tile.buildingCount === 0) return null;
     const isHotel = tile.buildingCount === 5;
+    const bandStyle: React.CSSProperties = {
+      position: 'absolute',
+      zIndex: 20,
+      pointerEvents: 'none',
+      ...(isTop    ? { top: '15%',    left: '50%',  transform: 'translate(-50%, -50%)' } : {}),
+      ...(isBottom ? { bottom: '15%', left: '50%',  transform: 'translate(-50%, 50%)' }  : {}),
+      ...(isLeft   ? { left: '15%',   top: '50%',   transform: 'translate(-50%, -50%)' } : {}),
+      ...(isRight  ? { right: '15%',  top: '50%',   transform: 'translate(50%, -50%)' }  : {}),
+    };
     return (
-      <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+      <div style={bandStyle}>
         <div
-          className={`flex items-center gap-[2px] px-[3px] py-[2px] rounded-[3px] border border-white/20 shadow-sm ${isHotel ? 'bg-rose-600' : 'bg-emerald-600'}`}
+          className={`flex items-center justify-center px-[3px] py-[2px] rounded-[3px] border border-white/20 shadow-sm ${isHotel ? 'bg-rose-600' : 'bg-emerald-600'}`}
           style={{ transform: contentRotate }}
         >
-          {isHotel ? (
-            <Building2 size={8} className="text-white" />
-          ) : (
-            <>
-              <Home size={8} className="text-white" />
-              <span className="text-white font-black leading-none" style={{ fontSize: '6px' }}>×{tile.buildingCount}</span>
-            </>
-          )}
+          <span className="text-white font-black leading-none" style={{ fontSize: '7px' }}>
+            {isHotel ? 'H' : `×${tile.buildingCount}`}
+          </span>
         </div>
       </div>
     );
@@ -291,7 +295,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
                       color={p.color}
                       isBankrupt={p.isBankrupt}
                       inJail={p.inJail}
-                      className="w-6 h-6 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10"
+                      className="w-5 h-5 shadow-[0_0_10px_rgba(0,0,0,0.8)] border-white/40 relative z-10"
                     />
                     {p.inJail && tile.id === 10 && (
                       <div className="absolute -inset-0.5 rounded-full border-2 border-rose-500 animate-pulse z-20 pointer-events-none" />

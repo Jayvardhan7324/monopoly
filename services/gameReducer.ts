@@ -388,10 +388,16 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const moveAmount = state.dice[0] + state.dice[1];
       let newPos = player.position + moveAmount;
       let passGoBonus = 0;
+      let landedOnStart = false;
 
       if (newPos >= BOARD_SIZE) {
         newPos -= BOARD_SIZE;
-        passGoBonus = GAME_CONSTANTS.GO_BONUS;
+        if (newPos === 0) {
+          passGoBonus = 300;
+          landedOnStart = true;
+        } else {
+          passGoBonus = GAME_CONSTANTS.GO_BONUS;
+        }
       }
 
       const newPlayers = [...state.players];
@@ -408,7 +414,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           phase: 'RESOLVING',
           logs:
             passGoBonus > 0
-              ? addLog(state.logs, `${player.name} passed GO and collected $${GAME_CONSTANTS.GO_BONUS}.`)
+              ? addLog(state.logs, landedOnStart
+                  ? `${player.name} landed on START and collected $300!`
+                  : `${player.name} passed GO and collected $${GAME_CONSTANTS.GO_BONUS}.`)
               : state.logs,
         },
         'land'
