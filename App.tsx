@@ -1,4 +1,5 @@
 import React, { useReducer, useEffect, useState, useRef, useMemo } from 'react';
+import AdminPage from './components/admin/AdminPage';
 import { gameReducer, initialState } from './services/gameReducer';
 import { getBotAction, getBotBidAction } from './services/botService';
 import { Board } from './components/Board';
@@ -44,6 +45,11 @@ const App: React.FC = () => {
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
   const [viewingPlayerId, setViewingPlayerId] = useState<number | null>(null);
   const [settings, setSettings] = useState<GameSettings>(initialState.settings);
+
+  // Custom admin board (pushed from admin panel)
+  const [customBoard, setCustomBoard] = useState<any>(() => {
+    try { return JSON.parse(localStorage.getItem('adminActiveBoard') || 'null'); } catch { return null; }
+  });
 
   // FEAT-04: Sound toggle
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -330,6 +336,10 @@ const App: React.FC = () => {
     socket.on("chat_message", handleChatMessage);
     socket.on("action_error", handleActionError);
     socket.on("rooms_list", (rooms: any[]) => setActiveRooms(rooms));
+    socket.on("admin_board_pushed", ({ board }: { board: any }) => {
+      setCustomBoard(board);
+      localStorage.setItem('adminActiveBoard', JSON.stringify(board));
+    });
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
@@ -346,6 +356,7 @@ const App: React.FC = () => {
       socket.off("chat_message", handleChatMessage);
       socket.off("action_error", handleActionError);
       socket.off("rooms_list");
+      socket.off("admin_board_pushed");
       socket.off("disconnect", handleSocketDisconnect);
       socket.off("you_are_host", handleYouAreHost);
       socket.off("connect", handleSocketConnect);
@@ -353,6 +364,19 @@ const App: React.FC = () => {
       socket.off("session_rejected", handleSessionRejected);
     };
   }, [roomId, sessionPlayerId]);
+
+  // Fetch active admin board on mount (works even without socket connection)
+  useEffect(() => {
+    fetch('/api/active-board')
+      .then(r => r.json())
+      .then(({ board }) => {
+        if (board) {
+          setCustomBoard(board);
+          localStorage.setItem('adminActiveBoard', JSON.stringify(board));
+        }
+      })
+      .catch(() => {/* server not available */});
+  }, []);
 
   // Scroll chat to bottom
   useEffect(() => {
@@ -608,6 +632,7 @@ const App: React.FC = () => {
         settings: effectiveSettings,
         lobbyPlayers: isOnline ? lobbyPlayers : null,
         selectedAvatar,
+        customTiles: customBoard?.tiles ?? undefined,
       },
     };
 

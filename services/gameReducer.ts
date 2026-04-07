@@ -38,7 +38,7 @@ import {
 import { APPEARANCE_COLORS } from '../components/Avatar';
 
 export type Action =
-  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null; selectedAvatar?: number } }
+  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null; selectedAvatar?: number; customTiles?: Tile[] } }
   | { type: 'ROLL_DICE' }
   | { type: 'MOVE_PLAYER' }
   | { type: 'LAND_ON_TILE' }
@@ -305,7 +305,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           ...state,
           players,
           settings,
-          tiles: JSON.parse(JSON.stringify(INITIAL_TILES)),
+          tiles: JSON.parse(JSON.stringify(action.payload.customTiles ?? INITIAL_TILES)),
           currentPlayerIndex: 0,
           phase: 'ROLL',
           lastDiceRollDoubles: false,
@@ -379,8 +379,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       let passGoBonus = 0;
       let landedOnStart = false;
 
-      if (newPos >= BOARD_SIZE) {
-        newPos -= BOARD_SIZE;
+      const effectiveBoardSize = state.tiles.length || BOARD_SIZE;
+      if (newPos >= effectiveBoardSize) {
+        newPos -= effectiveBoardSize;
         if (newPos === 0) {
           passGoBonus = 300;
           landedOnStart = true;

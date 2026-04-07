@@ -40,6 +40,66 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // ─── Admin ─────────────────────────────────────────────────────────────────
+  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'richup-admin-2025';
+  const adminBoards = new Map<string, any>();
+  let activeAdminBoard: any = null;
+
+  function requireAdmin(req: any, res: any, next: any) {
+    if (req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    next();
+  }
+
+  app.post('/api/admin/login', (req, res) => {
+    const { username, password } = req.body || {};
+    if (username === 'admin' && password === 'admin') {
+      res.json({ success: true, token: ADMIN_TOKEN });
+    } else {
+      res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+  });
+
+  app.get('/api/admin/boards', requireAdmin, (_req, res) => {
+    res.json({ boards: Array.from(adminBoards.values()), activeBoard: activeAdminBoard });
+  });
+
+  app.post('/api/admin/boards', requireAdmin, (req, res) => {
+    const board = { ...req.body, id: randomUUID(), createdAt: Date.now() };
+    adminBoards.set(board.id, board);
+    res.json({ success: true, board });
+  });
+
+  app.put('/api/admin/boards/:id', requireAdmin, (req, res) => {
+    const existing = adminBoards.get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Board not found' });
+    const updated = { ...existing, ...req.body, id: existing.id, createdAt: existing.createdAt };
+    adminBoards.set(existing.id, updated);
+    if (activeAdminBoard?.id === existing.id) activeAdminBoard = updated;
+    res.json({ success: true, board: updated });
+  });
+
+  app.delete('/api/admin/boards/:id', requireAdmin, (req, res) => {
+    adminBoards.delete(req.params.id);
+    if (activeAdminBoard?.id === req.params.id) activeAdminBoard = null;
+    res.json({ success: true });
+  });
+
+  app.post('/api/admin/boards/:id/push', requireAdmin, (req, res) => {
+    const board = adminBoards.get(req.params.id);
+    if (!board) return res.status(404).json({ error: 'Board not found' });
+    activeAdminBoard = board;
+    io.emit('admin_board_pushed', { board });
+    console.log(`Admin pushed board "${board.name}" to all clients.`);
+    res.json({ success: true });
+  });
+
+  // Public — clients fetch active board on page load / before starting game
+  app.get('/api/active-board', (_req, res) => {
+    res.json({ board: activeAdminBoard });
+  });
+
   // SEC-07: Gemini API key is never sent to the client — all AI calls go through this proxy.
   // ERR-02: Use gemini-2.0-flash (correct model name).
   app.post("/api/ai-advice", async (req, res) => {
