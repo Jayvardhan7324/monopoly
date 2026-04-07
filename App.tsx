@@ -632,7 +632,21 @@ const App: React.FC = () => {
         settings: effectiveSettings,
         lobbyPlayers: isOnline ? lobbyPlayers : null,
         selectedAvatar,
-        customTiles: customBoard?.tiles ?? undefined,
+        customTiles: customBoard?.tiles
+          ? (customBoard.tiles as any[]).map((t: any) => ({
+              id: t.position ?? t.id,
+              name: t.name,
+              type: t.type,
+              price: t.price ?? 0,
+              rent: t.rent ?? [],
+              group: t.group,
+              ownerId: null,
+              buildingCount: 0,
+              isMortgaged: false,
+              houseCost: t.houseCost ?? 0,
+              countryCode: t.countryCode,
+            }))
+          : undefined,
       },
     };
 

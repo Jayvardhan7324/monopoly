@@ -15,20 +15,23 @@ interface TileProps {
   isOwned?: boolean;
   isMonopoly?: boolean;
   taxPool?: number;
+  /** Cells per side (default 11 for a standard 40-tile board). Pass when using non-standard board sizes. */
+  boardSizeN?: number;
 }
 
 // Height/width of the owner color band at the outer edge
 const BAND = '30%';
 
-const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, isCurrent, isOwned, isMonopoly, taxPool }) => {
+const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, isCurrent, isOwned, isMonopoly, taxPool, boardSizeN }) => {
   const isCorner = tile.type === ETileType.CORNER;
   const isProp   = tile.type === ETileType.PROPERTY;
   const isBandTile = isProp || tile.type === ETileType.RAILROAD || tile.type === ETileType.UTILITY;
 
-  const isTop    = tile.id >= 0  && tile.id <= 10;
-  const isRight  = tile.id >= 11 && tile.id <= 19;
-  const isBottom = tile.id >= 20 && tile.id <= 30;
-  const isLeft   = tile.id >= 31 && tile.id <= 39;
+  const N = boardSizeN ?? 11;
+  const isTop    = tile.id >= 0            && tile.id <= N - 1;
+  const isRight  = tile.id >= N            && tile.id <= 2 * N - 3;
+  const isBottom = tile.id >= 2 * N - 2   && tile.id <= 3 * N - 3;
+  const isLeft   = tile.id >= 3 * N - 2   && tile.id <= 4 * N - 5;
 
   const ownerColor  = tile.ownerId !== null ? ((allPlayers ?? players).find(p => p.id === tile.ownerId)?.color ?? null) : null;
   const isPropertyOwned = isBandTile && ownerColor !== null;
@@ -94,7 +97,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               )}
             </div>
           );
-        if (tile.name === 'Go to prison')
+        if (tile.name === 'Go to Prison')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1e1c28] to-[#181520]">
               <Skull size={34} className="text-slate-100 drop-shadow-lg mb-1" />

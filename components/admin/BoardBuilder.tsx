@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import React, { useState, useEffect, useRef } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, X, Pencil, LayoutGrid, List } from 'lucide-react';
+import { Save, X, Pencil, LayoutGrid, List, GripVertical } from 'lucide-react';
 import CellEditor from './CellEditor';
 import type { CustomBoard, CustomTile } from './types';
+import { Tile } from '../Tile';
+import type { Tile as GameTile } from '../../types';
 import {
-  getTileGridPos,
   generateDefaultTiles,
   COLOR_GROUP_HEX,
   flagEmoji,
@@ -25,133 +25,130 @@ interface Props {
   onCancel: () => void;
 }
 
-const TILE_TYPE_COLOR: Record<TileType, string> = {
-  [TileType.PROPERTY]:        '',      // uses group color
-  [TileType.RAILROAD]:        '#1e293b',
-  [TileType.UTILITY]:         '#0f766e',
-  [TileType.CHANCE]:          '#b45309',
-  [TileType.COMMUNITY_CHEST]: '#7c3aed',
-  [TileType.TAX]:             '#dc2626',
-  [TileType.CORNER]:          '#374151',
-};
-
-const TILE_TYPE_LABEL: Record<TileType, string> = {
-  [TileType.PROPERTY]:        '',
-  [TileType.RAILROAD]:        '✈',
-  [TileType.UTILITY]:         '⚡',
-  [TileType.CHANCE]:          '?',
-  [TileType.COMMUNITY_CHEST]: '♠',
-  [TileType.TAX]:             '$',
-  [TileType.CORNER]:          '★',
-};
-
 function tileDisplayColor(tile: CustomTile): string {
   if (tile.type === TileType.PROPERTY) {
     return COLOR_GROUP_HEX[tile.group] || COLOR_GROUP_HEX[ColorGroup.NONE];
   }
-  return TILE_TYPE_COLOR[tile.type];
+  const colors: Record<TileType, string> = {
+    [TileType.PROPERTY]:        '',
+    [TileType.RAILROAD]:        '#1e293b',
+    [TileType.UTILITY]:         '#0f766e',
+    [TileType.CHANCE]:          '#b45309',
+    [TileType.COMMUNITY_CHEST]: '#7c3aed',
+    [TileType.TAX]:             '#dc2626',
+    [TileType.CORNER]:          '#374151',
+  };
+  return colors[tile.type];
 }
 
-// ── Visual board grid ─────────────────────────────────────────────────────────
+/** Convert admin CustomTile → game Tile for preview rendering */
+function toGameTile(t: CustomTile): GameTile {
+  return {
+    id: t.position,
+    name: t.name,
+    type: t.type,
+    price: t.price,
+    rent: t.rent,
+    group: t.group,
+    ownerId: null,
+    buildingCount: 0,
+    isMortgaged: false,
+    houseCost: t.houseCost,
+    countryCode: t.countryCode,
+  };
+}
 
-interface BoardGridProps {
+/** CSS grid position for tile at index on an N×N board (matches Board.tsx logic exactly) */
+function getGridStyle(index: number, N: number): React.CSSProperties {
+  if (index <= N - 1)     return { gridRow: 1,  gridColumn: index + 1 };
+  if (index <= 2 * N - 3) return { gridRow: index - N + 2, gridColumn: N };
+  if (index <= 3 * N - 3) return { gridRow: N,  gridColumn: 3 * N - 2 - index };
+  if (index <= 4 * N - 5) return { gridRow: 4 * N - 3 - index, gridColumn: 1 };
+  return {};
+}
+
+// ── Live Board Preview (uses real Tile component — exact game look) ─────────
+
+interface LivePreviewProps {
   tiles: CustomTile[];
   N: number;
   onClickTile: (tile: CustomTile) => void;
+  onSwapTiles: (fromPos: number, toPos: number) => void;
 }
 
-const BoardGrid: React.FC<BoardGridProps> = ({ tiles, N, onClickTile }) => {
-  const CELL_PX = Math.max(24, Math.min(44, Math.floor(400 / N)));
-  const totalPx = CELL_PX * N;
+const LiveBoardPreview: React.FC<LivePreviewProps> = ({ tiles, N, onClickTile, onSwapTiles }) => {
+  const draggedPos = useRef<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+
+  const gridTemplate = `minmax(0, 1.5fr) repeat(${N - 2}, minmax(0, 1fr)) minmax(0, 1.5fr)`;
+
+  const handleDrop = (targetPos: number) => {
+    setDragOver(null);
+    const fromPos = draggedPos.current;
+    if (fromPos === null || fromPos === targetPos) return;
+    onSwapTiles(fromPos, targetPos);
+    draggedPos.current = null;
+  };
 
   return (
     <div
-      className="relative border border-border rounded-lg overflow-hidden bg-muted/30 mx-auto"
-      style={{ width: totalPx, height: totalPx }}
+      className="relative mx-auto bg-[#0c121d] rounded-xl border border-white/5 shadow-xl"
+      style={{ width: 440, height: 440, '--board-scale': '1' } as React.CSSProperties}
     >
-      {/* Grid lines */}
       <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `
-            repeating-linear-gradient(0deg, transparent, transparent ${CELL_PX - 1}px, rgba(0,0,0,.07) ${CELL_PX}px),
-            repeating-linear-gradient(90deg, transparent, transparent ${CELL_PX - 1}px, rgba(0,0,0,.07) ${CELL_PX}px)
-          `,
-        }}
-      />
-
-      {tiles.map(tile => {
-        const { row, col } = getTileGridPos(tile.position, N);
-        const color = tileDisplayColor(tile);
-        const isCorner = tile.type === TileType.CORNER;
-        const flag = tile.countryCode ? flagEmoji(tile.countryCode) : '';
-
-        return (
-          <button
-            key={tile.position}
-            title={`#${tile.position}: ${tile.name}`}
-            onClick={() => onClickTile(tile)}
-            className="absolute flex flex-col items-center justify-center gap-0.5 hover:z-10 hover:ring-2 hover:ring-primary transition-all group"
-            style={{
-              width: CELL_PX,
-              height: CELL_PX,
-              left: (col - 1) * CELL_PX,
-              top: (row - 1) * CELL_PX,
-              background: isCorner ? '#1e293b' : 'white',
-              borderRadius: 2,
-            }}
-          >
-            {/* Color band */}
-            <div
-              className="absolute top-0 left-0 right-0"
-              style={{ height: Math.max(4, CELL_PX * 0.18), background: color }}
-            />
-            {/* Position badge */}
-            <span className="absolute top-0.5 right-0.5 text-[7px] leading-none text-muted-foreground font-mono opacity-60">
-              {tile.position}
-            </span>
-            {/* Icon or flag */}
-            <span className="text-[10px] mt-1.5" style={{ fontSize: CELL_PX < 30 ? 8 : 10 }}>
-              {tile.type !== TileType.PROPERTY
-                ? TILE_TYPE_LABEL[tile.type]
-                : flag}
-            </span>
-            {/* Name (tiny, only if cell is big enough) */}
-            {CELL_PX >= 34 && (
-              <span
-                className="px-0.5 text-center leading-tight"
-                style={{
-                  fontSize: 6,
-                  color: isCorner ? 'white' : '#374151',
-                  maxWidth: CELL_PX - 4,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {tile.name}
-              </span>
-            )}
-            {/* Hover edit icon */}
-            <Pencil
-              className="absolute bottom-0.5 right-0.5 opacity-0 group-hover:opacity-100 transition-opacity text-primary"
-              style={{ width: 8, height: 8 }}
-            />
-          </button>
-        );
-      })}
-
-      {/* Center label */}
-      <div
-        className="absolute flex items-center justify-center text-muted-foreground text-xs font-medium pointer-events-none select-none"
-        style={{
-          left: CELL_PX,
-          top: CELL_PX,
-          width: (N - 2) * CELL_PX,
-          height: (N - 2) * CELL_PX,
-        }}
+        className="w-full h-full grid gap-[1.5px] bg-[#1a212e] p-[1.5px] rounded-lg border border-slate-800"
+        style={{ gridTemplateColumns: gridTemplate, gridTemplateRows: gridTemplate }}
       >
-        <span className="opacity-30 text-center">RICHUP<br />BOARD</span>
+        {/* Central area */}
+        <div
+          className="bg-[#0f1420] flex items-center justify-center"
+          style={{ gridColumn: `2 / ${N}`, gridRow: `2 / ${N}` }}
+        >
+          <span className="text-slate-600 text-xs font-mono select-none text-center leading-relaxed">
+            {tiles.length} tiles<br />{N}×{N}<br />
+            <span className="text-slate-700 text-[10px]">drag to swap</span>
+          </span>
+        </div>
+
+        {/* Tiles */}
+        {tiles.map(tile => {
+          const gameTile = toGameTile(tile);
+          const isDragTarget = dragOver === tile.position;
+
+          return (
+            <div
+              key={tile.position}
+              style={getGridStyle(tile.position, N)}
+              className={`w-full h-full relative cursor-grab active:cursor-grabbing ${isDragTarget ? 'ring-2 ring-blue-400 z-50 rounded-[4px]' : ''}`}
+              draggable
+              onDragStart={(e) => {
+                draggedPos.current = tile.position;
+                e.dataTransfer.effectAllowed = 'move';
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                setDragOver(tile.position);
+              }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  setDragOver(prev => prev === tile.position ? null : prev);
+                }
+              }}
+              onDrop={(e) => { e.preventDefault(); handleDrop(tile.position); }}
+              onDragEnd={() => { draggedPos.current = null; setDragOver(null); }}
+            >
+              <Tile
+                tile={gameTile}
+                players={[]}
+                allPlayers={[]}
+                onClick={() => onClickTile(tile)}
+                isCurrent={false}
+                boardSizeN={N}
+              />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -169,6 +166,9 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [view, setView] = useState<'grid' | 'list'>('grid');
 
+  // Drag state for list view
+  const listDragPos = useRef<number | null>(null);
+
   // Load initial board or generate defaults
   useEffect(() => {
     if (initialBoard) {
@@ -185,7 +185,6 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
   // Regenerate tiles when size changes (preserves names where positions overlap)
   const handleSizeChange = (newN: number) => {
     const newTiles = generateDefaultTiles(newN);
-    // Preserve existing customizations if position exists in new board
     const oldMap = new Map(tiles.map(t => [t.position, t]));
     const merged = newTiles.map(t => oldMap.get(t.position) ?? t);
     setBoardSize(newN);
@@ -201,6 +200,19 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
     setTiles(prev => prev.map(t => t.position === updated.position ? updated : t));
   };
 
+  /** Swap all tile data between two positions (keeps position numbers fixed) */
+  const handleSwapTiles = (fromPos: number, toPos: number) => {
+    setTiles(prev => {
+      const fi = prev.findIndex(t => t.position === fromPos);
+      const ti = prev.findIndex(t => t.position === toPos);
+      if (fi < 0 || ti < 0) return prev;
+      const next = [...prev];
+      next[fi] = { ...prev[ti], position: fromPos };
+      next[ti] = { ...prev[fi], position: toPos };
+      return next;
+    });
+  };
+
   const handleSave = () => {
     if (!boardName.trim()) { alert('Please enter a board name.'); return; }
     onSave({ name: boardName.trim(), boardSize, tiles });
@@ -210,10 +222,10 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
 
   // Group tiles by side for list view
   const sides = [
-    { label: 'Bottom', tiles: tiles.filter(t => t.position < boardSize) },
-    { label: 'Right',  tiles: tiles.filter(t => t.position >= boardSize && t.position < 2 * boardSize - 2) },
-    { label: 'Top',    tiles: tiles.filter(t => t.position >= 2 * boardSize - 2 && t.position < 3 * boardSize - 3) },
-    { label: 'Left',   tiles: tiles.filter(t => t.position >= 3 * boardSize - 3) },
+    { label: 'Top',    tiles: tiles.filter(t => t.position <= boardSize - 1) },
+    { label: 'Right',  tiles: tiles.filter(t => t.position >= boardSize && t.position <= 2 * boardSize - 3) },
+    { label: 'Bottom', tiles: tiles.filter(t => t.position >= 2 * boardSize - 2 && t.position <= 3 * boardSize - 3) },
+    { label: 'Left',   tiles: tiles.filter(t => t.position >= 3 * boardSize - 2) },
   ];
 
   return (
@@ -225,7 +237,7 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
             {initialBoard ? `Editing: ${initialBoard.name}` : 'New Board'}
           </h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Click any cell to customize it.
+            Click any tile to edit · Drag tiles to swap positions
           </p>
         </div>
         <div className="flex gap-2">
@@ -240,7 +252,7 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-5">
         {/* ── Left: settings ── */}
         <div className="space-y-4">
           <Card>
@@ -291,31 +303,6 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
               </div>
             </CardContent>
           </Card>
-
-          {/* Legend */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Legend</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[
-                { label: 'Corner',    color: '#374151', icon: '★' },
-                { label: 'Railroad',  color: '#1e293b', icon: '✈' },
-                { label: 'Utility',   color: '#0f766e', icon: '⚡' },
-                { label: 'Chance',    color: '#b45309', icon: '?' },
-                { label: 'Chest',     color: '#7c3aed', icon: '♠' },
-                { label: 'Tax',       color: '#dc2626', icon: '$' },
-              ].map(item => (
-                <div key={item.label} className="flex items-center gap-2 text-sm">
-                  <div className="h-3 w-3 rounded-sm shrink-0" style={{ background: item.color }} />
-                  <span className="text-muted-foreground">{item.icon}</span>
-                  <span>{item.label}</span>
-                </div>
-              ))}
-              <Separator className="my-1" />
-              <p className="text-xs text-muted-foreground">Properties use their color group color.</p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* ── Right: visual board + list ── */}
@@ -348,11 +335,12 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
           </CardHeader>
           <CardContent>
             {view === 'grid' ? (
-              <div className="flex justify-center py-2">
-                <BoardGrid
+              <div className="flex justify-center py-2 overflow-x-auto">
+                <LiveBoardPreview
                   tiles={tiles}
                   N={boardSize}
                   onClickTile={openEditor}
+                  onSwapTiles={handleSwapTiles}
                 />
               </div>
             ) : (
@@ -368,11 +356,21 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
                           const color = tileDisplayColor(tile);
                           const flag = tile.countryCode ? flagEmoji(tile.countryCode) : '';
                           return (
-                            <button
+                            <div
                               key={tile.position}
-                              onClick={() => openEditor(tile)}
-                              className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left hover:border-primary/50 hover:bg-primary/5 transition-colors group"
+                              draggable
+                              onDragStart={() => { listDragPos.current = tile.position; }}
+                              onDragOver={e => e.preventDefault()}
+                              onDrop={() => {
+                                const from = listDragPos.current;
+                                if (from !== null && from !== tile.position) {
+                                  handleSwapTiles(from, tile.position);
+                                }
+                                listDragPos.current = null;
+                              }}
+                              className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-left hover:border-primary/50 hover:bg-primary/5 transition-colors group cursor-grab active:cursor-grabbing"
                             >
+                              <GripVertical className="h-4 w-4 text-muted-foreground/40 shrink-0" />
                               {/* Color swatch */}
                               <div
                                 className="h-6 w-1.5 rounded-full shrink-0"
@@ -394,8 +392,13 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
                               <Badge variant="outline" className="text-[10px] shrink-0">
                                 {tile.type.replace('_', ' ')}
                               </Badge>
-                              <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0" />
-                            </button>
+                              <button
+                                onClick={() => openEditor(tile)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-primary/10"
+                              >
+                                <Pencil className="h-3 w-3 text-muted-foreground" />
+                              </button>
+                            </div>
                           );
                         })}
                       </div>

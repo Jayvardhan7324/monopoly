@@ -13,6 +13,9 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
   const boardRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
+  // Derive board size N from tile count (total = 4*(N-1))
+  const N = Math.round(gameState.tiles.length / 4) + 1;
+
   useEffect(() => {
     const observer = new ResizeObserver((entries) => {
       for (let entry of entries) {
@@ -30,12 +33,14 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
   }, []);
 
   const getGridStyle = (index: number) => {
-    if (index >= 0 && index <= 10) return { gridRow: 1, gridColumn: index + 1 };
-    if (index >= 11 && index <= 19) return { gridRow: index - 10 + 1, gridColumn: 11 };
-    if (index >= 20 && index <= 30) return { gridRow: 11, gridColumn: 11 - (index - 20) };
-    if (index >= 31 && index <= 39) return { gridRow: 11 - (index - 30), gridColumn: 1 };
+    if (index <= N - 1)     return { gridRow: 1,  gridColumn: index + 1 };
+    if (index <= 2 * N - 3) return { gridRow: index - N + 2, gridColumn: N };
+    if (index <= 3 * N - 3) return { gridRow: N,  gridColumn: 3 * N - 2 - index };
+    if (index <= 4 * N - 5) return { gridRow: 4 * N - 3 - index, gridColumn: 1 };
     return {};
   };
+
+  const gridTemplate = `minmax(0, 1.5fr) repeat(${N - 2}, minmax(0, 1fr)) minmax(0, 1.5fr)`;
 
   return (
     <div
@@ -46,12 +51,15 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
       <div
         className="w-full h-full grid gap-[1.5px] bg-[#1a212e] p-[1.5px] rounded-lg border border-slate-800 shadow-inner"
         style={{
-          gridTemplateColumns: 'minmax(0, 1.5fr) repeat(9, minmax(0, 1fr)) minmax(0, 1.5fr)',
-          gridTemplateRows: 'minmax(0, 1.5fr) repeat(9, minmax(0, 1fr)) minmax(0, 1.5fr)'
+          gridTemplateColumns: gridTemplate,
+          gridTemplateRows: gridTemplate,
         }}
       >
         {/* Central Area for Controls/HUD */}
-        <div className="col-start-2 col-end-11 row-start-2 row-end-11 bg-[#0f1420] relative flex flex-col overflow-hidden">
+        <div
+          className="bg-[#0f1420] relative flex flex-col overflow-hidden"
+          style={{ gridColumn: `2 / ${N}`, gridRow: `2 / ${N}` }}
+        >
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1e2640_0%,_#0f1420_60%,_#0a0e18_100%)] opacity-80 pointer-events-none"></div>
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,_rgba(0,0,0,0.4)_100%)] pointer-events-none"></div>
@@ -94,6 +102,7 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
                 isOwned={isOwned}
                 isMonopoly={isMonopoly}
                 taxPool={tile.name === 'Vacation' ? gameState.taxPool : undefined}
+                boardSizeN={N}
               />
             </div>
           );
