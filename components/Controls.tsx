@@ -19,7 +19,7 @@ interface ControlsProps {
   onEndTurn: () => void;
   onUpgrade: (tileId: number) => void;
   onOpenProperty: (tileId: number) => void;
-  onTrade: (offer: { cash: number; properties: number[]; requestCash: number }, targetTileId: number) => void;
+  onTrade: (offer: { cash: number; properties: number[]; requestCash: number }, targetTileId: number | null, targetPlayerId: number) => void;
   dispatch: React.Dispatch<any>;
   onViewPlayer: (playerId: number) => void;
   onReset?: () => void;

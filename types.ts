@@ -111,7 +111,7 @@ export interface TradeOffer {
   targetId: number;
   offerCash: number;
   offerPropertyIds: number[];
-  targetPropertyId: number;
+  targetPropertyId: number | null;
   requestCash: number;
   botDecision?: 'accept' | 'decline'; // pre-computed for bot targets, auto-resolved after delay
 }

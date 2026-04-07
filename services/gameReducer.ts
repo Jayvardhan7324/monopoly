@@ -49,7 +49,7 @@ export type Action =
   | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number } }
   | { type: 'SELL_PROPERTY'; payload: { tileId: number } }
-  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number; requestCash: number } }
+  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number | null; targetPlayerId?: number; requestCash: number } }
   | { type: 'ACCEPT_TRADE' }
   | { type: 'DECLINE_TRADE' }
   | { type: 'CANCEL_TRADE' }
@@ -923,6 +923,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'UPGRADE_PROPERTY': {
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
+      // Can only build on your own turn (ACTION or TURN_END phase)
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
+      if (state.players[state.currentPlayerIndex]?.id !== tile.ownerId) return state;
       const player = state.players.find(p => p.id === tile.ownerId);
       if (!player || player.money < tile.houseCost || tile.buildingCount >= 5) return state;
 
@@ -1027,9 +1030,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── PROPOSE_TRADE ────────────────────────────────────────────────────────
     case 'PROPOSE_TRADE': {
-      const { proposerId, offerCash, offerPropertyIds, targetTileId, requestCash } = action.payload;
-      const targetTile = state.tiles[targetTileId];
-      const targetOwnerId = targetTile.ownerId;
+      const { proposerId, offerCash, offerPropertyIds, targetTileId, targetPlayerId: explicitTargetPlayerId, requestCash } = action.payload;
+
+      // Resolve target player: either from the tile they own, or directly by id (cash-only trades)
+      const targetTile = targetTileId !== null ? state.tiles[targetTileId] : null;
+      const targetOwnerId = targetTile ? targetTile.ownerId : (explicitTargetPlayerId ?? null);
       if (targetOwnerId === null) return state;
       const targetPlayer = state.players.find(p => p.id === targetOwnerId);
       if (!targetPlayer) return state;
@@ -1051,6 +1056,15 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         return withSound({ ...state, logs: addLog(state.logs, 'Insufficient funds to make this trade offer.') }, 'error');
       }
 
+      // Build descriptive log string showing what's being traded
+      const offerParts: string[] = [];
+      if (offerCash > 0) offerParts.push(`$${offerCash}`);
+      offerPropertyIds.forEach(id => { const t = state.tiles[id]; if (t) offerParts.push(t.name); });
+      const requestParts: string[] = [];
+      if (requestCash > 0) requestParts.push(`$${requestCash}`);
+      if (targetTile) requestParts.push(targetTile.name);
+      const tradeDesc = `${proposer.name} offered [${offerParts.join(' + ') || 'nothing'}] to ${targetPlayer.name} for [${requestParts.join(' + ') || 'nothing'}].`;
+
       // If target is human, store as pending
       if (!targetPlayer.isBot) {
         return withSound(
@@ -1064,7 +1078,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
               targetPropertyId: targetTileId,
               requestCash
             },
-            logs: addLog(state.logs, `${proposer.name} proposed a trade to ${targetPlayer.name}.`)
+            logs: addLog(state.logs, tradeDesc)
           },
           'trade_offer'
         );
@@ -1075,12 +1089,20 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const personality = bot.personality || BotPersonalityType.BALANCED;
 
       // ── Strategic AI valuation ──────────────────────────────────────────────
-      const targetGroup = state.tiles.filter(t => t.group === targetTile.group);
-      const botOwnedInGroup = targetGroup.filter(t => t.ownerId === bot.id).length;
+      let botLossValue = requestCash;
+      let proposerMonopolyPenalty = 0;
 
-      let botLossValue = targetTile.price * 1.2 + requestCash;
-      if (botOwnedInGroup === targetGroup.length) botLossValue *= 6;
-      else if (botOwnedInGroup > 1) botLossValue *= 2.5;
+      if (targetTile) {
+        const targetGroup = state.tiles.filter(t => t.group === targetTile.group);
+        const botOwnedInGroup = targetGroup.filter(t => t.ownerId === bot.id).length;
+        botLossValue += targetTile.price * 1.2;
+        if (botOwnedInGroup === targetGroup.length) botLossValue *= 6;
+        else if (botOwnedInGroup > 1) botLossValue *= 2.5;
+        const proposerOwnedInGroup = targetGroup.filter(t => t.ownerId === proposer.id).length;
+        if (proposerOwnedInGroup === targetGroup.length - 1) {
+          proposerMonopolyPenalty = targetTile.price * (state.turnCount > 100 ? 5 : 3);
+        }
+      }
 
       // Bot is more reluctant to give away cash if it's low
       if (bot.money < requestCash + 100) botLossValue *= 2;
@@ -1100,13 +1122,6 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         if (offeredTile.isMortgaged) tileValue *= 0.4;
         botGainValue += tileValue;
       });
-
-      // BUG-10 FIX: Penalty for granting the proposer a monopoly (not hardcoded to player 0)
-      let proposerMonopolyPenalty = 0;
-      const proposerOwnedInGroup = targetGroup.filter(t => t.ownerId === proposer.id).length;
-      if (proposerOwnedInGroup === targetGroup.length - 1) {
-        proposerMonopolyPenalty = targetTile.price * (state.turnCount > 100 ? 5 : 3);
-      }
 
       // Personality adjustments to the final decision
       let threshold = 1.0;
@@ -1137,7 +1152,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             requestCash,
             botDecision: botAccepts ? 'accept' : 'decline',
           },
-          logs: addLog(state.logs, `${proposer.name} proposed a trade to ${bot.name}.`),
+          logs: addLog(state.logs, tradeDesc),
         },
         'trade_offer'
       );
@@ -1166,7 +1181,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — ${target.name} can no longer afford the request.`) }, 'error');
       }
       // Validate property ownership hasn't changed
-      const targetTileStillOwned = state.tiles[targetPropertyId]?.ownerId === targetId;
+      const targetTileStillOwned = targetPropertyId === null || state.tiles[targetPropertyId]?.ownerId === targetId;
       const offerTilesStillOwned = offerPropertyIds.every(id => state.tiles[id]?.ownerId === proposerId);
       if (!targetTileStillOwned || !offerTilesStillOwned) {
         return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — property ownership changed.`) }, 'error');
@@ -1186,10 +1201,21 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       });
 
       const newTiles = state.tiles.map(t => {
-        if (t.id === targetPropertyId) return { ...t, ownerId: proposerId };
+        if (targetPropertyId !== null && t.id === targetPropertyId) return { ...t, ownerId: proposerId };
         if (offerPropertyIds.includes(t.id)) return { ...t, ownerId: targetId };
         return t;
       });
+
+      // Build descriptive accepted-trade log
+      const offeredPropNames = offerPropertyIds.map(id => state.tiles[id]?.name).filter(Boolean);
+      const targetPropName = targetPropertyId !== null ? (state.tiles[targetPropertyId]?.name ?? '') : '';
+      const accOfferParts: string[] = [];
+      if (offerCash > 0) accOfferParts.push(`$${offerCash}`);
+      offeredPropNames.forEach(n => accOfferParts.push(n as string));
+      const accRequestParts: string[] = [];
+      if (requestCash > 0) accRequestParts.push(`$${requestCash}`);
+      if (targetPropName) accRequestParts.push(targetPropName);
+      const acceptMsg = `Trade done! ${proposer.name} gave [${accOfferParts.join(' + ') || 'nothing'}], got [${accRequestParts.join(' + ') || 'nothing'}].`;
 
       const acceptLog: TradeLog = {
         proposerName: proposer.name,
@@ -1198,7 +1224,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         offerCash,
         requestCash,
         offerPropertyCount: offerPropertyIds.length,
-        targetPropertyName: state.tiles[targetPropertyId]?.name ?? '',
+        targetPropertyName: targetPropName,
       };
       return withSound(
         {
@@ -1207,7 +1233,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           tiles: newTiles,
           pendingTrade: null,
           lastTradeLog: acceptLog,
-          logs: addLog(mortgageWarning, `Trade accepted by ${target.name}!`),
+          logs: addLog(mortgageWarning, acceptMsg),
         },
         'trade_accept'
       );
@@ -1226,7 +1252,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         offerCash: state.pendingTrade.offerCash,
         requestCash: state.pendingTrade.requestCash,
         offerPropertyCount: state.pendingTrade.offerPropertyIds.length,
-        targetPropertyName: state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '',
+        targetPropertyName: state.pendingTrade.targetPropertyId !== null ? (state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '') : '',
       };
       return withSound(
         {
@@ -1251,7 +1277,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         offerCash: state.pendingTrade.offerCash,
         requestCash: state.pendingTrade.requestCash,
         offerPropertyCount: state.pendingTrade.offerPropertyIds.length,
-        targetPropertyName: state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '',
+        targetPropertyName: state.pendingTrade.targetPropertyId !== null ? (state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '') : '',
       };
       return withSound(
         { ...state, pendingTrade: null, lastTradeLog: cancelLog, logs: addLog(state.logs, `${proposerName} cancelled their trade offer.`) },

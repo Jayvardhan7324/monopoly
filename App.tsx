@@ -2120,8 +2120,8 @@ const App: React.FC = () => {
               onEndTurn={() => handleDispatch({ type: 'END_TURN' })}
               onUpgrade={tileId => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId } })}
               onOpenProperty={handleTileClick}
-              onTrade={(offer, targetTileId) =>
-                handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash } })
+              onTrade={(offer, targetTileId, targetPlayerId) =>
+                handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash, targetPlayerId } })
               }
               dispatch={handleDispatch}
               onViewPlayer={id => setViewingPlayerId(id)}
@@ -2411,7 +2411,7 @@ const App: React.FC = () => {
             owner={gameState.players.find(p => p.id === gameState.tiles[selectedTileId].ownerId)}
             onClose={() => setSelectedTileId(null)}
             onUpgrade={() => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
-            canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId}
+            canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId && gameState.players[gameState.currentPlayerIndex]?.id === myPlayerId}
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
             myProperties={myProperties}
             onTrade={offer =>
@@ -2437,8 +2437,8 @@ const App: React.FC = () => {
           players={gameState.players}
           tiles={gameState.tiles}
           myPlayerId={myPlayerId}
-          onTrade={(offerCash, offerPropertyIds, targetTileId, requestCash) => {
-            handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash, offerPropertyIds, targetTileId, requestCash } });
+          onTrade={(offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId) => {
+            handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId } });
           }}
         />
 

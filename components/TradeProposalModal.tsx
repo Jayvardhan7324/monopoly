@@ -25,11 +25,11 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
 }) => {
   const proposer = players.find(p => p.id === trade.proposerId);
   const target = players.find(p => p.id === trade.targetId);
-  const targetTile = tiles[trade.targetPropertyId];
+  const targetTile = trade.targetPropertyId !== null ? tiles[trade.targetPropertyId] : null;
   const offeredTiles = trade.offerPropertyIds.map(id => tiles[id]).filter(Boolean);
   const isTarget = myPlayerId === trade.targetId;
 
-  if (!proposer || !target || !targetTile) return null;
+  if (!proposer || !target) return null;
 
   const groupColor: Record<string, string> = {
     BROWN: '#78350f', LIGHT_BLUE: '#38bdf8', PINK: '#ec4899',
@@ -107,15 +107,20 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
               <span className="text-[10px] font-black uppercase tracking-widest">In Exchange For:</span>
             </div>
             <div className="grid grid-cols-1 gap-1.5">
-              <div className="bg-white/5 border border-white/5 rounded-lg p-2 flex items-center gap-2">
-                <div className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: groupColor[targetTile.group] ?? '#64748b' }} />
-                <span className="text-[10px] font-bold text-white uppercase truncate">{targetTile.name}</span>
-              </div>
+              {targetTile && (
+                <div className="bg-white/5 border border-white/5 rounded-lg p-2 flex items-center gap-2">
+                  <div className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: groupColor[targetTile.group] ?? '#64748b' }} />
+                  <span className="text-[10px] font-bold text-white uppercase truncate">{targetTile.name}</span>
+                </div>
+              )}
               {trade.requestCash > 0 && (
                 <div className="bg-rose-500/10 border border-rose-500/20 rounded-lg p-2 flex items-center justify-between">
                   <span className="text-[10px] text-slate-400 uppercase font-bold flex items-center gap-1"><Coins size={12} className="text-rose-400"/> Cash</span>
                   <span className="text-rose-400 font-mono font-bold text-sm">${trade.requestCash}</span>
                 </div>
+              )}
+              {!targetTile && trade.requestCash === 0 && (
+                <div className="text-slate-600 text-[10px] italic">Nothing requested</div>
               )}
             </div>
           </div>

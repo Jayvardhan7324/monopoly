@@ -10,7 +10,7 @@ interface CreateTradeModalProps {
   players: Player[];
   tiles: Tile[];
   myPlayerId: number;
-  onTrade: (offerCash: number, offerPropertyIds: number[], targetTileId: number, requestCash: number) => void;
+  onTrade: (offerCash: number, offerPropertyIds: number[], targetTileId: number | null, requestCash: number, targetPlayerId: number) => void;
 }
 
 const colorMap: Record<ColorGroup, string> = {
@@ -113,8 +113,8 @@ export const CreateTradeModal: React.FC<CreateTradeModalProps> = ({
   };
 
   const submitTrade = () => {
-    if (targetTileId === null) return;
-    onTrade(offerCash, offerPropertyIds, targetTileId, requestCash);
+    if (targetPlayerId === null) return;
+    onTrade(offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId);
     handleClose();
   };
 
@@ -122,7 +122,9 @@ export const CreateTradeModal: React.FC<CreateTradeModalProps> = ({
     setOfferPropertyIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const canSend = targetTileId !== null && (offerCash > 0 || offerPropertyIds.length > 0 || requestCash >= 0);
+  const hasOffer = offerCash > 0 || offerPropertyIds.length > 0;
+  const hasRequest = requestCash > 0 || targetTileId !== null;
+  const canSend = targetPlayerId !== null && (hasOffer || hasRequest);
 
   return (
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
@@ -161,14 +163,15 @@ export const CreateTradeModal: React.FC<CreateTradeModalProps> = ({
                     return (
                       <button
                         key={p.id}
-                        disabled={count === 0}
                         onClick={() => { setTargetPlayerId(p.id); setStep(2); }}
-                        className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl p-3 flex items-center gap-3 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="w-full bg-slate-800/50 hover:bg-slate-800 border border-slate-700 rounded-xl p-3 flex items-center gap-3 transition-colors"
                       >
                         <Avatar avatarId={p.avatarId} color={p.color} className="w-9 h-9" />
                         <div className="text-left flex-1 min-w-0">
                           <div className="text-sm font-bold text-white uppercase truncate">{p.name}</div>
-                          <div className="text-[10px] text-slate-400 uppercase tracking-widest">{count} tradeable assets</div>
+                          <div className="text-[10px] text-slate-400 uppercase tracking-widest">
+                            {count > 0 ? `${count} tradeable properties` : 'cash trade only'}
+                          </div>
                         </div>
                       </button>
                     );
