@@ -61,7 +61,7 @@ async function startServer() {
         )
       `);
 
-      app.all("/api/auth/*", toNodeHandler(auth));
+      app.all(/^\/api\/auth\//, toNodeHandler(auth));
       console.log("Better Auth + DB loaded");
     } catch (e: any) {
       console.error("Failed to load auth/db — running without auth:", e?.message);

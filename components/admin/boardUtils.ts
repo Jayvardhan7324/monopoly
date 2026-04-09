@@ -210,7 +210,7 @@ export function generateDefaultTiles(N: number): CustomTile[] {
         Math.round(basePrice * 4),
       ],
       houseCost,
-      countryCode: 'us',
+      countryCode: undefined,
       priceTagPosition: 'bottom',
     } satisfies CustomTile;
   });

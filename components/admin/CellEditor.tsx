@@ -128,7 +128,7 @@ const CellEditor: React.FC<Props> = ({ tile, open, onClose, onSave }) => {
             <div className="space-y-1.5">
               <Label>Country</Label>
               <Select
-                value={form.countryCode || 'us'}
+                value={form.countryCode || ''}
                 onValueChange={v => update('countryCode', v)}
               >
                 <SelectTrigger>
