@@ -17,7 +17,19 @@
       "Bash(git add:*)",
       "Bash(git commit -m ':*)",
       "Bash(git push:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(node:*)",
+      "mcp__plugin_context-mode_context-mode__ctx_execute",
+      "Bash(ls:*)",
+      "Bash(git commit:*)",
+      "Bash(npx:*)",
+      "WebSearch",
+      "Bash(claude mcp:*)",
+      "mcp__better-auth__setup_auth",
+      "Bash(grep -E \"better-auth|drizzle|^pg$\")",
+      "Bash(xargs grep:*)"
     ]
   }
 }
