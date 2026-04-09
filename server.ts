@@ -2,6 +2,11 @@ import express from "express";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { randomBytes, randomUUID } from "crypto";
+import { toNodeHandler } from "better-auth/node";
+import { auth } from "./lib/auth";
+import { db } from "./db/index";
+import { storeItem, purchase, user } from "./db/schema";
+import { eq, and } from "drizzle-orm";
 
 interface RoomData {
   host: string;
@@ -27,6 +32,9 @@ async function startServer() {
       methods: ["GET", "POST"]
     }
   });
+
+  // Better Auth — must be before express.json() for auth routes
+  app.all("/api/auth/*", toNodeHandler(auth));
 
   app.use(express.json());
 
@@ -782,6 +790,154 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       // Not in any room — just update the list
       scheduleRoomsListBroadcast();
     });
+  });
+
+  // ─── Store API ────────────────────────────────────────────────────────────────
+
+  // Helper: get authed user from request
+  async function getSessionUser(req: any) {
+    const session = await auth.api.getSession({ headers: req.headers as any });
+    return session?.user ?? null;
+  }
+
+  app.get('/api/store/items', async (_req, res) => {
+    try {
+      const items = await db.select().from(storeItem).where(eq(storeItem.active, true));
+      res.json({ items });
+    } catch (err: any) {
+      res.status(500).json({ error: 'Failed to load store items' });
+    }
+  });
+
+  app.get('/api/store/inventory/:userId', async (req, res) => {
+    try {
+      const purchases = await db
+        .select({ itemId: purchase.itemId })
+        .from(purchase)
+        .where(eq(purchase.userId, req.params.userId));
+      const [userData] = await db.select({ coins: user.coins }).from(user).where(eq(user.id, req.params.userId));
+      res.json({ itemIds: purchases.map(p => p.itemId), coins: userData?.coins ?? 0 });
+    } catch {
+      res.status(500).json({ error: 'Failed to load inventory' });
+    }
+  });
+
+  app.post('/api/store/purchase', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+
+    const { itemId } = req.body ?? {};
+    if (!itemId) return res.status(400).json({ error: 'itemId required' });
+
+    try {
+      // Load item
+      const [item] = await db.select().from(storeItem).where(and(eq(storeItem.id, itemId), eq(storeItem.active, true)));
+      if (!item) return res.status(404).json({ error: 'Item not found' });
+
+      // Load user coins
+      const [userData] = await db.select({ coins: user.coins }).from(user).where(eq(user.id, sessionUser.id));
+      if (!userData) return res.status(404).json({ error: 'User not found' });
+
+      if (userData.coins < item.priceCoins) return res.status(400).json({ error: 'Insufficient coins' });
+
+      // Check not already owned
+      const [existing] = await db.select().from(purchase).where(and(eq(purchase.userId, sessionUser.id), eq(purchase.itemId, itemId)));
+      if (existing) return res.status(400).json({ error: 'Already owned' });
+
+      // Deduct coins + record purchase (in parallel)
+      const newCoins = userData.coins - item.priceCoins;
+      await Promise.all([
+        db.update(user).set({ coins: newCoins }).where(eq(user.id, sessionUser.id)),
+        db.insert(purchase).values({ id: randomUUID(), userId: sessionUser.id, itemId, purchasedAt: new Date() }),
+      ]);
+
+      res.json({ success: true, coins: newCoins });
+    } catch (err: any) {
+      console.error('Purchase error:', err?.message);
+      res.status(500).json({ error: 'Purchase failed' });
+    }
+  });
+
+  // ─── Admin: User Management ───────────────────────────────────────────────────
+
+  app.get('/api/admin/users', requireAdmin, async (req, res) => {
+    try {
+      const users = await db.select({
+        id: user.id, name: user.name, email: user.email, role: user.role,
+        banned: user.banned, banReason: user.banReason, createdAt: user.createdAt, coins: user.coins,
+      }).from(user);
+      res.json({ users });
+    } catch {
+      res.status(500).json({ error: 'Failed to load users' });
+    }
+  });
+
+  app.patch('/api/admin/users/:id', requireAdmin, async (req, res) => {
+    const { role, banned, banReason, coins } = req.body ?? {};
+    const updates: Record<string, any> = {};
+    if (role !== undefined) updates.role = role;
+    if (banned !== undefined) updates.banned = banned;
+    if (banReason !== undefined) updates.banReason = banReason;
+    if (coins !== undefined) updates.coins = coins;
+    try {
+      await db.update(user).set(updates).where(eq(user.id, req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
+  // ─── Admin: Store Management ──────────────────────────────────────────────────
+
+  app.get('/api/admin/store/items', requireAdmin, async (_req, res) => {
+    try {
+      const items = await db.select().from(storeItem);
+      res.json({ items });
+    } catch {
+      res.status(500).json({ error: 'Failed to load store items' });
+    }
+  });
+
+  app.post('/api/admin/store/items', requireAdmin, async (req, res) => {
+    const { name, description, type, priceCoins, assetUrl } = req.body ?? {};
+    if (!name || !type) return res.status(400).json({ error: 'name and type required' });
+    try {
+      const item = {
+        id: randomUUID(), name, description: description ?? '',
+        type, priceCoins: priceCoins ?? 100, assetUrl: assetUrl ?? null,
+        active: true, createdAt: new Date(),
+      };
+      await db.insert(storeItem).values(item);
+      res.json({ success: true, item });
+    } catch {
+      res.status(500).json({ error: 'Failed to create item' });
+    }
+  });
+
+  app.patch('/api/admin/store/items/:id', requireAdmin, async (req, res) => {
+    const { name, description, type, priceCoins, assetUrl, active } = req.body ?? {};
+    const updates: Record<string, any> = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (type !== undefined) updates.type = type;
+    if (priceCoins !== undefined) updates.priceCoins = priceCoins;
+    if (assetUrl !== undefined) updates.assetUrl = assetUrl;
+    if (active !== undefined) updates.active = active;
+    try {
+      await db.update(storeItem).set(updates).where(eq(storeItem.id, req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to update item' });
+    }
+  });
+
+  app.delete('/api/admin/store/items/:id', requireAdmin, async (req, res) => {
+    try {
+      await db.update(storeItem).set({ active: false }).where(eq(storeItem.id, req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to delete item' });
+    }
   });
 
   if (process.env.NODE_ENV !== "production") {

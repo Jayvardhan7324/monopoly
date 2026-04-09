@@ -5,9 +5,19 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
-import { LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio } from 'lucide-react';
+import { LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag, Ban, Shield, Coins, Edit2, X, Check, Package } from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
+
+interface UserRow {
+  id: string; name: string; email: string; role: string | null;
+  banned: boolean | null; banReason: string | null; createdAt: string | null; coins: number;
+}
+interface StoreItemRow {
+  id: string; name: string; description: string; type: string;
+  priceCoins: number; assetUrl: string | null; active: boolean; createdAt: string;
+}
+const ITEM_TYPES = ['avatar', 'board_skin', 'token', 'misc'];
 
 interface Props {
   token: string;
@@ -19,6 +29,18 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [activeBoard, setActiveBoard] = useState<CustomBoard | null>(null);
   const [editingBoard, setEditingBoard] = useState<CustomBoard | null>(null);
   const [tab, setTab] = useState('overview');
+
+  // Users tab
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+
+  // Store tab
+  const [storeItems, setStoreItems] = useState<StoreItemRow[]>([]);
+  const [storeLoading, setStoreLoading] = useState(false);
+  const [showItemForm, setShowItemForm] = useState(false);
+  const [editingItem, setEditingItem] = useState<StoreItemRow | null>(null);
+  const [itemForm, setItemForm] = useState({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -38,6 +60,64 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   };
 
   useEffect(() => { fetchBoards(); }, []);
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
+    try {
+      const res = await fetch('/api/admin/users', { headers });
+      if (!res.ok) { toast.error('Failed to load users'); return; }
+      const data = await res.json();
+      setUsers(data.users ?? []);
+    } catch { toast.error('Failed to load users'); }
+    finally { setUsersLoading(false); }
+  };
+
+  const updateUser = async (id: string, updates: Partial<UserRow>) => {
+    try {
+      await fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
+      toast.success('User updated');
+      fetchUsers();
+    } catch { toast.error('Failed to update user'); }
+  };
+
+  const fetchStoreItems = async () => {
+    setStoreLoading(true);
+    try {
+      const res = await fetch('/api/admin/store/items', { headers });
+      const data = await res.json();
+      setStoreItems(data.items ?? []);
+    } catch { toast.error('Failed to load store items'); }
+    finally { setStoreLoading(false); }
+  };
+
+  const saveItem = async () => {
+    if (!itemForm.name || !itemForm.type) { toast.error('Name and type are required'); return; }
+    try {
+      if (editingItem) {
+        await fetch(`/api/admin/store/items/${editingItem.id}`, { method: 'PATCH', headers, body: JSON.stringify(itemForm) });
+        toast.success('Item updated');
+      } else {
+        await fetch('/api/admin/store/items', { method: 'POST', headers, body: JSON.stringify(itemForm) });
+        toast.success('Item created');
+      }
+      setShowItemForm(false); setEditingItem(null); setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
+      fetchStoreItems();
+    } catch { toast.error('Failed to save item'); }
+  };
+
+  const deleteItem = async (id: string) => {
+    if (!confirm('Deactivate this item?')) return;
+    try {
+      await fetch(`/api/admin/store/items/${id}`, { method: 'DELETE', headers });
+      toast.success('Item deactivated');
+      fetchStoreItems();
+    } catch { toast.error('Failed to deactivate item'); }
+  };
+
+  useEffect(() => {
+    if (tab === 'users') fetchUsers();
+    if (tab === 'store') fetchStoreItems();
+  }, [tab]);
 
   const pushBoard = async (id: string) => {
     try {
@@ -115,7 +195,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="mb-6">
+          <TabsList className="mb-6 flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="builder">Board Builder</TabsTrigger>
             <TabsTrigger value="boards">
@@ -125,6 +205,14 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                   {boards.length}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="users">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="store">
+              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
+              Store
             </TabsTrigger>
           </TabsList>
 
@@ -273,6 +361,197 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+          </TabsContent>
+          {/* ── Users ── */}
+          <TabsContent value="users">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h2 className="text-xl font-semibold flex items-center gap-2"><Users className="h-5 w-5" /> User Management</h2>
+              <input
+                className="px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring w-56"
+                placeholder="Search by name or email…"
+                value={userSearch}
+                onChange={e => setUserSearch(e.target.value)}
+              />
+            </div>
+            {usersLoading ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Loading users…</CardContent></Card>
+            ) : (
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      {['Name', 'Email', 'Role', 'Coins', 'Status', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-2.5 font-medium text-muted-foreground">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users
+                      .filter(u => !userSearch || u.name?.toLowerCase().includes(userSearch.toLowerCase()) || u.email?.toLowerCase().includes(userSearch.toLowerCase()))
+                      .map((u, i) => (
+                        <tr key={u.id} className={i % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+                          <td className="px-4 py-2.5 font-medium">{u.name}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground">{u.email}</td>
+                          <td className="px-4 py-2.5">
+                            <select
+                              value={u.role ?? 'user'}
+                              onChange={e => updateUser(u.id, { role: e.target.value })}
+                              className="bg-background border border-border rounded px-2 py-0.5 text-xs"
+                            >
+                              <option value="user">user</option>
+                              <option value="admin">admin</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex items-center gap-1">
+                              <Coins className="h-3.5 w-3.5 text-amber-500" />
+                              <span>{u.coins}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <Badge variant={u.banned ? 'destructive' : 'secondary'}>
+                              {u.banned ? 'Banned' : 'Active'}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <div className="flex gap-1.5">
+                              {u.banned ? (
+                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateUser(u.id, { banned: false, banReason: null })}>
+                                  <Check className="h-3 w-3 mr-1" /> Unban
+                                </Button>
+                              ) : (
+                                <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => {
+                                  const reason = prompt('Ban reason?');
+                                  if (reason !== null) updateUser(u.id, { banned: true, banReason: reason });
+                                }}>
+                                  <Ban className="h-3 w-3 mr-1" /> Ban
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+                {users.length === 0 && (
+                  <div className="py-12 text-center text-muted-foreground">No users yet.</div>
+                )}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Store ── */}
+          <TabsContent value="store">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2"><ShoppingBag className="h-5 w-5" /> Store Management</h2>
+              <Button size="sm" onClick={() => { setEditingItem(null); setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' }); setShowItemForm(true); }}>
+                <Plus className="h-4 w-4 mr-1" /> Add Item
+              </Button>
+            </div>
+
+            {/* Item form */}
+            {showItemForm && (
+              <Card className="mb-4 border-primary/30">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">{editingItem ? 'Edit Item' : 'New Item'}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {[
+                      { label: 'Name', key: 'name', type: 'text' },
+                      { label: 'Description', key: 'description', type: 'text' },
+                      { label: 'Asset URL', key: 'assetUrl', type: 'text' },
+                    ].map(({ label, key, type }) => (
+                      <div key={key}>
+                        <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
+                        <input
+                          type={type}
+                          value={(itemForm as any)[key]}
+                          onChange={e => setItemForm(f => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </div>
+                    ))}
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+                      <select value={itemForm.type} onChange={e => setItemForm(f => ({ ...f, type: e.target.value }))}
+                        className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg">
+                        {ITEM_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Price (coins)</label>
+                      <input type="number" value={itemForm.priceCoins} min={0}
+                        onChange={e => setItemForm(f => ({ ...f, priceCoins: Number(e.target.value) }))}
+                        className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    <Button size="sm" onClick={saveItem}><Check className="h-4 w-4 mr-1" />Save</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowItemForm(false); setEditingItem(null); }}>
+                      <X className="h-4 w-4 mr-1" />Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {storeLoading ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Loading store items…</CardContent></Card>
+            ) : storeItems.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">
+                <Package className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                No store items yet. Create one above.
+              </CardContent></Card>
+            ) : (
+              <div className="rounded-lg border border-border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      {['Name', 'Type', 'Price', 'Status', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-2.5 font-medium text-muted-foreground">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storeItems.map((item, i) => (
+                      <tr key={item.id} className={i % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
+                        <td className="px-4 py-2.5 font-medium">
+                          <div className="flex items-center gap-2">
+                            {item.assetUrl && <img src={item.assetUrl} className="h-7 w-7 rounded object-cover border border-border" alt="" />}
+                            <div>
+                              <p>{item.name}</p>
+                              {item.description && <p className="text-xs text-muted-foreground">{item.description}</p>}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5"><Badge variant="outline">{item.type}</Badge></td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex items-center gap-1"><Coins className="h-3.5 w-3.5 text-amber-500" />{item.priceCoins}</div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Badge variant={item.active ? 'default' : 'secondary'}>{item.active ? 'Active' : 'Hidden'}</Badge>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex gap-1.5">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
+                              setEditingItem(item);
+                              setItemForm({ name: item.name, description: item.description, type: item.type, priceCoins: item.priceCoins, assetUrl: item.assetUrl ?? '' });
+                              setShowItemForm(true);
+                            }}>
+                              <Edit2 className="h-3 w-3 mr-1" />Edit
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteItem(item.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </TabsContent>
