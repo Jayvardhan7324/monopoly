@@ -33,13 +33,16 @@ import {
 } from './components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
+import { authClient } from './lib/auth-client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
 const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
 const generateBotLobbyName = (index: number) => BOT_ADJ[(index * 7 + 3) % BOT_ADJ.length] + BOT_NOUN[(index * 11 + 5) % BOT_NOUN.length];
 
-const App: React.FC = () => {
+interface AppProps { onOpenStore?: () => void; }
+
+const App: React.FC<AppProps> = ({ onOpenStore }) => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
@@ -109,6 +112,10 @@ const App: React.FC = () => {
   const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [activePolicyPage, setActivePolicyPage] = useState<'privacy' | 'terms' | 'cookies' | 'contact' | null>(null);
+  const [session, setSession] = useState<any>(null);
+  useEffect(() => {
+    authClient.getSession().then(res => setSession(res?.data ?? null)).catch(() => {});
+  }, []);
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
 
@@ -1420,12 +1427,29 @@ const App: React.FC = () => {
               {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
             <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
-              <button className="flex items-center gap-2 hover:text-slate-200 transition-colors">
+              <button
+                onClick={onOpenStore}
+                className="flex items-center gap-2 hover:text-slate-200 transition-colors"
+              >
                 <ShoppingCart size={16} /> Store
               </button>
-              <button className="flex items-center gap-2 hover:text-slate-200 transition-colors">
-                <LogIn size={16} /> Login
-              </button>
+              {session?.user ? (
+                <button
+                  onClick={() => authClient.signOut().then(() => setSession(null))}
+                  className="flex items-center gap-2 hover:text-slate-200 transition-colors"
+                  title={session.user.email}
+                >
+                  <LogOut size={16} />
+                  <span className="max-w-[100px] truncate">{session.user.name}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => window.location.reload()}
+                  className="flex items-center gap-2 hover:text-slate-200 transition-colors"
+                >
+                  <LogIn size={16} /> Login
+                </button>
+              )}
               {/* Discord */}
               <a
                 href="#"

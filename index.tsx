@@ -31,12 +31,24 @@ if (window.location.pathname.startsWith('/admin')) {
 }
 
 function Root() {
-  const session = authClient.useSession();
   const [page, setPage] = useState<'game' | 'store' | 'login'>('game');
+  const [sessionData, setSessionData] = useState<any>(undefined); // undefined = loading
 
-  // If not logged in, show login page
-  if (!session.isPending && !session.data) {
-    return <LoginPage onSuccess={() => setPage('game')} />;
+  useEffect(() => {
+    authClient.getSession()
+      .then(res => setSessionData(res?.data ?? null))
+      .catch(() => setSessionData(null));
+  }, []);
+
+  // Still loading
+  if (sessionData === undefined) return null;
+
+  // Not logged in → login page
+  if (!sessionData) {
+    return <LoginPage onSuccess={() => {
+      authClient.getSession().then(res => setSessionData(res?.data ?? null));
+      setPage('game');
+    }} />;
   }
 
   if (page === 'store') {
