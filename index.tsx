@@ -1,11 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import AdminPage from './components/admin/AdminPage';
 import LoginPage from './components/auth/LoginPage';
 import StorePage from './components/store/StorePage';
+import ProfileModal from './components/profile/ProfileModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { authClient } from './lib/auth-client';
+import { AnimatePresence, motion } from 'motion/react';
+import { X } from 'lucide-react';
 import './index.css';
 
 const rootElement = document.getElementById('root');
@@ -31,29 +34,121 @@ if (window.location.pathname.startsWith('/admin')) {
 }
 
 function Root() {
-  const [page, setPage] = useState<'game' | 'store' | 'login'>('game');
   const [sessionData, setSessionData] = useState<any>(undefined); // undefined = loading
+  const [showLogin, setShowLogin] = useState(false);
+  const [showStore, setShowStore] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
-  useEffect(() => {
-    authClient.getSession()
-      .then(res => setSessionData(res?.data ?? null))
-      .catch(() => setSessionData(null));
+  const refreshSession = useCallback(() => {
+    return authClient.getSession()
+      .then(res => { setSessionData(res?.data ?? null); return res?.data ?? null; })
+      .catch(() => { setSessionData(null); return null; });
   }, []);
 
-  // Still loading
-  if (sessionData === undefined) return null;
+  useEffect(() => { refreshSession(); }, []);
 
-  // Not logged in → login page
-  if (!sessionData) {
-    return <LoginPage onSuccess={() => {
-      authClient.getSession().then(res => setSessionData(res?.data ?? null));
-      setPage('game');
-    }} />;
+  // Still loading auth
+  if (sessionData === undefined) {
+    return <div className="min-h-screen bg-slate-950" />;
   }
 
-  if (page === 'store') {
-    return <StorePage onBack={() => setPage('game')} userId={sessionData?.user?.id} />;
-  }
+  const handleSignOut = () => {
+    authClient.signOut().then(() => {
+      setSessionData(null);
+      setShowStore(false);
+      setShowProfile(false);
+      setShowLogin(false); // let the blocking modal open automatically
+    });
+  };
 
-  return <App onOpenStore={() => setPage('store')} />;
+  // Login is required — show blocking modal when not authenticated
+  const loginOpen = !sessionData || showLogin;
+  const loginCanDismiss = !!sessionData && showLogin;
+
+  return (
+    <>
+      <App
+        sessionUser={sessionData?.user ?? null}
+        onOpenStore={() => setShowStore(true)}
+        onOpenProfile={() => setShowProfile(true)}
+        onOpenLogin={() => setShowLogin(true)}
+        onSignOut={handleSignOut}
+      />
+
+      {/* ── Login modal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {loginOpen && (
+          <motion.div
+            key="login-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm overflow-auto flex items-start sm:items-center justify-center"
+          >
+            {loginCanDismiss && (
+              <button
+                onClick={() => setShowLogin(false)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+            <div className="w-full">
+              <LoginPage onSuccess={() => {
+                refreshSession();
+                setShowLogin(false);
+              }} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Store modal ─────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showStore && (
+          <motion.div
+            key="store-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center"
+            onClick={e => { if (e.target === e.currentTarget) setShowStore(false); }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative w-full max-w-5xl h-[90vh] bg-slate-950 rounded-t-2xl sm:rounded-2xl border border-slate-800 overflow-hidden flex flex-col"
+            >
+              <StorePage onBack={() => setShowStore(false)} userId={sessionData?.user?.id} />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Profile modal ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {showProfile && sessionData && (
+          <motion.div
+            key="profile-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowProfile(false); }}
+          >
+            <ProfileModal
+              sessionData={sessionData}
+              onClose={() => setShowProfile(false)}
+              onSignOut={handleSignOut}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
 }

@@ -74,3 +74,14 @@ export const purchase = pgTable("purchase", {
   itemId:      text("item_id").notNull().references(() => storeItem.id, { onDelete: "cascade" }),
   purchasedAt: timestamp("purchased_at").notNull(),
 });
+
+// ── Player stats ──────────────────────────────────────────────────────────────
+
+export const userStats = pgTable("user_stats", {
+  userId:           text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  gamesPlayed:      integer("games_played").notNull().default(0),
+  gamesWon:         integer("games_won").notNull().default(0),
+  totalEarnings:    integer("total_earnings").notNull().default(0),
+  propertiesBought: integer("properties_bought").notNull().default(0),
+  updatedAt:        timestamp("updated_at").notNull().defaultNow(),
+});

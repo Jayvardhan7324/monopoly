@@ -106,11 +106,11 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
   const filtered = filterType === 'all' ? items : items.filter(i => i.type === filterType);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="bg-slate-950 text-white flex flex-col h-full">
       <Toaster richColors />
 
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-slate-900/80 backdrop-blur-md border-b border-slate-800">
+      <header className="sticky top-0 z-10 bg-slate-900/80 backdrop-blur-md border-b border-slate-800 shrink-0">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-4">
           <button onClick={onBack} className="text-slate-400 hover:text-white transition-colors">
             <ArrowLeft className="h-5 w-5" />
@@ -126,7 +126,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8 flex-1 overflow-auto w-full">
         {/* Hero */}
         <div className="mb-8">
           <h2 className="text-2xl font-black mb-1">Customize Your Game</h2>

@@ -35,6 +35,7 @@ async function startServer() {
   let schema: any = null;
   let eq: any = null;
   let and: any = null;
+  let sql: any = null;
 
   if (hasDB) {
     try {
@@ -46,6 +47,20 @@ async function startServer() {
       const drizzle = await import("drizzle-orm");
       eq = drizzle.eq;
       and = drizzle.and;
+      sql = drizzle.sql;
+
+      // Auto-create user_stats table if it doesn't exist
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS user_stats (
+          user_id TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+          games_played INTEGER NOT NULL DEFAULT 0,
+          games_won INTEGER NOT NULL DEFAULT 0,
+          total_earnings INTEGER NOT NULL DEFAULT 0,
+          properties_bought INTEGER NOT NULL DEFAULT 0,
+          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+        )
+      `);
+
       app.all("/api/auth/*", toNodeHandler(auth));
       console.log("Better Auth + DB loaded");
     } catch (e: any) {
@@ -957,6 +972,47 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to delete item' });
+    }
+  });
+
+  // ─── Profile ──────────────────────────────────────────────────────────────
+
+  app.get('/api/profile/:userId', async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const users = await db.select().from(schema.user).where(eq(schema.user.id, userId));
+      if (!users.length) return res.status(404).json({ error: 'User not found' });
+      const u = users[0];
+      const statsList = await db.select().from(schema.userStats).where(eq(schema.userStats.userId, userId));
+      const stats = statsList[0] ?? { gamesPlayed: 0, gamesWon: 0, totalEarnings: 0, propertiesBought: 0 };
+      res.json({ id: u.id, name: u.name, email: u.email, image: u.image, coins: u.coins, createdAt: u.createdAt, stats });
+    } catch {
+      res.status(500).json({ error: 'Failed to load profile' });
+    }
+  });
+
+  app.post('/api/profile/stats', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { gamesPlayed = 0, gamesWon = 0, totalEarnings = 0, propertiesBought = 0 } = req.body ?? {};
+    try {
+      const existing = await db.select().from(schema.userStats).where(eq(schema.userStats.userId, sessionUser.id));
+      if (existing.length) {
+        await db.update(schema.userStats).set({
+          gamesPlayed:      existing[0].gamesPlayed + gamesPlayed,
+          gamesWon:         existing[0].gamesWon + gamesWon,
+          totalEarnings:    existing[0].totalEarnings + totalEarnings,
+          propertiesBought: existing[0].propertiesBought + propertiesBought,
+          updatedAt:        new Date(),
+        }).where(eq(schema.userStats.userId, sessionUser.id));
+      } else {
+        await db.insert(schema.userStats).values({
+          userId: sessionUser.id, gamesPlayed, gamesWon, totalEarnings, propertiesBought, updatedAt: new Date(),
+        });
+      }
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to update stats' });
     }
   });
 
