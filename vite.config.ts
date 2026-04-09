@@ -19,6 +19,12 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@': path.resolve(__dirname, '.'),
         }
+      },
+      optimizeDeps: {
+        include: ['better-auth/react', 'better-auth/client/plugins'],
+      },
+      ssr: {
+        noExternal: ['better-auth'],
       }
     };
 });
