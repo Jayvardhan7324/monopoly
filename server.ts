@@ -2,11 +2,6 @@ import express from "express";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { randomBytes, randomUUID } from "crypto";
-import { toNodeHandler } from "better-auth/node";
-import { auth } from "./lib/auth";
-import { db } from "./db/index";
-import { storeItem, purchase, user } from "./db/schema";
-import { eq, and } from "drizzle-orm";
 
 interface RoomData {
   host: string;
@@ -33,8 +28,32 @@ async function startServer() {
     }
   });
 
-  // Better Auth — must be before express.json() for auth routes
-  app.all("/api/auth/*", toNodeHandler(auth));
+  // Better Auth + DB — only loaded when DATABASE_URL is configured
+  const hasDB = !!process.env.DATABASE_URL;
+  let auth: any = null;
+  let db: any = null;
+  let schema: any = null;
+  let eq: any = null;
+  let and: any = null;
+
+  if (hasDB) {
+    try {
+      const authMod = await import("./lib/auth");
+      const { toNodeHandler } = await import("better-auth/node");
+      auth = authMod.auth;
+      db = (await import("./db/index")).db;
+      schema = await import("./db/schema");
+      const drizzle = await import("drizzle-orm");
+      eq = drizzle.eq;
+      and = drizzle.and;
+      app.all("/api/auth/*", toNodeHandler(auth));
+      console.log("Better Auth + DB loaded");
+    } catch (e: any) {
+      console.error("Failed to load auth/db — running without auth:", e?.message);
+    }
+  } else {
+    console.warn("DATABASE_URL not set — auth and store routes disabled");
+  }
 
   app.use(express.json());
 
@@ -792,7 +811,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     });
   });
 
-  // ─── Store API ────────────────────────────────────────────────────────────────
+  // ─── Store API (only when DB is available) ───────────────────────────────────
+  if (hasDB && db) {
 
   // Helper: get authed user from request
   async function getSessionUser(req: any) {
@@ -802,7 +822,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
   app.get('/api/store/items', async (_req, res) => {
     try {
-      const items = await db.select().from(storeItem).where(eq(storeItem.active, true));
+      const items = await db.select().from(schema.storeItem).where(eq(schema.storeItem.active, true));
       res.json({ items });
     } catch (err: any) {
       res.status(500).json({ error: 'Failed to load store items' });
@@ -812,10 +832,10 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   app.get('/api/store/inventory/:userId', async (req, res) => {
     try {
       const purchases = await db
-        .select({ itemId: purchase.itemId })
-        .from(purchase)
-        .where(eq(purchase.userId, req.params.userId));
-      const [userData] = await db.select({ coins: user.coins }).from(user).where(eq(user.id, req.params.userId));
+        .select({ itemId: schema.purchase.itemId })
+        .from(schema.purchase)
+        .where(eq(schema.purchase.userId, req.params.userId));
+      const [userData] = await db.select({ coins: schema.user.coins }).from(schema.user).where(eq(schema.user.id, req.params.userId));
       res.json({ itemIds: purchases.map(p => p.itemId), coins: userData?.coins ?? 0 });
     } catch {
       res.status(500).json({ error: 'Failed to load inventory' });
@@ -831,24 +851,24 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
     try {
       // Load item
-      const [item] = await db.select().from(storeItem).where(and(eq(storeItem.id, itemId), eq(storeItem.active, true)));
+      const [item] = await db.select().from(schema.storeItem).where(and(eq(schema.storeItem.id, itemId), eq(schema.storeItem.active, true)));
       if (!item) return res.status(404).json({ error: 'Item not found' });
 
       // Load user coins
-      const [userData] = await db.select({ coins: user.coins }).from(user).where(eq(user.id, sessionUser.id));
+      const [userData] = await db.select({ coins: schema.user.coins }).from(schema.user).where(eq(schema.user.id, sessionUser.id));
       if (!userData) return res.status(404).json({ error: 'User not found' });
 
       if (userData.coins < item.priceCoins) return res.status(400).json({ error: 'Insufficient coins' });
 
       // Check not already owned
-      const [existing] = await db.select().from(purchase).where(and(eq(purchase.userId, sessionUser.id), eq(purchase.itemId, itemId)));
+      const [existing] = await db.select().from(schema.purchase).where(and(eq(schema.purchase.userId, sessionUser.id), eq(schema.purchase.itemId, itemId)));
       if (existing) return res.status(400).json({ error: 'Already owned' });
 
       // Deduct coins + record purchase (in parallel)
       const newCoins = userData.coins - item.priceCoins;
       await Promise.all([
-        db.update(user).set({ coins: newCoins }).where(eq(user.id, sessionUser.id)),
-        db.insert(purchase).values({ id: randomUUID(), userId: sessionUser.id, itemId, purchasedAt: new Date() }),
+        db.update(schema.user).set({ coins: newCoins }).where(eq(schema.user.id, sessionUser.id)),
+        db.insert(schema.purchase).values({ id: randomUUID(), userId: sessionUser.id, itemId, purchasedAt: new Date() }),
       ]);
 
       res.json({ success: true, coins: newCoins });
@@ -863,9 +883,9 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
       const users = await db.select({
-        id: user.id, name: user.name, email: user.email, role: user.role,
-        banned: user.banned, banReason: user.banReason, createdAt: user.createdAt, coins: user.coins,
-      }).from(user);
+        id: schema.user.id, name: schema.user.name, email: schema.user.email, role: schema.user.role,
+        banned: schema.user.banned, banReason: schema.user.banReason, createdAt: schema.user.createdAt, coins: schema.user.coins,
+      }).from(schema.user);
       res.json({ users });
     } catch {
       res.status(500).json({ error: 'Failed to load users' });
@@ -880,7 +900,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     if (banReason !== undefined) updates.banReason = banReason;
     if (coins !== undefined) updates.coins = coins;
     try {
-      await db.update(user).set(updates).where(eq(user.id, req.params.id));
+      await db.update(schema.user).set(updates).where(eq(schema.user.id, req.params.id));
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update user' });
@@ -891,7 +911,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
   app.get('/api/admin/store/items', requireAdmin, async (_req, res) => {
     try {
-      const items = await db.select().from(storeItem);
+      const items = await db.select().from(schema.storeItem);
       res.json({ items });
     } catch {
       res.status(500).json({ error: 'Failed to load store items' });
@@ -907,7 +927,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         type, priceCoins: priceCoins ?? 100, assetUrl: assetUrl ?? null,
         active: true, createdAt: new Date(),
       };
-      await db.insert(storeItem).values(item);
+      await db.insert(schema.storeItem).values(item);
       res.json({ success: true, item });
     } catch {
       res.status(500).json({ error: 'Failed to create item' });
@@ -924,7 +944,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     if (assetUrl !== undefined) updates.assetUrl = assetUrl;
     if (active !== undefined) updates.active = active;
     try {
-      await db.update(storeItem).set(updates).where(eq(storeItem.id, req.params.id));
+      await db.update(schema.storeItem).set(updates).where(eq(schema.storeItem.id, req.params.id));
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update item' });
@@ -933,12 +953,14 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
   app.delete('/api/admin/store/items/:id', requireAdmin, async (req, res) => {
     try {
-      await db.update(storeItem).set({ active: false }).where(eq(storeItem.id, req.params.id));
+      await db.update(schema.storeItem).set({ active: false }).where(eq(schema.storeItem.id, req.params.id));
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to delete item' });
     }
   });
+
+  } // end if (hasDB && db)
 
   if (process.env.NODE_ENV !== "production") {
     const vite = await import("vite");
