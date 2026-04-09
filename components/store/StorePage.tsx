@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { authClient } from '../../lib/auth-client';
 import { motion } from 'motion/react';
 import { ShoppingCart, Coins, Package, Check, Loader2, ArrowLeft, Tag } from 'lucide-react';
 import { toast } from 'sonner';
@@ -19,6 +18,7 @@ interface StoreItem {
 
 interface Props {
   onBack: () => void;
+  userId?: string;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -35,16 +35,13 @@ const TYPE_COLORS: Record<string, string> = {
   misc: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
 };
 
-const StorePage: React.FC<Props> = ({ onBack }) => {
+const StorePage: React.FC<Props> = ({ onBack, userId }) => {
   const [items, setItems] = useState<StoreItem[]>([]);
   const [inventory, setInventory] = useState<Set<string>>(new Set());
   const [coins, setCoins] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
-
-  const session = authClient.useSession();
-  const userId = session.data?.user?.id;
 
   useEffect(() => {
     loadStore();

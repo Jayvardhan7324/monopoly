@@ -52,7 +52,7 @@ function Root() {
   }
 
   if (page === 'store') {
-    return <StorePage onBack={() => setPage('game')} />;
+    return <StorePage onBack={() => setPage('game')} userId={sessionData?.user?.id} />;
   }
 
   return <App onOpenStore={() => setPage('store')} />;
