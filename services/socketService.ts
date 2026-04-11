@@ -5,7 +5,7 @@ let socket: Socket | null = null;
 export const initSocket = (roomId: string, playerId: string) => {
   if (!socket) {
     socket = io(window.location.origin, {
-      transports: ["websocket"],
+      transports: ["polling", "websocket"],
       autoConnect: false,
       reconnection: true,
       reconnectionAttempts: Infinity,

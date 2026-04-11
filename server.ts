@@ -20,10 +20,12 @@ async function startServer() {
   // SEC-01: Restrict CORS to known origins; fall back to wildcard only in dev
   const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : (process.env.NODE_ENV === 'production' ? [] : ['*']);
+    : null;
   const io = new Server(httpServer, {
     cors: {
-      origin: allowedOrigins.length === 1 && allowedOrigins[0] === '*' ? '*' : allowedOrigins,
+      origin: allowedOrigins
+        ? (allowedOrigins.length === 1 && allowedOrigins[0] === '*' ? '*' : allowedOrigins)
+        : true,
       methods: ["GET", "POST"]
     }
   });
