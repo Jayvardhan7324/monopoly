@@ -1,5 +1,6 @@
 import React, { useReducer, useEffect, useState, useRef, useMemo } from 'react';
 import AdminPage from './components/admin/AdminPage';
+import { SetCompleteAnimation } from './components/SetCompleteAnimation';
 import { gameReducer, initialState } from './services/gameReducer';
 import { getBotAction, getBotBidAction } from './services/botService';
 import { Board } from './components/Board';
@@ -9,7 +10,7 @@ import { PlayerPortfolioModal } from './components/PlayerPortfolioModal';
 import { TradeProposalModal } from './components/TradeProposalModal';
 import { CreateTradeModal } from './components/CreateTradeModal';
 import { AuctionModal } from './components/AuctionModal';
-import { GameSettings, TileType } from './types';
+import { GameSettings, TileType, ColorGroup } from './types';
 import {
   Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
@@ -120,6 +121,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
   const session = sessionUser ? { user: sessionUser } : null;
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
+
+  // ── Color set completion animation ──────────────────────────────────────────
+  const [setCompleteAnim, setSetCompleteAnim] = useState<{ group: ColorGroup; tiles: typeof gameState.tiles; ownerName: string; ownerColor: string } | null>(null);
+  const prevTilesRef = useRef(gameState.tiles);
 
   useEffect(() => {
     const checkLayout = () => {
@@ -549,8 +554,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
   ]);
 
   // ── Bot ROLL watchdog: hard guarantee bot always rolls within 2 seconds ─────
-  // This fires only if the normal 400ms timer above keeps getting reset (e.g. by
-  // rapid log entries from an ongoing trade resolution).
   useEffect(() => {
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (!gameStarted || !currentPlayer?.isBot || gameState.winnerId !== null) return;
@@ -570,6 +573,70 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
     isOnline,
     isHost,
   ]);
+
+  // ── Bot ACTION watchdog: guarantee bot buys/skips within 2.5s ───────────────
+  useEffect(() => {
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (!gameStarted || !currentPlayer?.isBot || gameState.winnerId !== null) return;
+    if (gameState.phase !== 'ACTION') return;
+    if (isOnline && !isHost) return;
+
+    const watchdog = setTimeout(() => {
+      handleDispatch({ type: 'END_TURN' });
+    }, 2500);
+
+    return () => clearTimeout(watchdog);
+  }, [
+    gameState.phase,
+    gameState.currentPlayerIndex,
+    gameStarted,
+    gameState.winnerId,
+    isOnline,
+    isHost,
+  ]);
+
+  // ── Bot TURN_END watchdog: guarantee bot ends turn within 4s ─────────────────
+  useEffect(() => {
+    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
+    if (!gameStarted || !currentPlayer?.isBot || gameState.winnerId !== null) return;
+    if (gameState.phase !== 'TURN_END') return;
+    if (isOnline && !isHost) return;
+
+    const watchdog = setTimeout(() => {
+      handleDispatch({ type: 'END_TURN' });
+    }, 4000);
+
+    return () => clearTimeout(watchdog);
+  }, [
+    gameState.phase,
+    gameState.currentPlayerIndex,
+    gameStarted,
+    gameState.winnerId,
+    isOnline,
+    isHost,
+  ]);
+
+  // ── Detect newly completed color sets and trigger animation ─────────────────
+  useEffect(() => {
+    if (!gameStarted) return;
+    const prevTiles = prevTilesRef.current;
+    const newTiles = gameState.tiles;
+    const groups = Array.from(new Set(newTiles.filter(t => t.group !== ColorGroup.NONE).map(t => t.group)));
+    for (const group of groups) {
+      const gTiles = newTiles.filter(t => t.group === group);
+      const prevGTiles = prevTiles.filter(t => t.group === group);
+      const newOwner = gTiles[0]?.ownerId;
+      const isNowComplete = newOwner !== null && gTiles.every(t => t.ownerId === newOwner);
+      const prevOwner = prevGTiles[0]?.ownerId;
+      const wasComplete = prevOwner !== null && prevGTiles.every(t => t.ownerId === prevOwner);
+      if (isNowComplete && !wasComplete) {
+        const owner = gameState.players.find(p => p.id === newOwner);
+        setSetCompleteAnim({ group, tiles: gTiles, ownerName: owner?.name ?? '', ownerColor: owner?.color ?? '#fff' });
+        if (soundEnabled) playSound('monopoly');
+      }
+    }
+    prevTilesRef.current = newTiles;
+  }, [gameState.tiles, gameStarted]);
 
   // ── Auto-resolve bot-target trades after a brief delay so all players see it ─
   useEffect(() => {
@@ -2544,9 +2611,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
             canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId && gameState.players[gameState.currentPlayerIndex]?.id === myPlayerId}
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
             myProperties={myProperties}
-            onTrade={offer =>
-              handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId: selectedTileId, requestCash: offer.requestCash } })
-            }
             onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
@@ -2596,6 +2660,16 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
           dispatch={handleDispatch}
           isSpectator={isSpectator}
         />
+
+        {setCompleteAnim && (
+          <SetCompleteAnimation
+            group={setCompleteAnim.group}
+            tiles={setCompleteAnim.tiles}
+            ownerName={setCompleteAnim.ownerName}
+            ownerColor={setCompleteAnim.ownerColor}
+            onDone={() => setSetCompleteAnim(null)}
+          />
+        )}
 
         {showSettingsModal && (
           <motion.div

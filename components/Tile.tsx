@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
 // BUG-08: Replaced `Palmtree` (removed in lucide-react v0.468) with `TreePalm`
-import { Plane, Zap, Droplets, TreePalm, Skull, ArrowRight, Package, Lock } from 'lucide-react';
+import { Plane, Zap, Droplets, TreePalm, Skull, ArrowRight, Package, Lock, Home, Building2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Avatar } from './Avatar';
 import { motion } from 'motion/react';
@@ -126,12 +126,19 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
     return (
       <div style={bandStyle}>
         <div
-          className={`flex items-center justify-center px-[3px] py-[2px] rounded-[3px] border border-white/20 shadow-sm ${isHotel ? 'bg-rose-600' : 'bg-emerald-600'}`}
+          className={`flex items-center gap-[2px] px-[3px] py-[2px] rounded-[3px] border border-white/20 shadow-sm ${isHotel ? 'bg-rose-600' : 'bg-emerald-600'}`}
           style={{ transform: contentRotate }}
         >
-          <span className="text-white font-black leading-none" style={{ fontSize: '7px' }}>
-            {isHotel ? 'H' : `×${tile.buildingCount}`}
-          </span>
+          {isHotel ? (
+            <Building2 size={7} className="text-white shrink-0" />
+          ) : (
+            <>
+              <Home size={7} className="text-white shrink-0" />
+              <span className="text-white font-black leading-none" style={{ fontSize: '7px' }}>
+                ×{tile.buildingCount}
+              </span>
+            </>
+          )}
         </div>
       </div>
     );

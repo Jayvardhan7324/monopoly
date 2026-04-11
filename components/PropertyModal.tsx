@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tile, TileType, Player, ColorGroup } from '../types';
-import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, ArrowRightLeft, Coins, Check, AlertCircle, Unlock } from 'lucide-react';
+import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, AlertCircle, Unlock } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_CONSTANTS } from '../constants';
@@ -17,7 +17,6 @@ interface PropertyModalProps {
   canUpgrade: boolean;
   currentPlayer?: Player;
   myProperties?: Tile[];
-  onTrade?: (offer: { cash: number; properties: number[]; requestCash: number }) => void;
   onMortgage?: () => void;
   onUnmortgage?: () => void;
   onSell?: () => void;
@@ -37,40 +36,15 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const PropertyModal: React.FC<PropertyModalProps> = ({
-  tile, owner, onClose, onUpgrade, canUpgrade, currentPlayer, myProperties, onTrade, onMortgage, onUnmortgage, onSell, onDowngrade,
+  tile, owner, onClose, onUpgrade, canUpgrade, currentPlayer, myProperties, onMortgage, onUnmortgage, onSell, onDowngrade,
 }) => {
   const [showSellConfirm, setShowSellConfirm] = useState(false);
-  const [showTradeBuilder, setShowTradeBuilder] = useState(false);
-  const [tradeOfferCash, setTradeOfferCash] = useState(0);
-  const [tradeRequestCash, setTradeRequestCash] = useState(0);
-  const [tradeOfferPropertyIds, setTradeOfferPropertyIds] = useState<number[]>([]);
 
   const isProperty = tile.type === TileType.PROPERTY;
   const isMine = owner?.id === currentPlayer?.id;
-  const isOtherOwned = owner && !isMine;
   const mortgageValue = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE);
   const unmortgageCost = Math.floor(mortgageValue * GAME_CONSTANTS.UNMORTGAGE_FEE);
   const sellValue = Math.floor(tile.price * GAME_CONSTANTS.SELL_RATE);
-
-  const tradeableProperties = (myProperties || []).filter(t =>
-    t.ownerId === currentPlayer?.id && !t.isMortgaged && t.buildingCount === 0 && t.id !== tile.id
-  );
-
-  const toggleTradeProperty = (id: number) => {
-    setTradeOfferPropertyIds(prev =>
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
-    );
-  };
-
-  const submitTrade = () => {
-    if (!onTrade) return;
-    onTrade({ cash: tradeOfferCash, properties: tradeOfferPropertyIds, requestCash: tradeRequestCash });
-    setShowTradeBuilder(false);
-    setTradeOfferCash(0);
-    setTradeRequestCash(0);
-    setTradeOfferPropertyIds([]);
-    onClose();
-  };
 
   const getLevelLabel = (count: number) => {
     if (count === 0) return 'Base Rent';
@@ -86,7 +60,6 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
   const handleClose = () => {
     setShowSellConfirm(false);
-    setShowTradeBuilder(false);
     onClose();
   };
 
@@ -262,110 +235,6 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                 )}
               </div>
 
-              {/* Trade via the Trade menu in the sidebar */}
-              {isOtherOwned && onTrade && currentPlayer && !tile.isMortgaged && (
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pt-1">
-                  <Separator className="bg-slate-800 mb-3" />
-                  {!showTradeBuilder ? (
-                    <Button
-                      onClick={() => setShowTradeBuilder(true)}
-                      size="sm"
-                      variant="outline"
-                      className="w-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/30 text-xs"
-                    >
-                      <ArrowRightLeft size={14} /> Propose Trade for {tile.name}
-                    </Button>
-                  ) : (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="space-y-3 overflow-hidden"
-                    >
-                      <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Trade Offer Builder</div>
-
-                      {/* Offer Cash */}
-                      <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Coins size={12} className="text-emerald-400" /> Offer Cash
-                          </span>
-                          <span className="text-xs font-mono font-bold text-emerald-400">${tradeOfferCash}</span>
-                        </div>
-                        <input
-                          type="range" min={0} max={currentPlayer.money} step={50}
-                          value={tradeOfferCash} onChange={e => setTradeOfferCash(parseInt(e.target.value))}
-                          className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-emerald-500"
-                        />
-                        <div className="flex justify-between text-[9px] text-slate-600 font-mono">
-                          <span>$0</span><span>${currentPlayer.money}</span>
-                        </div>
-                      </div>
-
-                      {/* Request Cash */}
-                      <div className="bg-slate-950/50 rounded-lg p-3 border border-slate-800 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                            <Coins size={12} className="text-rose-400" /> Request Cash
-                          </span>
-                          <span className="text-xs font-mono font-bold text-rose-400">${tradeRequestCash}</span>
-                        </div>
-                        <input
-                          type="range" min={0} max={owner ? owner.money : 0} step={50}
-                          value={tradeRequestCash} onChange={e => setTradeRequestCash(parseInt(e.target.value))}
-                          className="w-full h-1.5 bg-slate-800 rounded-full appearance-none cursor-pointer accent-rose-500"
-                        />
-                        <div className="flex justify-between text-[9px] text-slate-600 font-mono">
-                          <span>$0</span><span>${owner?.money || 0}</span>
-                        </div>
-                      </div>
-
-                      {/* Offer Properties */}
-                      {tradeableProperties.length > 0 && (
-                        <div className="space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Offer Properties</span>
-                          <div className="max-h-28 overflow-y-auto space-y-1 scrollbar-thin scrollbar-thumb-slate-700 pr-1">
-                            {tradeableProperties.map(prop => {
-                              const isSelected = tradeOfferPropertyIds.includes(prop.id);
-                              return (
-                                <button
-                                  key={prop.id}
-                                  onClick={() => toggleTradeProperty(prop.id)}
-                                  className={`w-full flex items-center gap-2 p-2 rounded-lg text-left transition-all text-[10px] ${isSelected ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-300' : 'bg-slate-800/50 border border-slate-800 text-slate-400 hover:bg-slate-800'}`}
-                                >
-                                  <div className={`w-1 h-5 rounded-full ${colorMap[prop.group]}`} />
-                                  <span className="flex-1 font-bold truncate">{prop.name}</span>
-                                  <span className="font-mono text-slate-500">${prop.price}</span>
-                                  {isSelected && <Check size={12} className="text-indigo-400 shrink-0" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Submit/Cancel */}
-                      <div className="grid grid-cols-2 gap-2 pt-1">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="border-slate-700 text-slate-300 text-[10px]"
-                          onClick={() => { setShowTradeBuilder(false); setTradeOfferCash(0); setTradeRequestCash(0); setTradeOfferPropertyIds([]); }}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={submitTrade}
-                          disabled={tradeOfferCash === 0 && tradeOfferPropertyIds.length === 0}
-                          className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] shadow-lg shadow-indigo-600/20"
-                        >
-                          <ArrowRightLeft size={11} /> Send Offer
-                        </Button>
-                      </div>
-                    </motion.div>
-                  )}
-                </motion.div>
-              )}
             </div>
           </CardContent>
         </Card>

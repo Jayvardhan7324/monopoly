@@ -144,6 +144,13 @@ function playSynth(effect: SoundEffectType) {
         createOsc(ctx, 'sine', 550, now, 0.1, 0.06);
         createOsc(ctx, 'sine', 330, now + 0.1, 0.25, 0.06);
         break;
+      case 'monopoly':
+        // Triumphant ascending fanfare
+        [400, 500, 600, 800, 1000, 1200].forEach((f, i) =>
+          createOsc(ctx, 'triangle', f, now + i * 0.1, 0.55, 0.12)
+        );
+        createOsc(ctx, 'sine', 1200, now + 0.6, 0.6, 0.1);
+        break;
       default:
         break;
     }

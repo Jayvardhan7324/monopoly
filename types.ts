@@ -96,7 +96,8 @@ export type SoundEffectType =
   | 'notification'
   | 'error'
   | 'player_join'
-  | 'player_leave';
+  | 'player_leave'
+  | 'monopoly';
 
 export interface AuctionState {
   tileId: number;
