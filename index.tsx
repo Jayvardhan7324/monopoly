@@ -49,7 +49,16 @@ function Root() {
 
   // Still loading auth
   if (sessionData === undefined) {
-    return <div className="min-h-screen bg-slate-950" />;
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+            <span className="text-lg font-black text-white">R</span>
+          </div>
+          <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      </div>
+    );
   }
 
   const handleSignOut = () => {
@@ -95,8 +104,8 @@ function Root() {
               </button>
             )}
             <div className="w-full">
-              <LoginPage onSuccess={() => {
-                refreshSession();
+              <LoginPage onSuccess={async () => {
+                await refreshSession();
                 setShowLogin(false);
               }} />
             </div>

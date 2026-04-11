@@ -5,7 +5,7 @@ import { Mail, Lock, User, Chrome, Apple, ArrowRight, Loader2, Eye, EyeOff } fro
 import { Button } from '../ui/button';
 
 interface Props {
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }
 
 type Tab = 'signin' | 'signup';
@@ -33,7 +33,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
         const res = await authClient.signIn.email({ email, password });
         if (res.error) { setError(res.error.message ?? 'Sign in failed'); return; }
       }
-      onSuccess();
+      await onSuccess();
     } catch (err: any) {
       setError(err?.message ?? 'Something went wrong');
     } finally {
@@ -48,6 +48,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
       await authClient.signIn.social({ provider: 'google', callbackURL: '/' });
     } catch (err: any) {
       setError(err?.message ?? 'Google sign in failed');
+    } finally {
       setLoading(null);
     }
   };
@@ -59,6 +60,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
       await authClient.signIn.social({ provider: 'apple', callbackURL: '/' });
     } catch (err: any) {
       setError(err?.message ?? 'Apple sign in failed');
+    } finally {
       setLoading(null);
     }
   };
