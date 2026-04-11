@@ -1,9 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL ?? "http://localhost:54321";
-const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY ?? "";
+const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
+const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const hasConfig = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+// Real client when env vars are present; stub when not configured yet.
+const _stub = {
+  auth: {
+    getSession:        async () => ({ data: { session: null }, error: null }),
+    onAuthStateChange: (_: any, __: any) => ({ data: { subscription: { unsubscribe: () => {} } } }),
+    signInWithPassword: async () => ({ data: null, error: { message: "Supabase not configured" } }),
+    signUp:             async () => ({ data: null, error: { message: "Supabase not configured" } }),
+    signInWithOAuth:    async () => ({ data: null, error: { message: "Supabase not configured" } }),
+    signOut:            async () => ({ error: null }),
+    getUser:            async () => ({ data: { user: null }, error: null }),
+  },
+} as any;
+
+export const supabase = hasConfig
+  ? createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!)
+  : _stub;
 
 /** Fetch helper that automatically injects the current user's Bearer token. */
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
