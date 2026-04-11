@@ -6,7 +6,7 @@ import LoginPage from './components/auth/LoginPage';
 import StorePage from './components/store/StorePage';
 import ProfileModal from './components/profile/ProfileModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { authClient } from './lib/auth-client';
+import { supabase } from './lib/auth-client';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import './index.css';
@@ -33,19 +33,41 @@ if (window.location.pathname.startsWith('/admin')) {
   );
 }
 
+function normalizeSession(session: any) {
+  if (!session) return null;
+  return {
+    user: {
+      id:    session.user.id,
+      email: session.user.email,
+      name:  session.user.user_metadata?.name ?? session.user.email?.split('@')[0] ?? 'Player',
+      image: session.user.user_metadata?.avatar_url ?? null,
+    },
+  };
+}
+
 function Root() {
   const [sessionData, setSessionData] = useState<any>(undefined); // undefined = loading
   const [showLogin, setShowLogin] = useState(false);
   const [showStore, setShowStore] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
-  const refreshSession = useCallback(() => {
-    return authClient.getSession()
-      .then(res => { setSessionData(res?.data ?? null); return res?.data ?? null; })
-      .catch(() => { setSessionData(null); return null; });
+  const refreshSession = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const normalized = normalizeSession(session);
+    setSessionData(normalized);
+    return normalized;
   }, []);
 
+  // Initial session load
   useEffect(() => { refreshSession(); }, []);
+
+  // Keep session in sync with Supabase auth state changes (OAuth redirects, etc.)
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSessionData(normalizeSession(session));
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Still loading auth
   if (sessionData === undefined) {
@@ -62,7 +84,7 @@ function Root() {
   }
 
   const handleSignOut = () => {
-    authClient.signOut().then(() => {
+    supabase.auth.signOut().then(() => {
       setSessionData(null);
       setShowStore(false);
       setShowProfile(false);

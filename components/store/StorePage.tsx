@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { authFetch } from '../../lib/auth-client';
 
 interface StoreItem {
   id: string;
@@ -83,11 +84,9 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
 
     setPurchasing(item.id);
     try {
-      const res = await fetch('/api/store/purchase', {
+      const res = await authFetch('/api/store/purchase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ itemId: item.id }),
-        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) { toast.error(data.error ?? 'Purchase failed'); return; }

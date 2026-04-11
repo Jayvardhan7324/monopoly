@@ -28,43 +28,30 @@ async function startServer() {
     }
   });
 
-  // Better Auth + DB — only loaded when DATABASE_URL is configured
+  // Supabase + DB — only loaded when DATABASE_URL is configured
   const hasDB = !!process.env.DATABASE_URL;
-  let auth: any = null;
+  let supabaseAdmin: any = null;
   let db: any = null;
   let schema: any = null;
   let eq: any = null;
   let and: any = null;
-  let sql: any = null;
 
   if (hasDB) {
     try {
-      const authMod = await import("./lib/auth");
-      const { toNodeHandler } = await import("better-auth/node");
-      auth = authMod.auth;
+      const { createClient } = await import("@supabase/supabase-js");
+      supabaseAdmin = createClient(
+        process.env.SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
       db = (await import("./db/index")).db;
       schema = await import("./db/schema");
       const drizzle = await import("drizzle-orm");
       eq = drizzle.eq;
       and = drizzle.and;
-      sql = drizzle.sql;
-
-      // Auto-create user_stats table if it doesn't exist
-      await db.execute(sql`
-        CREATE TABLE IF NOT EXISTS user_stats (
-          user_id TEXT PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
-          games_played INTEGER NOT NULL DEFAULT 0,
-          games_won INTEGER NOT NULL DEFAULT 0,
-          total_earnings INTEGER NOT NULL DEFAULT 0,
-          properties_bought INTEGER NOT NULL DEFAULT 0,
-          updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-        )
-      `);
-
-      app.all(/^\/api\/auth\//, toNodeHandler(auth));
-      console.log("Better Auth + DB loaded");
+      console.log("Supabase + DB loaded");
     } catch (e: any) {
-      console.error("Failed to load auth/db — running without auth:", e?.message);
+      console.error("Failed to load supabase/db — running without auth:", e?.message);
     }
   } else {
     console.warn("DATABASE_URL not set — auth and store routes disabled");
@@ -829,10 +816,14 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   // ─── Store API (only when DB is available) ───────────────────────────────────
   if (hasDB && db) {
 
-  // Helper: get authed user from request
+  // Helper: get authed user from request (reads Bearer token set by authFetch)
   async function getSessionUser(req: any) {
-    const session = await auth.api.getSession({ headers: req.headers as any });
-    return session?.user ?? null;
+    const authHeader = req.headers['authorization'] ?? '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (!token) return null;
+    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+    if (error || !user) return null;
+    return user;
   }
 
   app.get('/api/store/items', async (_req, res) => {
@@ -850,7 +841,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         .select({ itemId: schema.purchase.itemId })
         .from(schema.purchase)
         .where(eq(schema.purchase.userId, req.params.userId));
-      const [userData] = await db.select({ coins: schema.user.coins }).from(schema.user).where(eq(schema.user.id, req.params.userId));
+      const [userData] = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, req.params.userId));
       res.json({ itemIds: purchases.map(p => p.itemId), coins: userData?.coins ?? 0 });
     } catch {
       res.status(500).json({ error: 'Failed to load inventory' });
@@ -870,7 +861,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       if (!item) return res.status(404).json({ error: 'Item not found' });
 
       // Load user coins
-      const [userData] = await db.select({ coins: schema.user.coins }).from(schema.user).where(eq(schema.user.id, sessionUser.id));
+      const [userData] = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));
       if (!userData) return res.status(404).json({ error: 'User not found' });
 
       if (userData.coins < item.priceCoins) return res.status(400).json({ error: 'Insufficient coins' });
@@ -882,7 +873,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       // Deduct coins + record purchase (in parallel)
       const newCoins = userData.coins - item.priceCoins;
       await Promise.all([
-        db.update(schema.user).set({ coins: newCoins }).where(eq(schema.user.id, sessionUser.id)),
+        db.update(schema.profiles).set({ coins: newCoins }).where(eq(schema.profiles.id, sessionUser.id)),
         db.insert(schema.purchase).values({ id: randomUUID(), userId: sessionUser.id, itemId, purchasedAt: new Date() }),
       ]);
 
@@ -898,9 +889,9 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
       const users = await db.select({
-        id: schema.user.id, name: schema.user.name, email: schema.user.email, role: schema.user.role,
-        banned: schema.user.banned, banReason: schema.user.banReason, createdAt: schema.user.createdAt, coins: schema.user.coins,
-      }).from(schema.user);
+        id: schema.profiles.id, name: schema.profiles.name, email: schema.profiles.email, role: schema.profiles.role,
+        banned: schema.profiles.banned, banReason: schema.profiles.banReason, createdAt: schema.profiles.createdAt, coins: schema.profiles.coins,
+      }).from(schema.profiles);
       res.json({ users });
     } catch {
       res.status(500).json({ error: 'Failed to load users' });
@@ -915,7 +906,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     if (banReason !== undefined) updates.banReason = banReason;
     if (coins !== undefined) updates.coins = coins;
     try {
-      await db.update(schema.user).set(updates).where(eq(schema.user.id, req.params.id));
+      await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, req.params.id));
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update user' });
@@ -980,10 +971,10 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   app.get('/api/profile/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
-      const users = await db.select().from(schema.user).where(eq(schema.user.id, userId));
+      const users = await db.select().from(schema.profiles).where(eq(schema.profiles.id, userId));
       if (!users.length) return res.status(404).json({ error: 'User not found' });
       const u = users[0];
-      const statsList = await db.select().from(schema.userStats).where(eq(schema.userStats.userId, userId));
+      const statsList = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, userId));
       const stats = statsList[0] ?? { gamesPlayed: 0, gamesWon: 0, totalEarnings: 0, propertiesBought: 0 };
       res.json({ id: u.id, name: u.name, email: u.email, image: u.image, coins: u.coins, createdAt: u.createdAt, stats });
     } catch {
@@ -996,17 +987,17 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
     const { gamesPlayed = 0, gamesWon = 0, totalEarnings = 0, propertiesBought = 0 } = req.body ?? {};
     try {
-      const existing = await db.select().from(schema.userStats).where(eq(schema.userStats.userId, sessionUser.id));
+      const existing = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, sessionUser.id));
       if (existing.length) {
-        await db.update(schema.userStats).set({
+        await db.update(schema.profilesStats).set({
           gamesPlayed:      existing[0].gamesPlayed + gamesPlayed,
           gamesWon:         existing[0].gamesWon + gamesWon,
           totalEarnings:    existing[0].totalEarnings + totalEarnings,
           propertiesBought: existing[0].propertiesBought + propertiesBought,
           updatedAt:        new Date(),
-        }).where(eq(schema.userStats.userId, sessionUser.id));
+        }).where(eq(schema.profilesStats.userId, sessionUser.id));
       } else {
-        await db.insert(schema.userStats).values({
+        await db.insert(schema.profilesStats).values({
           userId: sessionUser.id, gamesPlayed, gamesWon, totalEarnings, propertiesBought, updatedAt: new Date(),
         });
       }
