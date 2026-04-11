@@ -348,6 +348,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
     socket.on("admin_board_pushed", ({ board }: { board: any }) => {
       setCustomBoard(board);
       localStorage.setItem('adminActiveBoard', JSON.stringify(board));
+      // Reset map selection so host must explicitly pick the new board
+      setSettings(s => ({ ...s, boardMap: 'Classic' }));
     });
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
@@ -641,7 +643,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
         settings: effectiveSettings,
         lobbyPlayers: isOnline ? lobbyPlayers : null,
         selectedAvatar,
-        customTiles: customBoard?.tiles
+        customTiles: settings.boardMap !== 'Classic' && customBoard?.tiles
           ? (customBoard.tiles as any[]).map((t: any) => ({
               id: t.position ?? t.id,
               name: t.name,
@@ -1250,11 +1252,41 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
         <Globe size={18} className="text-slate-400 shrink-0 mt-0.5" />
         <div className="flex-1">
           <div className="text-sm font-bold text-slate-200">Board map</div>
-          <div className="text-[10px] text-slate-500 mb-1 uppercase font-black tracking-wider">World selection</div>
-          <div className="text-right">
-            <div className="text-sm font-bold text-slate-200">{settings.boardMap}</div>
-            <button className="text-xs text-indigo-400 hover:text-indigo-300 font-bold">Browse maps &gt;</button>
-          </div>
+          <div className="text-[10px] text-slate-500 mb-2 leading-relaxed">Select which map to play on</div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={!isHost || gameStarted}
+                className="w-full bg-[#111116] border-slate-700 rounded-xl px-3 py-4 text-sm text-slate-300 font-bold justify-between hover:bg-slate-800 hover:text-white"
+              >
+                {settings.boardMap}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-full min-w-[200px] bg-[#111116] border-slate-700 text-slate-300 rounded-xl">
+              <DropdownMenuGroup>
+                <DropdownMenuItem
+                  disabled={!isHost || gameStarted}
+                  onClick={() => updateGeneralSetting('boardMap', 'Classic')}
+                  className="focus:bg-slate-800 focus:text-slate-200 cursor-pointer rounded-lg m-1 font-bold"
+                >
+                  Classic
+                </DropdownMenuItem>
+                {customBoard && (
+                  <DropdownMenuItem
+                    disabled={!isHost || gameStarted}
+                    onClick={() => updateGeneralSetting('boardMap', customBoard.name)}
+                    className="focus:bg-slate-800 focus:text-slate-200 cursor-pointer rounded-lg m-1 font-bold"
+                  >
+                    {customBoard.name}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          {!customBoard && (
+            <div className="text-[10px] text-slate-600 mt-1.5">No custom maps pushed yet</div>
+          )}
         </div>
       </div>
     </div>
