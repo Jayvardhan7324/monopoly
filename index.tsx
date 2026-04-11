@@ -92,9 +92,9 @@ function Root() {
     });
   };
 
-  // Login is required — show blocking modal when not authenticated
-  const loginOpen = !sessionData || showLogin;
-  const loginCanDismiss = !!sessionData && showLogin;
+  // Login is optional — modal only opens when explicitly triggered
+  const loginOpen = showLogin;
+  const loginCanDismiss = true;
 
   return (
     <>
