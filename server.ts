@@ -13,7 +13,21 @@ interface RoomData {
   createdAt: number;
 }
 
+// Dev-only logger — silent in production
+const isDev = process.env.NODE_ENV !== 'production';
+const log = isDev ? (...args: any[]) => console.log(...args) : () => {};
+
 async function startServer() {
+  // ── Startup env validation ──────────────────────────────────────────────────
+  const missingCritical: string[] = [];
+  if (!process.env.ADMIN_TOKEN)    console.warn('[WARN] ADMIN_TOKEN not set — admin endpoints are unprotected');
+  if (!process.env.ADMIN_USERNAME) console.warn('[WARN] ADMIN_USERNAME not set — admin login uses insecure default');
+  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD not set — admin login uses insecure default');
+  if (missingCritical.length) {
+    console.error('[FATAL] Missing required env vars:', missingCritical.join(', '));
+    process.exit(1);
+  }
+
   const app = express();
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = createHttpServer(app);
@@ -51,13 +65,23 @@ async function startServer() {
       const drizzle = await import("drizzle-orm");
       eq = drizzle.eq;
       and = drizzle.and;
-      console.log("Supabase + DB loaded");
+      log("Supabase + DB loaded");
     } catch (e: any) {
       console.error("Failed to load supabase/db — running without auth:", e?.message);
     }
   } else {
     console.warn("DATABASE_URL not set — auth and store routes disabled");
   }
+
+  // ── Security headers ────────────────────────────────────────────────────────
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
 
   app.use(express.json());
 
@@ -72,20 +96,25 @@ async function startServer() {
   });
 
   // ─── Admin ─────────────────────────────────────────────────────────────────
-  const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'richup-admin-2025';
+  const ADMIN_TOKEN    = process.env.ADMIN_TOKEN    || '';
+  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
   const adminBoards = new Map<string, any>();
   let activeAdminBoard: any = null;
 
   function requireAdmin(req: any, res: any, next: any) {
-    if (req.headers['x-admin-token'] !== ADMIN_TOKEN) {
+    if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     next();
   }
 
   app.post('/api/admin/login', (req, res) => {
+    if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !ADMIN_TOKEN) {
+      return res.status(503).json({ success: false, error: 'Admin access not configured on this server.' });
+    }
     const { username, password } = req.body || {};
-    if (username === 'admin' && password === 'admin') {
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
       res.json({ success: true, token: ADMIN_TOKEN });
     } else {
       res.status(401).json({ success: false, error: 'Invalid credentials' });
@@ -122,7 +151,7 @@ async function startServer() {
     if (!board) return res.status(404).json({ error: 'Board not found' });
     activeAdminBoard = board;
     io.emit('admin_board_pushed', { board });
-    console.log(`Admin pushed board "${board.name}" to all clients.`);
+    log(`Admin pushed board "${board.name}" to all clients.`);
     res.json({ success: true });
   });
 
@@ -131,9 +160,23 @@ async function startServer() {
     res.json({ board: activeAdminBoard });
   });
 
+  // Per-IP rate limit for AI advice (5 req/min)
+  const aiRateLimitMap = new Map<string, number[]>();
+  function isAIRateLimited(ip: string): boolean {
+    const now = Date.now();
+    const timestamps = aiRateLimitMap.get(ip) || [];
+    const filtered = timestamps.filter(t => now - t < 60000);
+    if (filtered.length >= 5) { aiRateLimitMap.set(ip, filtered); return true; }
+    filtered.push(now);
+    aiRateLimitMap.set(ip, filtered);
+    return false;
+  }
+
   // SEC-07: Gemini API key is never sent to the client — all AI calls go through this proxy.
   // ERR-02: Use gemini-2.0-flash (correct model name).
   app.post("/api/ai-advice", async (req, res) => {
+    const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '');
+    if (isAIRateLimited(ip)) return res.status(429).json({ advice: "Too many requests. Please wait a moment." });
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return res.status(503).json({ advice: "AI advisor is not configured on this server." });
@@ -216,7 +259,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
           roomIdleTimers.delete(roomId);
         }
         rooms.delete(roomId);
-        console.log(`GC: deleted stale room ${roomId} (all disconnected > 1hr)`);
+        log(`GC: deleted stale room ${roomId} (all disconnected > 1hr)`);
       }
     }
   }, 15 * 60 * 1000);
@@ -270,7 +313,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       }
     }
     scheduleRoomsListBroadcast();
-    console.log(`Player ${originalPlayerId} permanently removed from room ${roomId} (reconnect window expired).`);
+    log(`Player ${originalPlayerId} permanently removed from room ${roomId} (reconnect window expired).`);
   }
 
   const GAMERTAG_ADJECTIVES = [
@@ -453,7 +496,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
   // Socket.io logic
   io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+    log("Client connected:", socket.id);
 
     // Initial connection linking REST session to Socket
     socket.on("join_session", (data, callback) => {
@@ -487,13 +530,13 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       if (disconnectTimers.has(timerKey)) {
         clearTimeout(disconnectTimers.get(timerKey)!);
         disconnectTimers.delete(timerKey);
-        console.log(`Player ${timerKey} reconnected to room ${roomId}. Disconnect timer cleared.`);
+        log(`Player ${timerKey} reconnected to room ${roomId}. Disconnect timer cleared.`);
       }
       // Clear room-level idle timer if someone is reconnecting
       if (roomIdleTimers.has(roomId)) {
         clearTimeout(roomIdleTimers.get(roomId)!);
         roomIdleTimers.delete(roomId);
-        console.log(`Room ${roomId} idle timer cleared — player reconnected.`);
+        log(`Room ${roomId} idle timer cleared — player reconnected.`);
       }
 
       // Update socket ID and clear disconnected flag
@@ -530,7 +573,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
           room.host = socket.id;
           room.hostName = player.name || 'Player';
           socket.emit("you_are_host");
-          console.log(`New player ${player.name} promoted to host in abandoned room ${roomId}.`);
+          log(`New player ${player.name} promoted to host in abandoned room ${roomId}.`);
         }
       }
 
@@ -540,7 +583,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       // If game is already in progress, send current state to the rejoining player
       if (room.state) {
         socket.emit("sync_state", { state: room.state });
-        console.log(`Sent live game state to reconnecting player ${timerKey} in room ${roomId}.`);
+        log(`Sent live game state to reconnecting player ${timerKey} in room ${roomId}.`);
       }
 
       if (callback) callback({ success: true, players: room.players, gameInProgress: !!room.state });
@@ -751,7 +794,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     });
 
     socket.on("disconnect", () => {
-      console.log("Client disconnected:", socket.id);
+      log("Client disconnected:", socket.id);
       // MEM-01: Clean up rate-limit entries for this socket to prevent unbounded growth
       for (const key of rateLimitMap.keys()) {
         if (key.startsWith(socket.id + ':')) rateLimitMap.delete(key);
@@ -777,12 +820,12 @@ Keep it very short (under 30 words), punchy, and strategic.`;
               io.to(roomId).emit("room_updated", { players: room.players });
             }
             scheduleRoomsListBroadcast();
-            console.log(`Player ${timerKey} removed immediately from lobby ${roomId} (game not started).`);
+            log(`Player ${timerKey} removed immediately from lobby ${roomId} (game not started).`);
           } else {
             // Game in progress — soft-disconnect with reconnect window
             player.disconnected = true;
             player.disconnectedAt = Date.now(); // I5: client uses this for 2-min countdown UI
-            console.log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
+            log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
 
             // Notify others that this player temporarily disconnected
             io.to(roomId).emit("room_updated", { players: room.players });
@@ -797,11 +840,11 @@ Keep it very short (under 30 words), punchy, and strategic.`;
             // If ALL players are now disconnected, start a room-level idle timer
             const allDisconnected = room.players.every((p: any) => p.disconnected);
             if (allDisconnected && !roomIdleTimers.has(roomId)) {
-              console.log(`All players disconnected from room ${roomId}. Room will persist for ${ROOM_IDLE_TTL / 60000} min.`);
+              log(`All players disconnected from room ${roomId}. Room will persist for ${ROOM_IDLE_TTL / 60000} min.`);
               const idleTimer = setTimeout(() => {
                 rooms.delete(roomId);
                 roomIdleTimers.delete(roomId);
-                console.log(`Room ${roomId} deleted after idle TTL (all players disconnected).`);
+                log(`Room ${roomId} deleted after idle TTL (all players disconnected).`);
               }, ROOM_IDLE_TTL);
               roomIdleTimers.set(roomId, idleTimer);
             }
@@ -1029,7 +1072,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   }
 
   httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    log(`Server running on http://localhost:${PORT}`);
   });
 }
 

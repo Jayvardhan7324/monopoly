@@ -33,7 +33,6 @@ export const getAIAdvice = async (gameState: GameState, retries = 2): Promise<st
     console.error("AI Advice Error:", error);
 
     if (retries > 0 && (error?.message?.toLowerCase().includes('rate') || error?.status === 429)) {
-      console.log(`Rate limit hit, retrying in 2s... (${retries} retries left)`);
       await new Promise(resolve => setTimeout(resolve, 2000));
       return getAIAdvice(gameState, retries - 1);
     }
