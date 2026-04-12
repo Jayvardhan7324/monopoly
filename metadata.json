@@ -1,5 +1,5 @@
 {
-  "name": "Cashly Clone - React Edition",
+  "name": "Cashly",
   "description": "A multiplayer strategic board game played in the browser simulating property trading, inspired by Cashly.io. Features local multiplayer with bots and an AI Advisor powered by Gemini.",
   "requestFramePermissions": []
 }

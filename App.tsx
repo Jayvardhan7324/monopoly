@@ -44,11 +44,12 @@ interface AppProps {
   onOpenStore?: () => void;
   onOpenLogin?: () => void;
   onOpenProfile?: () => void;
+  onOpenFriends?: () => void;
   onSignOut?: () => void;
   sessionUser?: any | null;
 }
 
-const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSignOut, sessionUser }) => {
+const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOpenFriends, onSignOut, sessionUser }) => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
@@ -75,6 +76,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
       'Ninja', 'Viking', 'Warrior', 'Samurai', 'Mage', 'Archer', 'Scout', 'Cipher', 'Wraith', 'Oracle'];
     return adjs[Math.floor(Math.random() * adjs.length)] + nouns[Math.floor(Math.random() * nouns.length)];
   });
+
+  // Auto-fill name from logged-in profile
+  useEffect(() => {
+    if (sessionUser?.name) setHumanName(sessionUser.name);
+  }, [sessionUser?.name]);
 
   // Multiplayer state
   const [isOnline, setIsOnline] = useState(false);
@@ -1537,11 +1543,25 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
               {session?.user ? (
                 <>
                   <button
+                    onClick={() => onOpenFriends?.()}
+                    className="flex items-center gap-2 hover:text-slate-200 transition-colors"
+                    title="Friends"
+                  >
+                    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+                    </svg>
+                    Friends
+                  </button>
+                  <button
                     onClick={() => onOpenProfile?.()}
                     className="flex items-center gap-2 hover:text-slate-200 transition-colors"
                     title={session.user.email}
                   >
-                    <UserCircle size={16} />
+                    {session.user.image ? (
+                      <img src={session.user.image} className="h-5 w-5 rounded-full object-cover border border-slate-600" alt="" />
+                    ) : (
+                      <UserCircle size={16} />
+                    )}
                     <span className="max-w-[100px] truncate">{session.user.name}</span>
                   </button>
                   <button
@@ -1553,12 +1573,24 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
                   </button>
                 </>
               ) : (
-                <button
-                  onClick={() => onOpenLogin?.()}
-                  className="flex items-center gap-2 hover:text-slate-200 transition-colors"
-                >
-                  <LogIn size={16} /> Login
-                </button>
+                <div className="relative group">
+                  <button
+                    onClick={() => onOpenLogin?.()}
+                    className="flex items-center gap-2 hover:text-slate-200 transition-colors"
+                  >
+                    <LogIn size={16} /> Login
+                  </button>
+                  {/* Tooltip */}
+                  <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800 border border-slate-700 rounded-xl p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-50 text-left">
+                    <p className="text-xs font-bold text-white mb-2">Sign in to unlock:</p>
+                    <ul className="space-y-1 text-xs text-slate-400">
+                      <li>📊 Stats tracking (wins, earnings)</li>
+                      <li>👥 Friends &amp; lobby invites</li>
+                      <li>🖼️ Profile picture &amp; username</li>
+                      <li>🪙 Coins &amp; store rewards</li>
+                    </ul>
+                  </div>
+                </div>
               )}
               {/* Discord */}
               <a
@@ -1697,14 +1729,33 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
                       <div className="w-full space-y-3 mt-1">
                         <div>
                           <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
-                          <input
-                            type="text"
-                            value={humanName}
-                            onChange={(e) => setHumanName(e.target.value)}
-                            onFocus={(e) => e.target.select()}
-                            className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-5 py-3.5 text-center text-lg font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
-                            placeholder="Enter name"
-                          />
+                          {sessionUser ? (
+                            <div className="w-full flex items-center gap-3 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3">
+                              {sessionUser.image ? (
+                                <img src={sessionUser.image} className="h-9 w-9 rounded-full object-cover border border-indigo-500/40 shrink-0" alt="" />
+                              ) : (
+                                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-sm shrink-0">
+                                  {sessionUser.name?.[0]?.toUpperCase() ?? '?'}
+                                </div>
+                              )}
+                              <span className="font-bold text-white text-base flex-1 truncate">{sessionUser.name}</span>
+                              <button
+                                onClick={() => onOpenProfile?.()}
+                                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors shrink-0"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={humanName}
+                              onChange={(e) => setHumanName(e.target.value)}
+                              onFocus={(e) => e.target.select()}
+                              className="w-full bg-[#1e1e24] border border-slate-700/50 rounded-xl px-5 py-3.5 text-center text-lg font-bold text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 placeholder:font-normal"
+                              placeholder="Enter name"
+                            />
+                          )}
                         </div>
 
                         {savedSession && (() => {

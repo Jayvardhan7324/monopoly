@@ -1,4 +1,5 @@
 import { pgTable, text, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { randomUUID } from "crypto";
 
 // ── Profiles (mirrors Supabase auth.users — FK to auth.users enforced by SQL migration) ──
 export const profiles = pgTable("profiles", {
@@ -35,11 +36,25 @@ export const purchase = pgTable("purchase", {
 });
 
 // ── Player stats ──────────────────────────────────────────────────────────────
-export const userStats = pgTable("user_stats", {
-  userId:           text("user_id").primaryKey().references(() => profiles.id, { onDelete: "cascade" }),
-  gamesPlayed:      integer("games_played").notNull().default(0),
-  gamesWon:         integer("games_won").notNull().default(0),
-  totalEarnings:    integer("total_earnings").notNull().default(0),
-  propertiesBought: integer("properties_bought").notNull().default(0),
-  updatedAt:        timestamp("updated_at").notNull().defaultNow(),
+export const profilesStats = pgTable("user_stats", {
+  userId:              text("user_id").primaryKey().references(() => profiles.id, { onDelete: "cascade" }),
+  gamesPlayed:         integer("games_played").notNull().default(0),
+  gamesWon:            integer("games_won").notNull().default(0),
+  gamesLost:           integer("games_lost").notNull().default(0),
+  totalEarnings:       integer("total_earnings").notNull().default(0),
+  propertiesBought:    integer("properties_bought").notNull().default(0),
+  peakPropertiesOwned: integer("peak_properties_owned").notNull().default(0),
+  bankruptcies:        integer("bankruptcies").notNull().default(0),
+  totalTurns:          integer("total_turns").notNull().default(0),
+  updatedAt:           timestamp("updated_at").notNull().defaultNow(),
+});
+
+// ── Friendships ───────────────────────────────────────────────────────────────
+export const friendships = pgTable("friendships", {
+  id:          text("id").primaryKey().$defaultFn(() => randomUUID()),
+  requesterId: text("requester_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  addresseeId: text("addressee_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  status:      text("status").notNull().default("pending"), // 'pending' | 'accepted' | 'declined'
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+  updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 });

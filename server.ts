@@ -51,6 +51,9 @@ async function startServer() {
   let schema: any = null;
   let eq: any = null;
   let and: any = null;
+  let or: any = null;
+  let inArray: any = null;
+  let ilike: any = null;
 
   if (hasDB) {
     try {
@@ -65,6 +68,9 @@ async function startServer() {
       const drizzle = await import("drizzle-orm");
       eq = drizzle.eq;
       and = drizzle.and;
+      or = drizzle.or;
+      inArray = drizzle.inArray;
+      ilike = drizzle.ilike;
       log("Supabase + DB loaded");
     } catch (e: any) {
       console.error("Failed to load supabase/db — running without auth:", e?.message);
@@ -1030,25 +1036,166 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   app.post('/api/profile/stats', async (req, res) => {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
-    const { gamesPlayed = 0, gamesWon = 0, totalEarnings = 0, propertiesBought = 0 } = req.body ?? {};
+    const {
+      gamesPlayed = 0, gamesWon = 0, gamesLost = 0,
+      totalEarnings = 0, propertiesBought = 0,
+      peakPropertiesOwned = 0, bankruptcies = 0, totalTurns = 0,
+    } = req.body ?? {};
     try {
       const existing = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, sessionUser.id));
       if (existing.length) {
+        const e = existing[0];
         await db.update(schema.profilesStats).set({
-          gamesPlayed:      existing[0].gamesPlayed + gamesPlayed,
-          gamesWon:         existing[0].gamesWon + gamesWon,
-          totalEarnings:    existing[0].totalEarnings + totalEarnings,
-          propertiesBought: existing[0].propertiesBought + propertiesBought,
-          updatedAt:        new Date(),
+          gamesPlayed:         e.gamesPlayed + gamesPlayed,
+          gamesWon:            e.gamesWon + gamesWon,
+          gamesLost:           e.gamesLost + gamesLost,
+          totalEarnings:       e.totalEarnings + totalEarnings,
+          propertiesBought:    e.propertiesBought + propertiesBought,
+          peakPropertiesOwned: Math.max(e.peakPropertiesOwned, peakPropertiesOwned),
+          bankruptcies:        e.bankruptcies + bankruptcies,
+          totalTurns:          e.totalTurns + totalTurns,
+          updatedAt:           new Date(),
         }).where(eq(schema.profilesStats.userId, sessionUser.id));
       } else {
         await db.insert(schema.profilesStats).values({
-          userId: sessionUser.id, gamesPlayed, gamesWon, totalEarnings, propertiesBought, updatedAt: new Date(),
+          userId: sessionUser.id, gamesPlayed, gamesWon, gamesLost,
+          totalEarnings, propertiesBought, peakPropertiesOwned, bankruptcies, totalTurns,
+          updatedAt: new Date(),
         });
       }
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update stats' });
+    }
+  });
+
+  // ── Profile edit ─────────────────────────────────────────────────────────────
+  app.patch('/api/profile', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { name, image } = req.body ?? {};
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (name && typeof name === 'string') updates.name = name.trim().slice(0, 40);
+    if (image && typeof image === 'string') updates.image = image;
+    try {
+      await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, sessionUser.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
+  });
+
+  // ── Friends ───────────────────────────────────────────────────────────────────
+  app.get('/api/friends', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const rows = await db.select().from(schema.friendships).where(
+        and(
+          eq(schema.friendships.status, 'accepted'),
+          or(
+            eq(schema.friendships.requesterId, sessionUser.id),
+            eq(schema.friendships.addresseeId, sessionUser.id)
+          )
+        )
+      );
+      const friendIds = rows.map(r => r.requesterId === sessionUser.id ? r.addresseeId : r.requesterId);
+      if (!friendIds.length) return res.json({ friends: [] });
+      const friends = await db.select({ id: schema.profiles.id, name: schema.profiles.name, image: schema.profiles.image })
+        .from(schema.profiles).where(inArray(schema.profiles.id, friendIds));
+      res.json({ friends });
+    } catch {
+      res.status(500).json({ error: 'Failed to load friends' });
+    }
+  });
+
+  app.get('/api/friends/requests', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const rows = await db.select().from(schema.friendships).where(
+        and(eq(schema.friendships.addresseeId, sessionUser.id), eq(schema.friendships.status, 'pending'))
+      );
+      if (!rows.length) return res.json({ requests: [] });
+      const requesterIds = rows.map(r => r.requesterId);
+      const requesters = await db.select({ id: schema.profiles.id, name: schema.profiles.name, image: schema.profiles.image })
+        .from(schema.profiles).where(inArray(schema.profiles.id, requesterIds));
+      const requests = rows.map(r => ({
+        friendshipId: r.id,
+        user: requesters.find(u => u.id === r.requesterId),
+      }));
+      res.json({ requests });
+    } catch {
+      res.status(500).json({ error: 'Failed to load friend requests' });
+    }
+  });
+
+  app.post('/api/friends/request', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { addresseeId } = req.body ?? {};
+    if (!addresseeId || addresseeId === sessionUser.id) return res.status(400).json({ error: 'Invalid addressee' });
+    try {
+      const existing = await db.select().from(schema.friendships).where(
+        or(
+          and(eq(schema.friendships.requesterId, sessionUser.id), eq(schema.friendships.addresseeId, addresseeId)),
+          and(eq(schema.friendships.requesterId, addresseeId), eq(schema.friendships.addresseeId, sessionUser.id))
+        )
+      );
+      if (existing.length) return res.status(400).json({ error: 'Friendship already exists' });
+      await db.insert(schema.friendships).values({ requesterId: sessionUser.id, addresseeId });
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to send friend request' });
+    }
+  });
+
+  app.post('/api/friends/respond', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { friendshipId, status } = req.body ?? {};
+    if (!friendshipId || !['accepted', 'declined'].includes(status)) return res.status(400).json({ error: 'Invalid' });
+    try {
+      await db.update(schema.friendships).set({ status, updatedAt: new Date() })
+        .where(and(eq(schema.friendships.id, friendshipId), eq(schema.friendships.addresseeId, sessionUser.id)));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to respond to request' });
+    }
+  });
+
+  app.delete('/api/friends/:friendId', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      await db.delete(schema.friendships).where(
+        and(
+          or(
+            and(eq(schema.friendships.requesterId, sessionUser.id), eq(schema.friendships.addresseeId, req.params.friendId)),
+            and(eq(schema.friendships.requesterId, req.params.friendId), eq(schema.friendships.addresseeId, sessionUser.id))
+          ),
+          eq(schema.friendships.status, 'accepted')
+        )
+      );
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to remove friend' });
+    }
+  });
+
+  app.get('/api/users/search', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const q = (req.query.q as string ?? '').trim();
+    if (q.length < 2) return res.json({ users: [] });
+    try {
+      const users = await db.select({ id: schema.profiles.id, name: schema.profiles.name, image: schema.profiles.image })
+        .from(schema.profiles)
+        .where(ilike(schema.profiles.name, `%${q}%`))
+        .limit(10);
+      res.json({ users: users.filter(u => u.id !== sessionUser.id) });
+    } catch {
+      res.status(500).json({ error: 'Failed to search users' });
     }
   });
 

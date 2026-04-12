@@ -5,6 +5,7 @@ import AdminPage from './components/admin/AdminPage';
 import LoginPage from './components/auth/LoginPage';
 import StorePage from './components/store/StorePage';
 import ProfileModal from './components/profile/ProfileModal';
+import FriendsPanel from './components/friends/FriendsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { supabase } from './lib/auth-client';
 import { AnimatePresence, motion } from 'motion/react';
@@ -50,6 +51,7 @@ function Root() {
   const [showLogin, setShowLogin] = useState(false);
   const [showStore, setShowStore] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showFriends, setShowFriends] = useState(false);
 
   const refreshSession = useCallback(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -75,7 +77,7 @@ function Root() {
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <span className="text-lg font-black text-white">R</span>
+            <span className="text-lg font-black text-white">C</span>
           </div>
           <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
@@ -88,8 +90,16 @@ function Root() {
       setSessionData(null);
       setShowStore(false);
       setShowProfile(false);
-      setShowLogin(false); // let the blocking modal open automatically
+      setShowFriends(false);
+      setShowLogin(false);
     });
+  };
+
+  const handleProfileUpdated = (name: string, image?: string) => {
+    setSessionData((prev: any) => prev ? {
+      ...prev,
+      user: { ...prev.user, name, ...(image ? { image } : {}) }
+    } : prev);
   };
 
   // Login is optional — modal only opens when explicitly triggered
@@ -103,6 +113,7 @@ function Root() {
         onOpenStore={() => setShowStore(true)}
         onOpenProfile={() => setShowProfile(true)}
         onOpenLogin={() => setShowLogin(true)}
+        onOpenFriends={() => setShowFriends(true)}
         onSignOut={handleSignOut}
       />
 
@@ -176,6 +187,26 @@ function Root() {
               sessionData={sessionData}
               onClose={() => setShowProfile(false)}
               onSignOut={handleSignOut}
+              onProfileUpdated={handleProfileUpdated}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* ── Friends modal ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {showFriends && sessionData && (
+          <motion.div
+            key="friends-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={e => { if (e.target === e.currentTarget) setShowFriends(false); }}
+          >
+            <FriendsPanel
+              userId={sessionData.user.id}
+              onClose={() => setShowFriends(false)}
             />
           </motion.div>
         )}
