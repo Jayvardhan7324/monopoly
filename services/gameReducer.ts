@@ -77,7 +77,7 @@ export const initialState: GameState = {
   lastDiceRollDoubles: false,
   doublesCount: 0,
   phase: 'TURN_END',
-  logs: ['Welcome to Richup Clone! Configure your game and start.'],
+  logs: ['Welcome to Cashly Clone! Configure your game and start.'],
   turnLogs: [],
   winnerId: null,
   turnCount: 0,

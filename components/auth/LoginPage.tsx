@@ -83,7 +83,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
           <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 mb-4 shadow-lg shadow-indigo-500/30">
             <span className="text-2xl font-black text-white">R</span>
           </div>
-          <h1 className="text-3xl font-black text-white tracking-tight">Richup</h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">Cashly</h1>
           <p className="text-slate-400 mt-1 text-sm">The multiplayer property game</p>
         </div>
 

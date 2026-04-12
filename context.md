@@ -1,4 +1,4 @@
-# Monopoly (RichUp) — Codebase Context
+# Monopoly (Cashly) — Codebase Context
 
 ## Stack
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS + shadcn/ui + framer-motion
@@ -38,7 +38,7 @@ lib/
   auth-client.ts    Supabase client-side auth helpers
   auth.ts           Server-side auth helpers
   dice3d.ts         3D dice animation
-richup_assets/      Static images + sounds served at /sounds
+cashly_assets/      Static images + sounds served at /sounds
 ```
 
 ## Server Architecture (`server.ts`)

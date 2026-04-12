@@ -85,10 +85,10 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Serve audio assets from richup_assets/sounds at /sounds
+  // Serve audio assets from cashly_assets/sounds at /sounds
   const pathModule = await import("path");
   app.use("/sounds", express.static(
-    pathModule.default.resolve(process.cwd(), "richup_assets/sounds")
+    pathModule.default.resolve(process.cwd(), "cashly_assets/sounds")
   ));
 
   app.get("/api/health", (req, res) => {

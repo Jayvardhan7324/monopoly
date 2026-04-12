@@ -29,7 +29,10 @@
       "Bash(claude mcp:*)",
       "mcp__better-auth__setup_auth",
       "Bash(grep -E \"better-auth|drizzle|^pg$\")",
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(supabase --version)",
+      "Bash(docker --version)",
+      "Bash(npm uninstall:*)"
     ]
   }
 }

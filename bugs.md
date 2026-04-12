@@ -36,9 +36,9 @@
 - **Fix:** Remove the dead variable.
 - **Status:** FIXED
 
-### BUG-06: Audio service ignores real MP3 files from richup_assets/sounds
+### BUG-06: Audio service ignores real MP3 files from cashly_assets/sounds
 - **File:** `services/audioService.ts`, `server.ts`
-- **Description:** The project contains real audio assets (`dice.mp3`, `game-start.mp3`, `trade-accept.mp3`, `trade-decline.mp3`, `chat-in.mp3`, etc.) in `richup_assets/sounds/` but the audio service generates all sounds via Web Audio API synthesis. The files are never served or played.
+- **Description:** The project contains real audio assets (`dice.mp3`, `game-start.mp3`, `trade-accept.mp3`, `trade-decline.mp3`, `chat-in.mp3`, etc.) in `cashly_assets/sounds/` but the audio service generates all sounds via Web Audio API synthesis. The files are never served or played.
 - **Fix:** Add a `/sounds` static route in `server.ts`; update `audioService.ts` to play the actual MP3 files for the sounds that have matching assets, falling back to synth for the rest.
 - **Status:** FIXED
 

@@ -175,7 +175,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <LayoutGrid className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-lg">Richup Admin</span>
+            <span className="font-semibold text-lg">Cashly Admin</span>
             {activeBoard && (
               <>
                 <Separator orientation="vertical" className="h-5 mx-1" />

@@ -81,7 +81,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
   const [roomId, setRoomId] = useState<string | null>(null);
   const [sessionPlayerId, setSessionPlayerId] = useState<string | null>(null);
   const [savedSession, setSavedSession] = useState<{ playerId: string; roomId: string; playerName?: string; savedAt?: number } | null>(() => {
-    try { return JSON.parse(localStorage.getItem('richup_session') || 'null'); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem('cashly_session') || 'null'); } catch { return null; }
   });
   const [showRulesModal, setShowRulesModal] = useState(false);
   const [isHost, setIsHost] = useState(false);
@@ -149,7 +149,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
   useEffect(() => {
     if (autoJoinAttemptedRef.current) return;
     const stored: { playerId?: string; roomId?: string; playerName?: string; savedAt?: number } | null =
-      JSON.parse(localStorage.getItem('richup_session') || 'null');
+      JSON.parse(localStorage.getItem('cashly_session') || 'null');
     const pathMatch = window.location.pathname.match(/^\/room\/([A-Z0-9]+)$/i);
     const roomFromUrl = pathMatch?.[1] || new URLSearchParams(window.location.search).get('room');
 
@@ -208,7 +208,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
   useEffect(() => {
     if (!isRestoringSession || !roomId) return;
     try {
-      const cached = localStorage.getItem(`richup_game_${roomId}`);
+      const cached = localStorage.getItem(`cashly_game_${roomId}`);
       if (cached) {
         const s = JSON.parse(cached);
         if (s && Array.isArray(s.players) && Array.isArray(s.tiles) && typeof s.phase === 'string') {
@@ -326,8 +326,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
     const handleYouAreHost = () => setIsHost(true); // B4: server promotes us to host after original host permanently left
 
     const handleSessionRejected = () => {
-      localStorage.removeItem('richup_session');
-      if (roomId) localStorage.removeItem(`richup_game_${roomId}`);
+      localStorage.removeItem('cashly_session');
+      if (roomId) localStorage.removeItem(`cashly_game_${roomId}`);
       setSavedSession(null);
       resetSocket();
       isRestoringSessionRef.current = false;
@@ -753,7 +753,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
         setIsHost(true);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
+        localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         if (isPrivate) {
           setSettings(prev => ({ ...prev, isPrivate: true }));
         }
@@ -786,7 +786,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
-        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
+        localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.replaceState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join room");
@@ -814,7 +814,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
-        localStorage.setItem('richup_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
+        localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.pushState({}, '', `/room/${res.roomId}`);
       } else {
         setSystemAlert(res.error || "Failed to join random room");
@@ -829,8 +829,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
     const socket = getSocket();
     if (socket) socket.emit("leave_room");
     resetSocket();
-    localStorage.removeItem('richup_session');
-    if (roomId) localStorage.removeItem(`richup_game_${roomId}`);
+    localStorage.removeItem('cashly_session');
+    if (roomId) localStorage.removeItem(`cashly_game_${roomId}`);
     setSavedSession(null);
     dispatch({ type: 'RESET_GAME' });
     startGameBroadcastedRef.current = false;
@@ -880,11 +880,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
   useEffect(() => {
     if (!gameStarted || !isOnline || gameState.turnCount === 0) return;
     try {
-      const raw = localStorage.getItem('richup_session');
+      const raw = localStorage.getItem('cashly_session');
       if (raw) {
         const session = JSON.parse(raw);
         // Overwrite previous snapshot — single key, always the latest turn
-        localStorage.setItem('richup_session', JSON.stringify({
+        localStorage.setItem('cashly_session', JSON.stringify({
           ...session,
           savedAt: Date.now(),
           turnCount: gameState.turnCount,
@@ -892,7 +892,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
       }
       // Cache full game state so page refresh can restore instantly before server sync arrives
       if (roomId) {
-        localStorage.setItem(`richup_game_${roomId}`, JSON.stringify(gameState));
+        localStorage.setItem(`cashly_game_${roomId}`, JSON.stringify(gameState));
       }
     } catch {}
   }, [gameState.turnCount]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1440,10 +1440,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
                       <h1 className="text-3xl font-black text-white">Terms of Service</h1>
                       <p className="text-slate-400 text-sm leading-relaxed">Last updated: March 2025</p>
                       {[
-                        { title: 'Acceptance', body: 'By playing RichUp.io you agree to these terms. The game is provided free of charge for entertainment purposes.' },
+                        { title: 'Acceptance', body: 'By playing Cashly.io you agree to these terms. The game is provided free of charge for entertainment purposes.' },
                         { title: 'Fair Play', body: 'Do not exploit bugs, harass other players, or attempt to disrupt game sessions. Violators may be removed from rooms by vote-kick.' },
                         { title: 'Disclaimer', body: 'The game is provided "as is" without warranty. We are not responsible for interrupted sessions due to server downtime.' },
-                        { title: 'Intellectual Property', body: 'RichUp.io is an original web game inspired by classic board game mechanics. All code and design is © 2025 RichUp.io.' },
+                        { title: 'Intellectual Property', body: 'Cashly.io is an original web game inspired by classic board game mechanics. All code and design is © 2025 Cashly.io.' },
                       ].map((s, i) => (
                         <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
                           <h3 className="font-bold text-white mb-2">{s.title}</h3>
@@ -1689,7 +1689,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
                       <div className="flex flex-col items-center gap-1">
                         <Dices size={48} className="text-white drop-shadow-lg mb-1" />
                         <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center">
-                          RICHUP<span className="text-indigo-500">.IO</span>
+                          CASHLY<span className="text-indigo-500">.IO</span>
                         </h1>
                         <p className="text-slate-400 text-base text-center">Rule the economy</p>
                       </div>
@@ -1728,7 +1728,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
                                 Rejoin
                               </button>
                               <button
-                                onClick={() => { localStorage.removeItem('richup_session'); setSavedSession(null); }}
+                                onClick={() => { localStorage.removeItem('cashly_session'); setSavedSession(null); }}
                                 className="p-1 text-slate-500 hover:text-slate-300 transition-colors shrink-0"
                               >
                                 <X size={14} />
@@ -1864,7 +1864,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onSi
                         <span className="text-slate-800 hidden sm:inline">·</span>
                         <button onClick={() => setActivePolicyPage('contact')} className="hover:text-slate-400 transition-colors">Contact</button>
                       </div>
-                      <p className="text-[10px] text-slate-700 font-medium">© 2025 RichUp.io · All rights reserved</p>
+                      <p className="text-[10px] text-slate-700 font-medium">© 2025 Cashly.io · All rights reserved</p>
                     </div>
                   </footer>
                 </motion.div>

@@ -1,7 +1,7 @@
 import { SoundEffectType } from '../types';
 
 // ── Real MP3 assets ─────────────────────────────────────────────────────────
-// Files served from /sounds (richup_assets/sounds via server.ts static route)
+// Files served from /sounds (cashly_assets/sounds via server.ts static route)
 const audioCache = new Map<string, HTMLAudioElement>();
 
 function playMp3(src: string, volume = 1.0) {

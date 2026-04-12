@@ -18,7 +18,7 @@ export const initSocket = (roomId: string, playerId: string) => {
     socket.on("connect", () => {
       // Always re-read from localStorage so reconnects after transport drop
       // use the latest roomId/playerId, not stale closure values (NET-02).
-      const stored = localStorage.getItem('richup_session');
+      const stored = localStorage.getItem('cashly_session');
       const session = stored ? JSON.parse(stored) : null;
       const sid = session?.playerId || playerId;
       const rid = session?.roomId || roomId;

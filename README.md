@@ -1,4 +1,4 @@
-# Richup Clone
+# Cashly Clone
 
 A real-time multiplayer Monopoly-inspired board game built with React 19, TypeScript, Socket.io, and Express. Supports up to 6 players online, bot AI opponents, property trading, auctions, and a full board game loop.
 
@@ -111,16 +111,16 @@ PM2 keeps the server alive after crashes and across reboots.
 npm install -g pm2
 
 # Start the app
-pm2 start "npm start" --name richup
+pm2 start "npm start" --name cashly
 
 # Save process list so it restarts on reboot
 pm2 save
 pm2 startup   # follow the printed command to enable auto-start
 
 # Useful PM2 commands
-pm2 logs richup       # tail logs
-pm2 restart richup    # restart
-pm2 stop richup       # stop
+pm2 logs cashly       # tail logs
+pm2 restart cashly    # restart
+pm2 stop cashly       # stop
 pm2 status            # show all processes
 ```
 
@@ -135,7 +135,7 @@ sudo apt install nginx -y
 Create a site config:
 
 ```bash
-sudo nano /etc/nginx/sites-available/richup
+sudo nano /etc/nginx/sites-available/cashly
 ```
 
 Paste the following (replace `yourdomain.com`):
@@ -164,7 +164,7 @@ server {
 Enable and reload:
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/richup /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/cashly /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -227,9 +227,9 @@ monopoly/
 │   ├── gameReducer.ts       # useReducer game state machine
 │   ├── botService.ts        # Bot AI with personality types
 │   └── audioService.ts      # MP3 + Web Audio API sound effects
-├── richup_assets/
+├── cashly_assets/
 │   ├── sounds/              # MP3 sound effects served at /sounds
-│   └── website_ui/          # Reference screenshots from richup.io
+│   └── website_ui/          # Reference screenshots from cashly.io
 └── dist/                    # Production build output (generated)
 ```
 
