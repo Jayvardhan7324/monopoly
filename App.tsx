@@ -681,6 +681,16 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   }, [gameState.turnCount, gameStarted]);
   useEffect(() => { if (!gameStarted) setNetWorthHistory([]); }, [gameStarted]);
 
+  // Close monopoly popup when the active player's turn ends (currentPlayerIndex changes)
+  const prevPlayerIndexRef = useRef(0);
+  useEffect(() => {
+    if (!gameStarted) return;
+    if (gameState.currentPlayerIndex !== prevPlayerIndexRef.current) {
+      prevPlayerIndexRef.current = gameState.currentPlayerIndex;
+      setSetCompleteAnim(null);
+    }
+  }, [gameState.currentPlayerIndex, gameStarted]);
+
   // ── Detect newly completed color sets and trigger animation ─────────────────
   useEffect(() => {
     if (!gameStarted) return;

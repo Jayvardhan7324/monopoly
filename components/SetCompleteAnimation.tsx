@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ColorGroup, Tile } from '../types';
 
@@ -28,11 +28,6 @@ export const SetCompleteAnimation: React.FC<SetCompleteAnimationProps> = ({
   const colors = groupColorMap[group];
   const groupLabel = group.replace('_', ' ');
 
-  useEffect(() => {
-    const t = setTimeout(onDone, 4000);
-    return () => clearTimeout(t);
-  }, [onDone]);
-
   return (
     <AnimatePresence>
       <motion.div
@@ -40,7 +35,7 @@ export const SetCompleteAnimation: React.FC<SetCompleteAnimationProps> = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-none"
+        className="fixed inset-0 z-[200] flex items-center justify-center pointer-events-auto"
       >
         {/* Dark vignette */}
         <div className="absolute inset-0 bg-black/40" />
@@ -97,6 +92,18 @@ export const SetCompleteAnimation: React.FC<SetCompleteAnimationProps> = ({
               </motion.div>
             ))}
           </div>
+
+          {/* Dismiss hint */}
+          <motion.button
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.6 }}
+            transition={{ delay: 0.8 }}
+            onClick={onDone}
+            className="text-xs font-bold uppercase tracking-widest mt-1 hover:opacity-100 transition-opacity"
+            style={{ color: colors.text }}
+          >
+            Tap to dismiss
+          </motion.button>
         </motion.div>
       </motion.div>
     </AnimatePresence>
