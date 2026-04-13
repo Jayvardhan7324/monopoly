@@ -108,7 +108,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
             <button
               onClick={handleGoogle}
               disabled={!!loading}
-              className="flex items-center justify-center gap-3 w-full py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-750 hover:border-slate-600 text-sm font-medium text-white transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-3 w-full py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 hover:border-slate-500 text-sm font-medium text-white transition-all disabled:opacity-50 active:scale-[0.98]"
             >
               {loading === 'google' ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none">
@@ -124,7 +124,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
             <button
               onClick={handleApple}
               disabled={!!loading}
-              className="flex items-center justify-center gap-3 w-full py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-750 hover:border-slate-600 text-sm font-medium text-white transition-all disabled:opacity-50"
+              className="flex items-center justify-center gap-3 w-full py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 hover:border-slate-500 text-sm font-medium text-white transition-all disabled:opacity-50 active:scale-[0.98]"
             >
               {loading === 'apple' ? <Loader2 className="h-4 w-4 animate-spin" /> : (
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">

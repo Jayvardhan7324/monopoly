@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '../../lib/auth-client';
-import AvatarPickerModal from './AvatarPickerModal';
 
 interface Props {
   sessionData: { user: { id: string; name: string; email: string; image?: string } };
@@ -59,9 +58,6 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(sessionData.user.name ?? '');
   const [saving, setSaving] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [showPicker, setShowPicker] = useState(false);
-
   useEffect(() => {
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
@@ -80,16 +76,6 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const winRate = profile?.stats?.gamesPlayed
     ? Math.round((profile.stats.gamesWon / profile.stats.gamesPlayed) * 100)
     : 0;
-
-  const handleEmojiAvatar = async (url: string) => {
-    setUploadingAvatar(true);
-    try {
-      await authFetch('/api/profile', { method: 'PATCH', body: JSON.stringify({ image: url }) });
-      setProfile(prev => prev ? { ...prev, image: url } : prev);
-      onProfileUpdated?.(currentName, url);
-      toast.success('Avatar updated!');
-    } catch { toast.error('Failed to save avatar'); } finally { setUploadingAvatar(false); }
-  };
 
   const saveName = async () => {
     if (!editName.trim() || editName.trim() === currentName) { setEditing(false); return; }
@@ -129,7 +115,7 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
           {/* ── Profile header ──────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {/* Avatar */}
-            <div className="relative shrink-0 group">
+            <div className="relative shrink-0">
               {currentImage ? (
                 <img src={currentImage} className="h-[90px] w-[90px] rounded-full object-cover border-4 border-slate-700/60" alt="" />
               ) : (
@@ -137,13 +123,6 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
                   {currentName?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}
-              {/* Avatar overlay — emoji picker only, no file upload */}
-              <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => setShowPicker(true)}>
-                {uploadingAvatar
-                  ? <Loader2 className="h-5 w-5 text-white animate-spin" />
-                  : <Pencil className="h-4 w-4 text-white" />
-                }
-              </div>
             </div>
 
             {/* Name + email */}
@@ -312,14 +291,6 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
         </div>
       </div>
 
-      {/* Avatar picker modal */}
-      {showPicker && (
-        <AvatarPickerModal
-          currentImage={currentImage}
-          onSelect={handleEmojiAvatar}
-          onClose={() => setShowPicker(false)}
-        />
-      )}
     </div>
   );
 };

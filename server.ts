@@ -1262,6 +1262,13 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     }
     try {
       await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, sessionUser.id));
+      // Sync user_metadata so session stays accurate on refresh
+      const metaUpdate: Record<string, any> = {};
+      if (updates.name)  metaUpdate.name       = updates.name;
+      if (updates.image) metaUpdate.avatar_url = updates.image;
+      if (Object.keys(metaUpdate).length) {
+        await supabaseAdmin.auth.admin.updateUserById(sessionUser.id, { user_metadata: metaUpdate });
+      }
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update profile' });
