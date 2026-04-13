@@ -230,6 +230,39 @@ const CellEditor: React.FC<Props> = ({ tile, open, onClose, onSave }) => {
             </>
           )}
 
+          {/* Utility rent info */}
+          {form.type === TileType.UTILITY && (
+            <>
+              <Separator />
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Rent Rules (automatic)</Label>
+                <div className="rounded-md border border-border bg-muted/40 p-3 space-y-1 text-xs text-muted-foreground">
+                  <p>Rent is calculated from the dice roll that landed here:</p>
+                  <p>• <strong>1 utility owned</strong> — 5× dice value</p>
+                  <p>• <strong>2 utilities owned</strong> — 20× dice value</p>
+                  <p className="text-[10px] opacity-60 pt-1">No fixed base rent for utilities.</p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Railroad/Airport rent info */}
+          {form.type === TileType.RAILROAD && (
+            <>
+              <Separator />
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Rent Rules (automatic)</Label>
+                <div className="rounded-md border border-border bg-muted/40 p-3 space-y-1 text-xs text-muted-foreground">
+                  <p>Fixed rent based on airports owned by the same player:</p>
+                  <p>• <strong>1 airport</strong> — $50</p>
+                  <p>• <strong>2 airports</strong> — $100</p>
+                  <p>• <strong>3 airports</strong> — $150</p>
+                  <p>• <strong>4 airports</strong> — $200</p>
+                </div>
+              </div>
+            </>
+          )}
+
           {/* Price tag display position */}
           <Separator />
           <div className="space-y-2">

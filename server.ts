@@ -96,6 +96,10 @@ async function startServer() {
   app.use("/sounds", express.static(
     pathModule.default.resolve(process.cwd(), "cashly_assets/sounds")
   ));
+  // Serve project assets (SVGs, images) at /assets
+  app.use("/assets", express.static(
+    pathModule.default.resolve(process.cwd(), "assets")
+  ));
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok" });

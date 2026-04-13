@@ -137,13 +137,16 @@ const getRent = (
     const ownerUtilities = allTiles.filter(
       t => t.ownerId === tile.ownerId && t.type === TileType.UTILITY
     );
-    return diceSum * (ownerUtilities.length === 2 ? 10 : 4);
+    // 1 utility = 5× dice, 2 utilities = 20× dice (no base price)
+    return diceSum * (ownerUtilities.length === 2 ? 20 : 5);
   }
   if (tile.type === TileType.RAILROAD) {
     const ownerRailroads = allTiles.filter(
       t => t.ownerId === tile.ownerId && t.type === TileType.RAILROAD
     );
-    return 25 * Math.pow(2, ownerRailroads.length - 1);
+    // Fixed airport rent: 1=$50, 2=$100, 3=$150, 4=$200
+    const airportRent = [50, 100, 150, 200];
+    return airportRent[Math.min(ownerRailroads.length - 1, 3)];
   }
   if (tile.type === TileType.PROPERTY && tile.rent.length > 0) {
     if (tile.buildingCount === 0) {

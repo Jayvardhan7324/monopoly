@@ -23,6 +23,7 @@ interface ControlsProps {
   dispatch: React.Dispatch<any>;
   onViewPlayer: (playerId: number) => void;
   onReset?: () => void;
+  netWorthHistory?: Array<{ turn: number; values: Record<number, number> }>;
 }
 
 const colorMap: Record<ColorGroup, string> = {
@@ -38,7 +39,7 @@ const colorMap: Record<ColorGroup, string> = {
 };
 
 export const Controls: React.FC<ControlsProps> = ({
-  gameState, myPlayerId, logs, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer, onReset,
+  gameState, myPlayerId, logs, onRoll, onBuy, onEndTurn, onUpgrade, onOpenProperty, onTrade, dispatch, onViewPlayer, onReset, netWorthHistory,
 }) => {
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
@@ -134,6 +135,62 @@ export const Controls: React.FC<ControlsProps> = ({
                   })
                 }
               </div>
+              {/* Net Worth History Chart */}
+              {netWorthHistory && netWorthHistory.length > 2 && (() => {
+                const W = 260, H = 100, PAD = 24;
+                const turns = netWorthHistory.map(h => h.turn);
+                const minTurn = turns[0], maxTurn = turns[turns.length - 1];
+                const allVals = netWorthHistory.flatMap(h => Object.values(h.values));
+                const maxVal = Math.max(...allVals, 1);
+                const activePlayers = gameState.players.filter(p => netWorthHistory[0]?.values[p.id] !== undefined);
+                const toX = (t: number) => PAD + ((t - minTurn) / Math.max(maxTurn - minTurn, 1)) * (W - PAD * 2);
+                const toY = (v: number) => H - PAD / 2 - (v / maxVal) * (H - PAD);
+                return (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="w-full max-w-[280px] mt-3 bg-slate-900/60 border border-slate-700/40 rounded-xl p-3"
+                  >
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1">
+                      <TrendingUp size={10} className="text-indigo-400" /> Net Worth Over Time
+                    </p>
+                    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+                      {/* Grid lines */}
+                      {[0, 0.5, 1].map(frac => (
+                        <line key={frac} x1={PAD} x2={W - PAD} y1={toY(maxVal * frac)} y2={toY(maxVal * frac)}
+                          stroke="rgba(255,255,255,0.05)" strokeWidth={1} />
+                      ))}
+                      {/* Player lines */}
+                      {activePlayers.map(p => {
+                        const pts = netWorthHistory
+                          .filter(h => h.values[p.id] !== undefined)
+                          .map(h => `${toX(h.turn)},${toY(h.values[p.id])}`).join(' ');
+                        return (
+                          <polyline key={p.id} points={pts} fill="none"
+                            stroke={p.color} strokeWidth={p.isBankrupt ? 1 : 1.5}
+                            strokeOpacity={p.isBankrupt ? 0.35 : 0.9}
+                            strokeLinecap="round" strokeLinejoin="round" />
+                        );
+                      })}
+                      {/* Axis labels */}
+                      <text x={PAD} y={H} fontSize={7} fill="rgba(148,163,184,0.6)" textAnchor="middle">{minTurn}</text>
+                      <text x={W - PAD} y={H} fontSize={7} fill="rgba(148,163,184,0.6)" textAnchor="middle">{maxTurn}</text>
+                      <text x={PAD - 4} y={toY(maxVal) + 3} fontSize={7} fill="rgba(148,163,184,0.6)" textAnchor="end">${(maxVal / 1000).toFixed(1)}k</text>
+                    </svg>
+                    {/* Legend */}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+                      {activePlayers.map(p => (
+                        <span key={p.id} className="flex items-center gap-1 text-[8px] font-bold text-slate-400">
+                          <span className="inline-block w-3 h-[2px] rounded-full" style={{ backgroundColor: p.color }} />
+                          {p.name}
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                );
+              })()}
+
               <button
                 onClick={() => onReset ? onReset() : dispatch({ type: 'RESET_GAME' })}
                 aria-label="Start a new game"

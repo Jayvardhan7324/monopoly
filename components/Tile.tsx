@@ -68,8 +68,17 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           <motion.div
             animate={{ y: [0, -2, 0] }}
             transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+            className="flex items-center justify-center"
           >
-            <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />
+            {tile.name === 'Treasure' ? (
+              <img
+                src="/assets/money-3221936.svg"
+                alt="Treasure"
+                className="w-[22px] h-[22px] drop-shadow-md"
+              />
+            ) : (
+              <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />
+            )}
           </motion.div>
         );
       case ETileType.TAX:
@@ -247,12 +256,9 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
                 }}
               >
                 <div style={{ transform: isLeft ? 'rotate(-90deg)' : isRight ? 'rotate(90deg)' : 'none' }}>
-                  <Badge
-                    variant="secondary"
-                    className="px-1.5 py-0 h-[16px] min-h-[16px] text-[9px] font-black font-mono tracking-tighter shadow-md border border-slate-700/50 leading-none whitespace-nowrap bg-[#1a1f2e] text-slate-200 hover:bg-[#1a1f2e] cursor-default"
-                  >
+                  <span className="inline-flex items-center px-[4px] rounded-[3px] border border-slate-700/50 shadow-md bg-[#1a1f2e] text-slate-200 font-black font-mono tracking-tighter whitespace-nowrap cursor-default" style={{ fontSize: '8px', lineHeight: '14px', height: '14px' }}>
                     ${tile.price}
-                  </Badge>
+                  </span>
                 </div>
               </div>
             )}

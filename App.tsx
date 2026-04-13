@@ -171,7 +171,30 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setRoomId(cleanId);
         setSessionPlayerId(stored.playerId);
       } else {
-        window.history.replaceState({}, '', '/');
+        // New visitor opening a shared link — join as spectator if game is in progress
+        setIsAutoJoining(true);
+        fetch(`/api/rooms/${cleanId}/join`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Guest', avatar: 11 }),
+        })
+          .then(r => r.json())
+          .then(res => {
+            if (res.success) {
+              setIsOnline(true);
+              setRoomId(res.roomId);
+              setSessionPlayerId(res.playerId);
+              setIsHost(false);
+              setLobbyPlayers(res.players);
+              if (res.isSpectator) setIsSpectator(true);
+              localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, savedAt: Date.now() }));
+              window.history.replaceState({}, '', `/room/${res.roomId}`);
+            } else {
+              window.history.replaceState({}, '', '/');
+            }
+          })
+          .catch(() => window.history.replaceState({}, '', '/'))
+          .finally(() => setIsAutoJoining(false));
       }
     } else if (stored?.playerId && stored?.roomId) {
       // B6: No room URL but have a recent session — auto-rejoin if < 5 min old
@@ -622,6 +645,35 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     isHost,
   ]);
 
+  // ── Bot RESOLVING watchdog: force END_TURN if stuck in RESOLVING > 3s ────────
+  useEffect(() => {
+    if (!gameStarted || gameState.winnerId !== null) return;
+    if (gameState.phase !== 'RESOLVING') return;
+    if (isOnline && !isHost) return;
+    const watchdog = setTimeout(() => {
+      handleDispatch({ type: 'END_TURN' });
+    }, 3000);
+    return () => clearTimeout(watchdog);
+  }, [gameState.phase, gameState.currentPlayerIndex, gameStarted, gameState.winnerId, isOnline, isHost]);
+
+  // ── Net worth history: snapshot every turn for end-game chart ─────────────
+  const [netWorthHistory, setNetWorthHistory] = useState<Array<{ turn: number; values: Record<number, number> }>>([]);
+  useEffect(() => {
+    if (!gameStarted || gameState.turnCount === 0) return;
+    const snapshot: Record<number, number> = {};
+    gameState.players.forEach(p => {
+      const propValue = gameState.tiles
+        .filter(t => t.ownerId === p.id)
+        .reduce((sum, t) => sum + t.price + t.buildingCount * (t.houseCost || 0), 0);
+      snapshot[p.id] = p.isBankrupt ? 0 : p.money + propValue;
+    });
+    setNetWorthHistory(prev => {
+      if (prev.length > 0 && prev[prev.length - 1].turn === gameState.turnCount) return prev;
+      return [...prev, { turn: gameState.turnCount, values: snapshot }];
+    });
+  }, [gameState.turnCount, gameStarted]);
+  useEffect(() => { if (!gameStarted) setNetWorthHistory([]); }, [gameStarted]);
+
   // ── Detect newly completed color sets and trigger animation ─────────────────
   useEffect(() => {
     if (!gameStarted) return;
@@ -792,6 +844,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setIsHost(false);
         setLobbyPlayers(res.players);
         setShowRoomBrowser(false);
+        if (res.isSpectator) setIsSpectator(true);
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.replaceState({}, '', `/room/${res.roomId}`);
       } else {
@@ -2373,6 +2426,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               }
               dispatch={handleDispatch}
               onViewPlayer={id => setViewingPlayerId(id)}
+              netWorthHistory={netWorthHistory}
               onReset={() => {
                 // STATE-03: Reset both the game reducer state AND all React online state
                 dispatch({ type: 'RESET_GAME' });
@@ -2690,7 +2744,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
         {gameState.pendingTrade &&
          !gameState.pendingTrade.botDecision &&
-         (gameState.pendingTrade.targetId === myPlayerId || gameState.pendingTrade.proposerId === myPlayerId) &&
+         gameState.pendingTrade.targetId === myPlayerId &&
          !tradePopupDismissed &&
          gameState.players.some(p => p.id === gameState.pendingTrade?.proposerId && !p.isBankrupt) && (
           <TradeProposalModal

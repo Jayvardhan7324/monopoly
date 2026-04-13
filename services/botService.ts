@@ -413,25 +413,25 @@ export function getBotBidAction(
   for (const other of otherPlayers) {
     const otherOwned = groupTiles.filter(t => t.ownerId === other.id).length;
     if (otherOwned === totalInGroup - 1 && totalInGroup > 1) {
-      highestThreatMultiplier = Math.max(highestThreatMultiplier, 3.5);
+      highestThreatMultiplier = Math.max(highestThreatMultiplier, 1.6);
     }
   }
   valuation *= highestThreatMultiplier;
 
-  // Late game scarcity
-  if (gPhase === 'mid') valuation *= 1.15;
-  if (gPhase === 'late') valuation *= 1.4;
+  // Late game scarcity — toned down
+  if (gPhase === 'mid') valuation *= 1.05;
+  if (gPhase === 'late') valuation *= 1.15;
 
-  // Personality fine-tuning
-  if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.4;
+  // Personality fine-tuning — less extreme
+  if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.15;
   if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.7;
-  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.2;
+  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.05;
 
-  // 2. Financial Limits
-  let moneyLimitPercent = 0.85;
-  if (personality === BotPersonalityType.AGGRESSIVE) moneyLimitPercent = 1.0;
-  if (personality === BotPersonalityType.CONSERVATIVE) moneyLimitPercent = 0.5;
-  if (personality === BotPersonalityType.OPPORTUNISTIC && highestThreatMultiplier > 1) moneyLimitPercent = 0.95;
+  // 2. Financial Limits — bots keep more cash in reserve
+  let moneyLimitPercent = 0.60;
+  if (personality === BotPersonalityType.AGGRESSIVE) moneyLimitPercent = 0.70;
+  if (personality === BotPersonalityType.CONSERVATIVE) moneyLimitPercent = 0.40;
+  if (personality === BotPersonalityType.OPPORTUNISTIC && highestThreatMultiplier > 1) moneyLimitPercent = 0.65;
 
   const maxBid = Math.min(valuation, bot.money * moneyLimitPercent);
   const nextMinBid = auction.currentBid + GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
@@ -440,25 +440,25 @@ export function getBotBidAction(
 
   // 3. Bidding Probability & Timing
   const timeRemaining = auction.timer;
-  let bidProbability = 0.35;
+  let bidProbability = 0.25;
 
-  // Sniping behavior: wait till the end
-  if (timeRemaining <= 2) bidProbability = 0.92;
-  else if (timeRemaining <= 4) bidProbability = 0.65;
+  // Sniping behavior: wait till the end — toned down
+  if (timeRemaining <= 2) bidProbability = 0.60;
+  else if (timeRemaining <= 4) bidProbability = 0.40;
   else if (timeRemaining > 8) {
-    if (personality === BotPersonalityType.CONSERVATIVE) bidProbability = 0.08;
-    if (personality === BotPersonalityType.OPPORTUNISTIC) bidProbability = 0.15;
-    if (personality === BotPersonalityType.AGGRESSIVE) bidProbability = 0.75;
+    if (personality === BotPersonalityType.CONSERVATIVE) bidProbability = 0.05;
+    if (personality === BotPersonalityType.OPPORTUNISTIC) bidProbability = 0.10;
+    if (personality === BotPersonalityType.AGGRESSIVE) bidProbability = 0.45;
   }
 
   // Competitive: bid more if a rival has the lead
   if (auction.highestBidderId !== null) {
     const leader = gameState.players.find(p => p.id === auction.highestBidderId);
-    if (leader && !leader.isBot) bidProbability += 0.15; // Compete harder vs humans
+    if (leader && !leader.isBot) bidProbability += 0.08; // Compete slightly harder vs humans
   }
 
-  // Completing monopoly: always bid
-  if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) bidProbability = 1.0;
+  // Completing monopoly: bid more aggressively but not always
+  if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) bidProbability = 0.80;
 
   if (!decide(bidProbability)) return null;
 
