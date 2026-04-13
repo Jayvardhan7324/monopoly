@@ -146,6 +146,21 @@ export const Controls: React.FC<ControlsProps> = ({
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
                 <div className="flex flex-col items-center gap-3 mt-6">
+                  {/* Vacation skip banner */}
+                  <AnimatePresence>
+                    {currentPlayer.onVacation && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: -6 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                        className="flex items-center gap-2 px-4 py-2 bg-emerald-900/40 border border-emerald-500/30 rounded-full text-emerald-300 text-xs font-bold uppercase tracking-widest"
+                      >
+                        <span>🌴</span>
+                        {currentPlayer.name} is on Vacation — turn skipped!
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   {/* Bot thinking indicator — shown during ROLL, MOVING, RESOLVING */}
                   {currentPlayer.isBot && (
                     <motion.div

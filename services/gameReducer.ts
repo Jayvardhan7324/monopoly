@@ -478,18 +478,24 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             'pay'
           );
         }
-        if (
-          tile.name === 'Vacation' &&
-          state.settings.rules.vacationCash &&
-          state.taxPool > 0
-        ) {
-          const winAmount = state.taxPool;
+        if (tile.name === 'Vacation') {
+          // Player always skips their next turn when landing on Vacation
           newPlayers[state.currentPlayerIndex] = {
             ...newPlayers[state.currentPlayerIndex],
-            money: player.money + winAmount,
+            onVacation: true,
           };
-          logs = addLog(logs, `${player.name} landed on Vacation and won the tax pool of $${winAmount}!`);
-          return withSound({ ...state, players: newPlayers, taxPool: 0, logs, phase: 'TURN_END' }, 'buy');
+          if (state.settings.rules.vacationCash && state.taxPool > 0) {
+            const winAmount = state.taxPool;
+            newPlayers[state.currentPlayerIndex] = {
+              ...newPlayers[state.currentPlayerIndex],
+              money: player.money + winAmount,
+              onVacation: true,
+            };
+            logs = addLog(logs, `${player.name} landed on Vacation, collected the $${winAmount} pool, and will rest next turn!`);
+            return withSound({ ...state, players: newPlayers, taxPool: 0, logs, phase: 'TURN_END' }, 'buy');
+          }
+          logs = addLog(logs, `${player.name} is on Vacation and will skip their next turn!`);
+          return withSound({ ...state, players: newPlayers, logs, phase: 'TURN_END' }, 'land');
         }
         return { ...state, phase: 'TURN_END' };
       }
@@ -541,6 +547,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         }
 
         if (card.type === 'MONEY' && card.value !== undefined) {
+          // If the card takes money from the player and sends it to the bank (not perPlayer), it feeds the vacation pool
+          if (!card.perPlayer && card.value < 0 && state.settings.rules.vacationCash) {
+            newTaxPool += Math.abs(card.value);
+          }
           if (card.perPlayer) {
             // Collect from / pay each other player
             const activePlayers = updatedPlayers.filter(p => !p.isBankrupt && p.id !== player.id);
@@ -588,13 +598,13 @@ const coreReducer = (state: GameState, action: Action): GameState => {
               player.id
             );
             return withSound(
-              { ...state, players: bp, tiles: bt, logs: bl, phase: 'TURN_END' },
+              { ...state, players: bp, tiles: bt, taxPool: newTaxPool, logs: bl, phase: 'TURN_END' },
               'pay'
             );
           }
 
           return withSound(
-            { ...state, players: updatedPlayers, logs, phase: 'TURN_END' },
+            { ...state, players: updatedPlayers, taxPool: newTaxPool, logs, phase: 'TURN_END' },
             card.value >= 0 ? 'buy' : 'pay'
           );
         }
@@ -652,10 +662,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         inJail: false,
         jailTurns: 0,
       };
+      const jailFinePool = state.settings.rules.vacationCash ? state.taxPool + GAME_CONSTANTS.JAIL_FINE : state.taxPool;
       return withSound(
         {
           ...state,
           players: newPlayers,
+          taxPool: jailFinePool,
           phase: 'ROLL',
           logs: addLog(state.logs, `${player.name} paid $${GAME_CONSTANTS.JAIL_FINE} to leave Jail.`),
         },
@@ -709,6 +721,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           {
             ...state,
             players: newPlayers,
+            taxPool: state.settings.rules.vacationCash ? state.taxPool + GAME_CONSTANTS.JAIL_FINE : state.taxPool,
             dice: [d1, d2],
             phase: 'MOVING',
             logs: addLog(
@@ -1366,13 +1379,31 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const currentPlayerId = state.players[state.currentPlayerIndex].id;
       const votekicksAfterTurn = state.votekicks.filter(v => v.targetId !== currentPlayerId);
 
+      // If the next player is on vacation, skip their turn and clear the flag
+      let finalIndex = nextIndex;
+      let vacationSkipLogs = processedLogs;
+      if (processedPlayers[nextIndex]?.onVacation) {
+        const vacationPlayerName = processedPlayers[nextIndex].name;
+        processedPlayers = processedPlayers.map((p, i) =>
+          i === nextIndex ? { ...p, onVacation: false } : p
+        );
+        vacationSkipLogs = addLog(vacationSkipLogs, `${vacationPlayerName} is resting on Vacation — turn skipped!`);
+        // Advance past them
+        finalIndex = (nextIndex + 1) % processedPlayers.length;
+        let loopGuard2 = 0;
+        while (processedPlayers[finalIndex].isBankrupt && loopGuard2 < processedPlayers.length) {
+          finalIndex = (finalIndex + 1) % processedPlayers.length;
+          loopGuard2++;
+        }
+      }
+
       return withSound(
         {
           ...state,
           players: processedPlayers,
           tiles: processedTiles,
-          logs: processedLogs,
-          currentPlayerIndex: nextIndex,
+          logs: vacationSkipLogs,
+          currentPlayerIndex: finalIndex,
           phase: 'ROLL',
           turnCount: state.turnCount + 1,
           auction: null,

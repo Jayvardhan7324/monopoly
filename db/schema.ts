@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, index } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 
 // ── Profiles (mirrors Supabase auth.users — FK to auth.users enforced by SQL migration) ──
@@ -33,7 +33,9 @@ export const purchase = pgTable("purchase", {
   userId:      text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
   itemId:      text("item_id").notNull().references(() => storeItem.id, { onDelete: "cascade" }),
   purchasedAt: timestamp("purchased_at").notNull(),
-});
+}, (t) => [
+  index("purchase_user_id_idx").on(t.userId),
+]);
 
 // ── Player stats ──────────────────────────────────────────────────────────────
 export const profilesStats = pgTable("user_stats", {
@@ -57,4 +59,8 @@ export const friendships = pgTable("friendships", {
   status:      text("status").notNull().default("pending"), // 'pending' | 'accepted' | 'declined'
   createdAt:   timestamp("created_at").notNull().defaultNow(),
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
-});
+}, (t) => [
+  index("friendships_requester_id_idx").on(t.requesterId),
+  index("friendships_addressee_id_idx").on(t.addresseeId),
+  index("friendships_status_idx").on(t.status),
+]);

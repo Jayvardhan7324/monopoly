@@ -9,8 +9,7 @@
     "build": "vite build",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "auth:secret": "npx @better-auth/cli secret",
-    "lint": "tsc --noEmit",
+"lint": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {

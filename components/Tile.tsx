@@ -56,9 +56,22 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           </div>
         );
       case ETileType.CHANCE:
-        return <div className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">?</div>;
+        return (
+          <motion.div
+            className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full"
+            animate={{ scale: [1, 1.15, 1], opacity: [0.85, 1, 0.85] }}
+            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+          >?</motion.div>
+        );
       case ETileType.COMMUNITY_CHEST:
-        return <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />;
+        return (
+          <motion.div
+            animate={{ y: [0, -2, 0] }}
+            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+          >
+            <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />
+          </motion.div>
+        );
       case ETileType.TAX:
         return (
           <div className="bg-slate-700/80 w-[22px] h-[16px] flex items-center justify-center rounded-[3px] border border-slate-500/60 shadow-sm">
@@ -70,7 +83,12 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           return (
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
               <span className="text-2xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)] pb-1">Start</span>
-              <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
+              <motion.div
+                animate={{ x: [0, 4, 0] }}
+                transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+              >
+                <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
+              </motion.div>
             </div>
           );
         if (tile.name === 'In Prison')
@@ -87,13 +105,30 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           );
         if (tile.name === 'Vacation')
           return (
-            <div className="flex flex-col items-center justify-center h-full w-full relative bg-gradient-to-br from-[#1c2236] to-[#162030]">
-              <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.3)]" />
-              <span className="text-[10px] text-slate-200 mt-1 font-bold">Vacation</span>
+            <div className="flex flex-col items-center justify-center h-full w-full relative bg-gradient-to-br from-[#1c2236] to-[#162030] overflow-hidden">
+              {/* Shimmer background */}
+              <motion.div
+                className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent"
+                animate={{ opacity: [0.3, 0.7, 0.3] }}
+                transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
+              />
+              <motion.div
+                animate={{ rotate: [-4, 4, -4] }}
+                transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
+              >
+                <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
+              </motion.div>
+              <span className="text-[10px] text-slate-200 mt-1 font-bold relative z-10">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <div className="mt-0.5 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/30 shadow-[0_0_8px_rgba(16,185,129,0.2)]">
+                <motion.div
+                  className="mt-0.5 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/40 relative z-10"
+                  animate={{
+                    boxShadow: ['0 0 6px rgba(16,185,129,0.2)', '0 0 14px rgba(16,185,129,0.5)', '0 0 6px rgba(16,185,129,0.2)'],
+                  }}
+                  transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+                >
                   <span className="text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
-                </div>
+                </motion.div>
               )}
             </div>
           );
@@ -145,15 +180,16 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
   };
 
   return (
-    <div
+    <motion.div
       onClick={onClick}
+      whileHover={!isCurrent ? { scale: isCorner ? 1.01 : 1.04, zIndex: 30 } : undefined}
+      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
       className={`
         relative w-full h-full flex items-center justify-center
         ${isCorner ? 'bg-[#21262d] rounded-[4px]' : 'bg-[#2a303c] rounded-[4px]'}
-        transition-all duration-200 cursor-pointer select-none
-        hover:bg-[#323946] hover:brightness-110 group
+        cursor-pointer select-none group
         ${isCurrent ? 'ring-2 ring-indigo-500 z-50 shadow-[0_0_20px_rgba(99,102,241,0.3)] scale-[1.01]' : ''}
-        ${isOwned && !isCorner ? 'hover:ring-2 hover:ring-white/30 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:scale-[1.02] hover:z-30 transition-transform duration-300' : ''}
+        ${isOwned && !isCorner ? 'hover:ring-2 hover:ring-white/30 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)]' : ''}
         ${isMonopoly && tile.buildingCount > 0 ? 'ring-1 ring-amber-400/50 shadow-[inset_0_0_15px_rgba(251,191,36,0.3)]' : ''}
       `}
     >
@@ -317,7 +353,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           </div>
         )}
       </div>
-    </div>
+    </motion.div>
   );
 };
 
