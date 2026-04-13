@@ -1814,20 +1814,20 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         <div>
                           <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
                           {sessionUser ? (
-                            <div className="w-full flex items-center gap-3 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3">
+                            <div className="w-full flex items-center gap-2.5 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-3.5 py-2.5">
                               {sessionUser.image ? (
-                                <img src={sessionUser.image} className="h-9 w-9 rounded-full object-cover border border-indigo-500/40 shrink-0" alt="" />
+                                <img src={sessionUser.image} className="h-8 w-8 rounded-full object-cover border border-indigo-500/40 shrink-0" alt="" />
                               ) : (
-                                <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-sm shrink-0">
+                                <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-xs shrink-0">
                                   {sessionUser.name?.[0]?.toUpperCase() ?? '?'}
                                 </div>
                               )}
-                              <span className="font-bold text-white text-base flex-1 truncate">{sessionUser.name}</span>
+                              <span className="font-bold text-white text-sm truncate min-w-0">{sessionUser.name}</span>
                               <button
                                 onClick={() => onOpenProfile?.()}
-                                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors shrink-0"
+                                className="ml-auto shrink-0 text-[11px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 rounded-lg px-2.5 py-1 transition-all"
                               >
-                                Edit
+                                Edit profile
                               </button>
                             </div>
                           ) : (

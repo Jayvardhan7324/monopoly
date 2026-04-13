@@ -4,7 +4,7 @@ import App from './App';
 import AdminPage from './components/admin/AdminPage';
 import LoginPage from './components/auth/LoginPage';
 import StorePage from './components/store/StorePage';
-import ProfileModal from './components/profile/ProfileModal';
+import ProfilePage from './components/profile/ProfilePage';
 import FriendsPanel from './components/friends/FriendsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { supabase } from './lib/auth-client';
@@ -171,7 +171,7 @@ function Root() {
         )}
       </AnimatePresence>
 
-      {/* ── Profile modal ───────────────────────────────────────── */}
+      {/* ── Profile page ────────────────────────────────────────── */}
       <AnimatePresence>
         {showProfile && sessionData && (
           <motion.div
@@ -180,15 +180,24 @@ function Root() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center"
             onClick={e => { if (e.target === e.currentTarget) setShowProfile(false); }}
           >
-            <ProfileModal
-              sessionData={sessionData}
-              onClose={() => setShowProfile(false)}
-              onSignOut={handleSignOut}
-              onProfileUpdated={handleProfileUpdated}
-            />
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative w-full max-w-2xl h-[90vh] bg-slate-950 rounded-t-2xl sm:rounded-2xl border border-slate-800 overflow-hidden flex flex-col"
+            >
+              <ProfilePage
+                sessionData={sessionData}
+                onClose={() => setShowProfile(false)}
+                onSignOut={handleSignOut}
+                onOpenFriends={() => { setShowProfile(false); setShowFriends(true); }}
+                onProfileUpdated={handleProfileUpdated}
+              />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

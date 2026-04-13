@@ -1110,7 +1110,15 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       const u = users[0];
       const statsList = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, userId));
       const stats = statsList[0] ?? { gamesPlayed: 0, gamesWon: 0, totalEarnings: 0, propertiesBought: 0 };
-      res.json({ id: u.id, name: u.name, email: u.email, image: u.image, coins: u.coins, createdAt: u.createdAt, stats });
+      const friendRows = schema.friendships
+        ? await db.select().from(schema.friendships).where(
+            and(
+              eq(schema.friendships.status, 'accepted'),
+              or(eq(schema.friendships.requesterId, userId), eq(schema.friendships.addresseeId, userId))
+            )
+          )
+        : [];
+      res.json({ id: u.id, name: u.name, email: u.email, image: u.image, coins: u.coins, createdAt: u.createdAt, stats, friendCount: friendRows.length });
     } catch {
       res.status(500).json({ error: 'Failed to load profile' });
     }
