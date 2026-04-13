@@ -200,9 +200,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <span className="text-xs font-black text-white">C</span>
-            </div>
+            <LayoutGrid className="h-5 w-5 text-primary" />
             <span className="font-semibold text-lg">Cashly Admin</span>
             {activeBoard && (
               <>

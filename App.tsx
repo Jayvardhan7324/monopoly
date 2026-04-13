@@ -1597,21 +1597,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
           {/* Top Navigation Bar */}
           <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setSoundEnabled(!soundEnabled)}
-                className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
-              >
-                {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-              </button>
-              {/* Cashly logo mark */}
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                  <span className="text-xs font-black text-white select-none">C</span>
-                </div>
-                <span className="font-black text-sm text-white tracking-tight hidden sm:block">CASHLY<span className="text-indigo-400">.IO</span></span>
-              </div>
-            </div>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
             <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
               <button
                 onClick={onOpenStore}
@@ -1890,7 +1881,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           >
                             {isCreatingRoom
                               ? <><motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}><Dices size={15} /></motion.div> Creating…</>
-                              : <><Key size={15} /> Create private</>}
+                              : <><Lock size={15} /> Create private</>}
                           </button>
                         </div>
 
