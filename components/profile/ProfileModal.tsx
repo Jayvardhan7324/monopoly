@@ -32,7 +32,7 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
 
   useEffect(() => {
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
       .then(data => { setProfile(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [sessionData.user.id]);
@@ -40,14 +40,14 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
   const currentImage = profile?.image ?? sessionData.user.image;
   const currentName = profile?.name ?? sessionData.user.name;
 
-  const winRate = profile?.stats.gamesPlayed
+  const winRate = profile?.stats?.gamesPlayed
     ? Math.round((profile.stats.gamesWon / profile.stats.gamesPlayed) * 100)
     : 0;
-  const avgTurns = profile?.stats.gamesPlayed
+  const avgTurns = profile?.stats?.gamesPlayed
     ? Math.round((profile.stats.totalTurns ?? 0) / profile.stats.gamesPlayed)
     : 0;
 
-  const statItems = profile ? [
+  const statItems = profile?.stats ? [
     { icon: Gamepad2,   label: 'Games Played',    value: profile.stats.gamesPlayed,         color: 'text-blue-400',   bg: 'bg-blue-500/10' },
     { icon: Trophy,     label: 'Wins',             value: profile.stats.gamesWon,            color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
     { icon: AlertCircle,label: 'Losses',           value: profile.stats.gamesLost ?? 0,      color: 'text-red-400',    bg: 'bg-red-500/10' },
