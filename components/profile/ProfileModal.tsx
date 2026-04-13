@@ -1,8 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Trophy, Coins, LogOut, Calendar, Gamepad2, TrendingUp, Building2, Loader2, Pencil, Check, AlertCircle, Skull } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase, authFetch } from '../../lib/auth-client';
+import { authFetch } from '../../lib/auth-client';
 
 interface Props {
   sessionData: { user: { id: string; name: string; email: string; image?: string } };
@@ -27,8 +27,6 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(sessionData.user.name ?? '');
   const [saving, setSaving] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
@@ -57,28 +55,6 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
     { icon: Skull,      label: 'Bankruptcies',     value: profile.stats.bankruptcies ?? 0,   color: 'text-orange-400', bg: 'bg-orange-500/10' },
     { icon: TrendingUp, label: 'Avg Turns/Game',   value: avgTurns,                          color: 'text-cyan-400',   bg: 'bg-cyan-500/10' },
   ] : [];
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return; }
-
-    setUploadingAvatar(true);
-    try {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${sessionData.user.id}/avatar.${ext}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (error) { toast.error('Upload failed: ' + error.message); return; }
-
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      const publicUrl = data.publicUrl + `?t=${Date.now()}`;
-
-      await authFetch('/api/profile', { method: 'PATCH', body: JSON.stringify({ image: publicUrl }) });
-      setProfile(prev => prev ? { ...prev, image: publicUrl } : prev);
-      onProfileUpdated?.(currentName, publicUrl);
-      toast.success('Avatar updated!');
-    } catch { toast.error('Upload failed'); } finally { setUploadingAvatar(false); }
-  };
 
   const saveName = async () => {
     if (!editName.trim() || editName.trim() === currentName) { setEditing(false); return; }
@@ -112,8 +88,8 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
       {/* Header */}
       <div className="bg-gradient-to-br from-indigo-600/25 to-purple-600/15 px-6 pt-6 pb-5 border-b border-slate-800">
         <div className="flex items-start gap-4">
-          {/* Avatar with upload */}
-          <div className="relative shrink-0 group cursor-pointer" onClick={() => fileRef.current?.click()}>
+          {/* Avatar — edit via Profile page */}
+          <div className="relative shrink-0">
             {currentImage ? (
               <img src={currentImage} className="h-14 w-14 rounded-full border-2 border-indigo-500/50 object-cover" alt="" />
             ) : (
@@ -121,10 +97,6 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
                 {currentName?.[0]?.toUpperCase() ?? '?'}
               </div>
             )}
-            <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              {uploadingAvatar ? <Loader2 className="h-5 w-5 text-white animate-spin" /> : <Pencil className="h-4 w-4 text-white" />}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
           </div>
 
           {/* Name + email */}

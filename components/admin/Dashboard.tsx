@@ -29,7 +29,7 @@ interface Analytics {
   recentUsers: { name: string; email: string; createdAt: string }[];
 }
 
-const ITEM_TYPES = ['avatar', 'board_skin', 'token', 'misc'];
+const ITEM_TYPES = ['avatar', 'board_skin', 'token', 'profile_pic', 'misc'];
 
 interface Props { token: string; onLogout: () => void; }
 

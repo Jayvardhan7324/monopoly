@@ -986,10 +986,47 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         .select({ itemId: schema.purchase.itemId })
         .from(schema.purchase)
         .where(eq(schema.purchase.userId, req.params.userId));
-      const [userData] = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, req.params.userId));
-      res.json({ itemIds: purchases.map(p => p.itemId), coins: userData?.coins ?? 0 });
+      const [userData] = await db
+        .select({ coins: schema.profiles.coins, equippedAvatarItemId: schema.profiles.equippedAvatarItemId })
+        .from(schema.profiles)
+        .where(eq(schema.profiles.id, req.params.userId));
+      res.json({
+        itemIds: purchases.map(p => p.itemId),
+        coins: userData?.coins ?? 0,
+        equippedAvatarItemId: userData?.equippedAvatarItemId ?? null,
+      });
     } catch {
       res.status(500).json({ error: 'Failed to load inventory' });
+    }
+  });
+
+  app.post('/api/store/equip', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    const { itemId } = req.body ?? {};
+    try {
+      if (itemId === null || itemId === undefined) {
+        // Unequip — clear equipped avatar and image
+        await db.update(schema.profiles)
+          .set({ equippedAvatarItemId: null, image: null })
+          .where(eq(schema.profiles.id, sessionUser.id));
+        return res.json({ success: true, assetUrl: null });
+      }
+      // Verify ownership
+      const [owned] = await db.select().from(schema.purchase)
+        .where(and(eq(schema.purchase.userId, sessionUser.id), eq(schema.purchase.itemId, itemId)));
+      if (!owned) return res.status(403).json({ error: 'Item not owned' });
+      // Verify it is a profile_pic item
+      const [item] = await db.select().from(schema.storeItem)
+        .where(and(eq(schema.storeItem.id, itemId), eq(schema.storeItem.active, true)));
+      if (!item || item.type !== 'profile_pic') return res.status(400).json({ error: 'Not a profile pic item' });
+      // Equip: set equipped pointer and update profile image to asset URL
+      await db.update(schema.profiles)
+        .set({ equippedAvatarItemId: itemId, image: item.assetUrl ?? null })
+        .where(eq(schema.profiles.id, sessionUser.id));
+      res.json({ success: true, assetUrl: item.assetUrl });
+    } catch {
+      res.status(500).json({ error: 'Failed to equip item' });
     }
   });
 

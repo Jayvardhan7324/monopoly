@@ -32,7 +32,14 @@
       "Bash(xargs grep:*)",
       "Bash(supabase --version)",
       "Bash(docker --version)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "mcp__plugin_context-mode_context-mode__ctx_fetch_and_index",
+      "Bash(powershell:*)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); proj=d.get\\('projects',{}\\); key='C:\\\\\\\\\\\\\\\\Users\\\\\\\\\\\\\\\\jayva\\\\\\\\\\\\\\\\downloads\\\\\\\\\\\\\\\\monopoly'; p=proj.get\\(key,{}\\); print\\(json.dumps\\({k:v for k,v in p.items\\(\\) if 'mcp' in k.lower\\(\\) or 'supabase' in k.lower\\(\\)}, indent=2\\)\\)\")",
+      "Bash(python3:*)",
+      "mcp__supabase__list_projects",
+      "mcp__supabase__get_project_url",
+      "mcp__supabase__get_publishable_keys"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Trophy, Coins, LogOut, Calendar, Gamepad2,
@@ -6,7 +6,7 @@ import {
   Package, Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase, authFetch } from '../../lib/auth-client';
+import { authFetch } from '../../lib/auth-client';
 import AvatarPickerModal from './AvatarPickerModal';
 
 interface Props {
@@ -61,7 +61,6 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
@@ -81,25 +80,6 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const winRate = profile?.stats?.gamesPlayed
     ? Math.round((profile.stats.gamesWon / profile.stats.gamesPlayed) * 100)
     : 0;
-
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return; }
-    setUploadingAvatar(true);
-    try {
-      const ext = file.name.split('.').pop() ?? 'jpg';
-      const path = `${sessionData.user.id}/avatar.${ext}`;
-      const { error } = await supabase.storage.from('avatars').upload(path, file, { upsert: true });
-      if (error) { toast.error('Upload failed: ' + error.message); return; }
-      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      const publicUrl = data.publicUrl + `?t=${Date.now()}`;
-      await authFetch('/api/profile', { method: 'PATCH', body: JSON.stringify({ image: publicUrl }) });
-      setProfile(prev => prev ? { ...prev, image: publicUrl } : prev);
-      onProfileUpdated?.(currentName, publicUrl);
-      toast.success('Avatar updated!');
-    } catch { toast.error('Upload failed'); } finally { setUploadingAvatar(false); }
-  };
 
   const handleEmojiAvatar = async (url: string) => {
     setUploadingAvatar(true);
@@ -157,17 +137,13 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
                   {currentName?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}
-              {/* Upload overlay */}
-              <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer">
+              {/* Avatar overlay — emoji picker only, no file upload */}
+              <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer" onClick={() => setShowPicker(true)}>
                 {uploadingAvatar
                   ? <Loader2 className="h-5 w-5 text-white animate-spin" />
-                  : <>
-                      <button onClick={() => setShowPicker(true)} className="text-white text-[10px] font-bold hover:underline leading-tight">Pick</button>
-                      <button onClick={() => fileRef.current?.click()} className="text-white/70 text-[10px] hover:underline leading-tight">Upload</button>
-                    </>
+                  : <Pencil className="h-4 w-4 text-white" />
                 }
               </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
             </div>
 
             {/* Name + email */}

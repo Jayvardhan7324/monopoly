@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShoppingCart, Coins, Package, Check, Loader2, ArrowLeft, Sparkles, Tag, Grid3X3, User, Layout, Puzzle } from 'lucide-react';
+import { ShoppingCart, Coins, Package, Check, Loader2, ArrowLeft, Sparkles, Tag, Grid3X3, User, Layout, Puzzle, ImageIcon, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { Toaster } from '../ui/sonner';
 import { authFetch } from '../../lib/auth-client';
@@ -18,12 +18,14 @@ interface StoreItem {
 interface Props {
   onBack: () => void;
   userId?: string;
+  onProfilePicEquipped?: (assetUrl: string | null) => void;
 }
 
 const TYPE_LABELS: Record<string, string> = {
   avatar: 'Avatar',
   board_skin: 'Board Skin',
   token: 'Token',
+  profile_pic: 'Profile Pic',
   misc: 'Misc',
 };
 
@@ -31,6 +33,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   avatar: <User size={12} />,
   board_skin: <Layout size={12} />,
   token: <Grid3X3 size={12} />,
+  profile_pic: <ImageIcon size={12} />,
   misc: <Puzzle size={12} />,
 };
 
@@ -38,6 +41,7 @@ const TYPE_GRADIENTS: Record<string, string> = {
   avatar: 'from-purple-500/20 to-purple-900/10 border-purple-500/25',
   board_skin: 'from-blue-500/20 to-blue-900/10 border-blue-500/25',
   token: 'from-amber-500/20 to-amber-900/10 border-amber-500/25',
+  profile_pic: 'from-rose-500/20 to-rose-900/10 border-rose-500/25',
   misc: 'from-slate-500/20 to-slate-900/10 border-slate-500/25',
 };
 
@@ -45,15 +49,18 @@ const TYPE_BADGE: Record<string, string> = {
   avatar: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
   board_skin: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
   token: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+  profile_pic: 'bg-rose-500/20 text-rose-300 border-rose-500/30',
   misc: 'bg-slate-500/20 text-slate-300 border-slate-500/30',
 };
 
-const StorePage: React.FC<Props> = ({ onBack, userId }) => {
+const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) => {
   const [items, setItems] = useState<StoreItem[]>([]);
   const [inventory, setInventory] = useState<Set<string>>(new Set());
   const [coins, setCoins] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<string | null>(null);
+  const [equipping, setEquipping] = useState<string | null>(null);
+  const [equippedItemId, setEquippedItemId] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
 
   useEffect(() => {
@@ -75,6 +82,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
         const invData = await inventoryRes.json();
         setInventory(new Set(invData.itemIds ?? []));
         setCoins(invData.coins ?? 0);
+        setEquippedItemId(invData.equippedAvatarItemId ?? null);
       }
     } catch {
       toast.error('Failed to load store');
@@ -109,6 +117,28 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
       toast.error('Purchase failed');
     } finally {
       setPurchasing(null);
+    }
+  };
+
+  const equip = async (item: StoreItem) => {
+    if (!userId) return;
+    const isAlreadyEquipped = equippedItemId === item.id;
+    setEquipping(item.id);
+    try {
+      const res = await authFetch('/api/store/equip', {
+        method: 'POST',
+        body: JSON.stringify({ itemId: isAlreadyEquipped ? null : item.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast.error(data.error ?? 'Equip failed'); return; }
+      const newEquipped = isAlreadyEquipped ? null : item.id;
+      setEquippedItemId(newEquipped);
+      onProfilePicEquipped?.(isAlreadyEquipped ? null : (item.assetUrl ?? null));
+      toast.success(isAlreadyEquipped ? 'Profile pic removed' : `${item.name} equipped as profile pic!`);
+    } catch {
+      toast.error('Equip failed');
+    } finally {
+      setEquipping(null);
     }
   };
 
@@ -282,7 +312,25 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
                       </div>
 
                       <div className="mt-auto">
-                        {owned ? (
+                        {owned && item.type === 'profile_pic' ? (
+                          <button
+                            onClick={() => equip(item)}
+                            disabled={equipping === item.id}
+                            className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
+                              equippedItemId === item.id
+                                ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/10'
+                                : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-md shadow-indigo-500/20'
+                            }`}
+                          >
+                            {equipping === item.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : equippedItemId === item.id ? (
+                              <><Zap className="h-3 w-3 fill-current" /> Equipped</>
+                            ) : (
+                              <><Zap className="h-3 w-3" /> Equip</>
+                            )}
+                          </button>
+                        ) : owned ? (
                           <div className="flex items-center gap-1 text-[10px] text-indigo-400 font-black">
                             <Check className="h-3 w-3" /> Owned
                           </div>
@@ -306,7 +354,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId }) => {
                             )}
                           </button>
                         )}
-                      </div>
+                        </div>
                     </div>
                   </motion.div>
                 );

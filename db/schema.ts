@@ -11,9 +11,10 @@ export const profiles = pgTable("profiles", {
   banned:      boolean("banned").default(false),
   banReason:   text("ban_reason"),
   banExpires:  timestamp("ban_expires"),
-  coins:       integer("coins").notNull().default(500),
-  createdAt:   timestamp("created_at").notNull().defaultNow(),
-  updatedAt:   timestamp("updated_at").notNull().defaultNow(),
+  coins:                integer("coins").notNull().default(500),
+  equippedAvatarItemId: text("equipped_avatar_item_id"),  // FK set via SQL migration
+  createdAt:            timestamp("created_at").notNull().defaultNow(),
+  updatedAt:            timestamp("updated_at").notNull().defaultNow(),
 });
 
 // ── Store tables ──────────────────────────────────────────────────────────────
@@ -21,7 +22,7 @@ export const storeItem = pgTable("store_item", {
   id:          text("id").primaryKey(),
   name:        text("name").notNull(),
   description: text("description").notNull().default(""),
-  type:        text("type").notNull(), // 'avatar' | 'board_skin' | 'token' | 'misc'
+  type:        text("type").notNull(), // 'avatar' | 'board_skin' | 'token' | 'profile_pic' | 'misc'
   priceCoins:  integer("price_coins").notNull().default(100),
   assetUrl:    text("asset_url"),
   active:      boolean("active").notNull().default(true),

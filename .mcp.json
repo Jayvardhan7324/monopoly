@@ -1,12 +1,3 @@
 {
-  "mcpServers": {
-    "supabase": {
-      "command": "npx",
-      "args": ["-y", "@supabase/mcp-server-supabase@latest"],
-      "env": {
-        "SUPABASE_URL": "http://localhost:54321",
-        "SUPABASE_SERVICE_ROLE_KEY": "FILL_IN_AFTER_SUPABASE_START"
-      }
-    }
-  }
+  "mcpServers": {}
 }
