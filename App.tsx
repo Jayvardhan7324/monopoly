@@ -278,6 +278,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     const socket = initSocket(roomId, sessionPlayerId);
 
     const handleRoomUpdated = (data: any) => {
+      // B8: Receiving room_updated is authoritative proof the server has accepted us; clear any stale disconnect banner
+      setIsSocketDisconnected(false);
       const newCount = data.players.length;
       const prevCount = prevLobbyCountRef.current;
       if (prevCount >= 0 && soundEnabled) {
@@ -937,6 +939,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     setIsOnline(true);
     setRoomId(savedSession.roomId);
     setSessionPlayerId(savedSession.playerId);
+    // B5: Restore the name the player originally joined with
+    if (savedSession.playerName) setHumanName(savedSession.playerName);
     window.history.pushState({}, '', `/room/${savedSession.roomId}`);
   };
 

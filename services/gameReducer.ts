@@ -1229,6 +1229,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'ACCEPT_TRADE': {
       if (state.winnerId !== null) return state;
       if (!state.pendingTrade) return state;
+      // B12: Reject trade acceptance during incompatible phases (e.g. mid-roll, auction)
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
 
       const proposer = state.players.find(p => p.id === proposerId);

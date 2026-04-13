@@ -1,7 +1,7 @@
 import express from "express";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
-import { randomBytes, randomUUID } from "crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "crypto";
 
 interface RoomData {
   host: string;
@@ -168,10 +168,21 @@ async function startServer() {
   const adminBoards = new Map<string, any>();
   let activeAdminBoard: any = null;
 
+  // SEC: Timing-safe string comparison to prevent token oracle attacks
+  function safeEqual(a: string, b: string): boolean {
+    if (!a || !b) return false;
+    try {
+      const bufA = Buffer.from(a);
+      const bufB = Buffer.from(b);
+      if (bufA.length !== bufB.length) return false;
+      return timingSafeEqual(bufA, bufB);
+    } catch { return false; }
+  }
+
   function requireAdmin(req: any, res: any, next: any) {
-    if (!ADMIN_TOKEN || req.headers['x-admin-token'] !== ADMIN_TOKEN) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    if (!ADMIN_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+    const provided = typeof req.headers['x-admin-token'] === 'string' ? req.headers['x-admin-token'] : '';
+    if (!safeEqual(provided, ADMIN_TOKEN)) return res.status(401).json({ error: 'Unauthorized' });
     next();
   }
 
@@ -179,8 +190,10 @@ async function startServer() {
     if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !ADMIN_TOKEN) {
       return res.status(503).json({ success: false, error: 'Admin access not configured on this server.' });
     }
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    if (isAdminLoginRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many login attempts.' });
     const { username, password } = req.body || {};
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    if (safeEqual(String(username ?? ''), ADMIN_USERNAME) && safeEqual(String(password ?? ''), ADMIN_PASSWORD)) {
       res.json({ success: true, token: ADMIN_TOKEN });
     } else {
       res.status(401).json({ success: false, error: 'Invalid credentials' });
@@ -274,20 +287,24 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     }
   });
 
-  // SEC-02: Simple per-IP rate limiter for join endpoints (10 req/min)
-  const joinRateLimitMap = new Map<string, number[]>();
-  function isJoinRateLimited(ip: string): boolean {
-    const now = Date.now();
-    const timestamps = joinRateLimitMap.get(ip) || [];
-    const filtered = timestamps.filter(t => now - t < 60000);
-    if (filtered.length >= 10) {
-      joinRateLimitMap.set(ip, filtered);
-      return true;
-    }
-    filtered.push(now);
-    joinRateLimitMap.set(ip, filtered);
-    return false;
+  // SEC-02: Simple per-IP rate limiter factory — creates isolated limiters per endpoint
+  function makeRateLimiter(maxRequests: number, windowMs: number) {
+    const map = new Map<string, number[]>();
+    return function isLimited(ip: string): boolean {
+      const now = Date.now();
+      const timestamps = map.get(ip) || [];
+      const filtered = timestamps.filter(t => now - t < windowMs);
+      if (filtered.length >= maxRequests) { map.set(ip, filtered); return true; }
+      filtered.push(now);
+      map.set(ip, filtered);
+      return false;
+    };
   }
+
+  const isJoinRateLimited      = makeRateLimiter(10, 60_000); // 10 joins/min
+  const isRoomCreateRateLimited = makeRateLimiter(5,  60_000); // 5 room creates/min
+  const isAdminLoginRateLimited = makeRateLimiter(5,  60_000); // 5 login attempts/min
+  const isWinCoinRateLimited    = makeRateLimiter(3,  60_000); // 3 coin awards/min
 
   const rooms = new Map<string, RoomData>();
   const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
@@ -444,6 +461,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
   // REST API: Create a room
   app.post("/api/rooms", (req, res) => {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    if (isRoomCreateRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many requests. Please wait.' });
     const data = req.body;
     // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
     const roomId = randomBytes(3).toString('hex').toUpperCase();
@@ -667,6 +686,11 @@ Keep it very short (under 30 words), punchy, and strategic.`;
               player.name = getUniqueName(sanitizeName(data.name), otherPlayers);
             }
             if (data.avatar !== undefined) {
+              // SEC: Only accept well-formed avatar values (hex colors or short alphanumeric tokens)
+              if (typeof data.avatar !== 'string' || !/^[#a-zA-Z0-9_-]{1,30}$/.test(data.avatar)) {
+                if (callback) callback({ success: false, error: 'Invalid avatar' });
+                return;
+              }
               const avatarTaken = room.players.some((p: any) => p.id !== socket.id && p.avatar === data.avatar);
               if (avatarTaken) {
                 if (callback) callback({ success: false, error: 'Color already taken' });
@@ -783,11 +807,16 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         rooms.delete(roomId);
       } else {
         if (room.host === player.id) {
-          const next = room.players.find((p: any) => !p.disconnected) || room.players[0];
-          room.host = next.id;
-          next.isHost = true;
-          room.hostName = next.name || 'Player';
-          io.to(next.id).emit("you_are_host");
+          // B9: Only promote a currently connected player; if all are disconnected, assign the
+          // first player as nominal host but skip the emit (join_session will auto-promote on reconnect)
+          const next = room.players.find((p: any) => !p.disconnected);
+          const heir = next || room.players[0];
+          if (heir) {
+            room.host = heir.id;
+            heir.isHost = true;
+            room.hostName = heir.name || 'Player';
+            if (next) io.to(next.id).emit("you_are_host");
+          }
         }
         io.to(roomId).emit("room_updated", { players: room.players });
       }
@@ -878,10 +907,15 @@ Keep it very short (under 30 words), punchy, and strategic.`;
               rooms.delete(roomId);
             } else {
               if (room.host === player.id) {
-                const next = room.players.find((p: any) => !p.disconnected) || room.players[0];
-                room.host = next.id;
-                next.isHost = true;
-                room.hostName = next.name || 'Player';
+                // B9: Only promote a connected player; fall back to first if all disconnected
+                const next = room.players.find((p: any) => !p.disconnected);
+                const heir = next || room.players[0];
+                if (heir) {
+                  room.host = heir.id;
+                  heir.isHost = true;
+                  room.hostName = heir.name || 'Player';
+                  if (next) io.to(next.id).emit("you_are_host");
+                }
               }
               io.to(roomId).emit("room_updated", { players: room.players });
             }
@@ -1163,6 +1197,7 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   app.post('/api/profile/win-coin', async (req, res) => {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    if (isWinCoinRateLimited(sessionUser.id)) return res.status(429).json({ error: 'Too many requests.' });
     try {
       const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));
       if (!rows.length) return res.status(404).json({ error: 'User not found' });
@@ -1181,7 +1216,13 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     const { name, image } = req.body ?? {};
     const updates: Record<string, any> = { updatedAt: new Date() };
     if (name && typeof name === 'string') updates.name = name.trim().slice(0, 40);
-    if (image && typeof image === 'string') updates.image = image;
+    if (image && typeof image === 'string') {
+      // SEC: Only accept HTTPS URLs up to 500 chars to prevent arbitrary string injection
+      const trimmedImage = image.trim();
+      if (trimmedImage.startsWith('https://') && trimmedImage.length <= 500) {
+        updates.image = trimmedImage;
+      }
+    }
     try {
       await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, sessionUser.id));
       res.json({ success: true });
