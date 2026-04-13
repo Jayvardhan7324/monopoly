@@ -314,6 +314,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           logs: ['Game started!'],
           turnLogs: [],
           auction: null,
+          pendingTrade: null,
+          lastTradeLog: null,
+          votekicks: [],
           winnerId: null,
           turnCount: 0,
         },
@@ -325,6 +328,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'ROLL_DICE': {
       if (state.phase !== 'ROLL') return state;
       if (state.winnerId !== null) return state;
+      // Jailed players must use ATTEMPT_JAIL_ROLL, PAY_JAIL_FINE, or SKIP_JAIL_TURN
+      if (state.players[state.currentPlayerIndex]?.inJail) return state;
       const d1 = rollDie();
       const d2 = rollDie();
       const isDoubles = d1 === d2;
@@ -373,7 +378,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── MOVE_PLAYER ───────────────────────────────────────────────────────────
     case 'MOVE_PLAYER': {
+      if (state.phase !== 'MOVING') return state;
       const player = state.players[state.currentPlayerIndex];
+      // Defence-in-depth: jailed players don't move via normal MOVE_PLAYER
+      if (player?.inJail) return state;
       const moveAmount = state.dice[0] + state.dice[1];
       let newPos = player.position + moveAmount;
       let passGoBonus = 0;
@@ -479,7 +487,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           );
         }
         if (tile.name === 'Vacation') {
-          // Player always skips their next turn when landing on Vacation
+          // Landing on Vacation ends the doubles chain and skips player's next turn
           newPlayers[state.currentPlayerIndex] = {
             ...newPlayers[state.currentPlayerIndex],
             onVacation: true,
@@ -492,10 +500,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
               onVacation: true,
             };
             logs = addLog(logs, `${player.name} landed on Vacation, collected the $${winAmount} pool, and will rest next turn!`);
-            return withSound({ ...state, players: newPlayers, taxPool: 0, logs, phase: 'TURN_END' }, 'buy');
+            return withSound({ ...state, players: newPlayers, taxPool: 0, logs, phase: 'TURN_END', lastDiceRollDoubles: false, doublesCount: 0 }, 'buy');
           }
           logs = addLog(logs, `${player.name} is on Vacation and will skip their next turn!`);
-          return withSound({ ...state, players: newPlayers, logs, phase: 'TURN_END' }, 'land');
+          return withSound({ ...state, players: newPlayers, logs, phase: 'TURN_END', lastDiceRollDoubles: false, doublesCount: 0 }, 'land');
         }
         return { ...state, phase: 'TURN_END' };
       }
@@ -632,6 +640,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── BUY_PROPERTY ──────────────────────────────────────────────────────────
     case 'BUY_PROPERTY': {
+      if (state.phase !== 'ACTION') return state;
       const player = state.players[state.currentPlayerIndex];
       const tile = state.tiles[player.position];
       if (tile.ownerId !== null || player.money < tile.price) return state;
@@ -764,7 +773,15 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'START_AUCTION': {
       const player = state.players[state.currentPlayerIndex];
       const tile = state.tiles[player.position];
-      const bidders = state.players.filter(p => !p.isBankrupt).map(p => p.id);
+      const eligibleBidders = state.players.filter(p => !p.isBankrupt);
+      // B11: If fewer than 2 eligible bidders, skip the auction entirely
+      if (eligibleBidders.length < 2) {
+        return withSound(
+          { ...state, phase: 'TURN_END', logs: addLog(state.logs, `Auction for ${tile.name} skipped — not enough players.`) },
+          'modal_close'
+        );
+      }
+      const bidders = eligibleBidders.map(p => p.id);
       return withSound(
         {
           ...state,
@@ -969,6 +986,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── MORTGAGE_PROPERTY ────────────────────────────────────────────────────
     case 'MORTGAGE_PROPERTY': {
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       if (!state.settings.rules.mortgageEnabled) return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
@@ -994,6 +1012,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── UNMORTGAGE_PROPERTY ──────────────────────────────────────────────────
     case 'UNMORTGAGE_PROPERTY': {
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
       if (tile.ownerId === null || !tile.isMortgaged) return state;
@@ -1017,6 +1036,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── SELL_PROPERTY ────────────────────────────────────────────────────────
     case 'SELL_PROPERTY': {
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
       if (tile.ownerId === null || tile.buildingCount > 0 || tile.isMortgaged) return state;
@@ -1039,9 +1059,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── DOWNGRADE_PROPERTY ───────────────────────────────────────────────────
     case 'DOWNGRADE_PROPERTY': {
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
       if (!tile || tile.buildingCount === 0 || tile.ownerId === null) return state;
+      // Only the current player can downgrade their own buildings
+      if (tile.ownerId !== state.players[state.currentPlayerIndex]?.id) return state;
 
       // Enforce even-build: can only sell from the tile with the MOST buildings in its group
       const groupTiles = state.tiles.filter(t => t.group === tile.group && t.ownerId === tile.ownerId);
@@ -1078,7 +1101,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (!targetPlayer) return state;
 
       const proposer = state.players.find(p => p.id === proposerId);
-      if (!proposer) return state;
+      if (!proposer || proposer.isBankrupt) return state;
+      // Cannot trade with yourself or a bankrupt player
+      if (proposerId === targetOwnerId) return state;
+      if (targetPlayer.isBankrupt) return state;
 
       // BUG-03 / BUG-13: Do not allow offering mortgaged properties (applies to all trades, not just bot)
       const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
