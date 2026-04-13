@@ -34,6 +34,7 @@ import {
 } from './components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
+import { supabase } from './lib/auth-client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
@@ -978,6 +979,22 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     return () => { kickTimersRef.current.forEach(t => clearTimeout(t)); };
   }, []);
 
+  // Award 1 coin to logged-in user when they win
+  const winCoinPostedRef = useRef(false);
+  useEffect(() => {
+    if (!gameStarted || gameState.winnerId === null) { winCoinPostedRef.current = false; return; }
+    if (gameState.winnerId === myPlayerId && sessionUser && !winCoinPostedRef.current) {
+      winCoinPostedRef.current = true;
+      supabase.auth.getSession().then(({ data }) => {
+        if (!data.session) return;
+        fetch('/api/profile/win-coin', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${data.session.access_token}` },
+        }).catch(() => {});
+      });
+    }
+  }, [gameState.winnerId, myPlayerId, gameStarted, sessionUser]);
+
   const fetchRooms = async () => {
     try {
       const rooms = await fetch("/api/rooms").then(r => r.json());
@@ -1580,12 +1597,21 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
           {/* Top Navigation Bar */}
           <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
-            >
-              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
+              >
+                {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+              </button>
+              {/* Cashly logo mark */}
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                  <span className="text-xs font-black text-white select-none">C</span>
+                </div>
+                <span className="font-black text-sm text-white tracking-tight hidden sm:block">CASHLY<span className="text-indigo-400">.IO</span></span>
+              </div>
+            </div>
             <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
               <button
                 onClick={onOpenStore}
@@ -1892,27 +1918,45 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       </div>
 
                       {/* Stats row */}
-                      <div className="w-full pt-1">
+                      <motion.div
+                        className="w-full pt-1"
+                        initial={{ opacity: 0, y: 16 }}
+                        whileInView={{ opacity: 1, y: 0 }}
+                        viewport={{ once: true, margin: '-30px' }}
+                        transition={{ duration: 0.45, delay: 0.1 }}
+                      >
                         <div className="grid grid-cols-3 gap-2.5">
                           {[
                             { value: '8', label: 'Max players' },
                             { value: '10K+', label: 'Games' },
                             { value: 'Free', label: 'Always' },
                           ].map((stat, i) => (
-                            <div key={i} className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center">
+                            <motion.div
+                              key={i}
+                              initial={{ opacity: 0, scale: 0.85 }}
+                              whileInView={{ opacity: 1, scale: 1 }}
+                              viewport={{ once: true }}
+                              transition={{ duration: 0.35, delay: 0.15 + i * 0.08 }}
+                              className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center"
+                            >
                               <div className="text-lg font-black text-white">{stat.value}</div>
                               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
-                            </div>
+                            </motion.div>
                           ))}
                         </div>
-                      </div>
+                      </motion.div>
                     </div>
                   </div>
 
                   {/* Bottom section: Features + How To Play side by side */}
                   <div className="w-full max-w-2xl mx-auto px-4 pb-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
                     {/* Features */}
-                    <div>
+                    <motion.div
+                      initial={{ opacity: 0, x: -20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.5, delay: 0.05 }}
+                    >
                       <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                         <Zap size={11} /> Features
                       </h3>
@@ -1925,16 +1969,28 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           { icon: <Handshake size={12} className="text-sky-400" />, title: 'Trading' },
                           { icon: <Trophy size={12} className="text-rose-400" />, title: 'Custom Rules' },
                         ].map((feat, i) => (
-                          <div key={i} className="flex items-center gap-2 bg-[#1a1a22] rounded-xl px-3 py-2 border border-slate-800/60">
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 8 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.3, delay: i * 0.06 }}
+                            className="flex items-center gap-2 bg-[#1a1a22] rounded-xl px-3 py-2 border border-slate-800/60"
+                          >
                             <div className="shrink-0">{feat.icon}</div>
                             <p className="text-xs font-bold text-slate-300">{feat.title}</p>
-                          </div>
+                          </motion.div>
                         ))}
                       </div>
-                    </div>
+                    </motion.div>
 
                     {/* How to play */}
-                    <div>
+                    <motion.div
+                      initial={{ opacity: 0, x: 20 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true, margin: '-40px' }}
+                      transition={{ duration: 0.5, delay: 0.1 }}
+                    >
                       <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                         <Info size={11} /> How to play
                       </h3>
@@ -1946,14 +2002,21 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           { icon: <TrendingUp size={12} className="text-rose-400" />, title: 'Build houses & hotels' },
                           { icon: <Trophy size={12} className="text-amber-400" />, title: 'Last one standing wins' },
                         ].map((step, i) => (
-                          <div key={i} className="flex items-center gap-2 bg-[#1a1a22] rounded-xl px-3 py-2 border border-slate-800/60">
+                          <motion.div
+                            key={i}
+                            initial={{ opacity: 0, y: 8 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.3, delay: i * 0.07 }}
+                            className="flex items-center gap-2 bg-[#1a1a22] rounded-xl px-3 py-2 border border-slate-800/60"
+                          >
                             <span className="text-[9px] font-black text-slate-600 w-3 shrink-0">{i + 1}</span>
                             <div className="shrink-0">{step.icon}</div>
                             <p className="text-xs font-bold text-slate-300">{step.title}</p>
-                          </div>
+                          </motion.div>
                         ))}
                       </div>
-                    </div>
+                    </motion.div>
                   </div>
 
                   {/* Footer */}

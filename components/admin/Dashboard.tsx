@@ -4,8 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag, Ban, Shield, Coins, Edit2, X, Check, Package } from 'lucide-react';
+import {
+  LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag,
+  Ban, Shield, Coins, Edit2, X, Check, Package, BarChart3, TrendingUp,
+  UserCheck, UserX, Crown, Minus, RefreshCw,
+} from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
 
@@ -17,12 +22,16 @@ interface StoreItemRow {
   id: string; name: string; description: string; type: string;
   priceCoins: number; assetUrl: string | null; active: boolean; createdAt: string;
 }
+interface Analytics {
+  totalUsers: number; totalGamesPlayed: number; totalWins: number;
+  totalCoins: number; avgCoins: number; bannedCount: number;
+  topEarners: { name: string; coins: number }[];
+  recentUsers: { name: string; email: string; createdAt: string }[];
+}
+
 const ITEM_TYPES = ['avatar', 'board_skin', 'token', 'misc'];
 
-interface Props {
-  token: string;
-  onLogout: () => void;
-}
+interface Props { token: string; onLogout: () => void; }
 
 const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [boards, setBoards] = useState<CustomBoard[]>([]);
@@ -34,6 +43,12 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState('');
+  const [editingUser, setEditingUser] = useState<UserRow | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', coins: 0, role: 'user', banned: false, banReason: '', addCoins: '' });
+
+  // Analytics tab
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   // Store tab
   const [storeItems, setStoreItems] = useState<StoreItemRow[]>([]);
@@ -42,10 +57,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [editingItem, setEditingItem] = useState<StoreItemRow | null>(null);
   const [itemForm, setItemForm] = useState({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-admin-token': token,
-  };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-admin-token': token };
 
   const fetchBoards = async () => {
     try {
@@ -54,11 +66,8 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
       const data = await res.json();
       setBoards(data.boards || []);
       setActiveBoard(data.activeBoard || null);
-    } catch {
-      toast.error('Failed to load boards');
-    }
+    } catch { toast.error('Failed to load boards'); }
   };
-
   useEffect(() => { fetchBoards(); }, []);
 
   const fetchUsers = async () => {
@@ -72,12 +81,46 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
     finally { setUsersLoading(false); }
   };
 
-  const updateUser = async (id: string, updates: Partial<UserRow>) => {
+  const fetchAnalytics = async () => {
+    setAnalyticsLoading(true);
     try {
-      await fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
+      const res = await fetch('/api/admin/analytics', { headers });
+      if (!res.ok) { toast.error('Failed to load analytics'); return; }
+      const data = await res.json();
+      setAnalytics(data);
+    } catch { toast.error('Failed to load analytics'); }
+    finally { setAnalyticsLoading(false); }
+  };
+
+  const updateUser = async (id: string, updates: Record<string, any>) => {
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
+      if (!res.ok) throw new Error();
       toast.success('User updated');
       fetchUsers();
     } catch { toast.error('Failed to update user'); }
+  };
+
+  const saveUserEdit = async () => {
+    if (!editingUser) return;
+    const updates: Record<string, any> = {
+      name: editForm.name,
+      role: editForm.role,
+      banned: editForm.banned,
+      banReason: editForm.banned ? editForm.banReason : null,
+      coins: editForm.coins,
+    };
+    if (editForm.addCoins !== '' && Number(editForm.addCoins) !== 0) {
+      updates.addCoins = Number(editForm.addCoins);
+      delete updates.coins;
+    }
+    await updateUser(editingUser.id, updates);
+    setEditingUser(null);
+  };
+
+  const openEditUser = (u: UserRow) => {
+    setEditingUser(u);
+    setEditForm({ name: u.name || '', coins: u.coins || 0, role: u.role || 'user', banned: u.banned || false, banReason: u.banReason || '', addCoins: '' });
   };
 
   const fetchStoreItems = async () => {
@@ -100,7 +143,8 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
         await fetch('/api/admin/store/items', { method: 'POST', headers, body: JSON.stringify(itemForm) });
         toast.success('Item created');
       }
-      setShowItemForm(false); setEditingItem(null); setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
+      setShowItemForm(false); setEditingItem(null);
+      setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
       fetchStoreItems();
     } catch { toast.error('Failed to save item'); }
   };
@@ -117,19 +161,15 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   useEffect(() => {
     if (tab === 'users') fetchUsers();
     if (tab === 'store') fetchStoreItems();
+    if (tab === 'analytics') fetchAnalytics();
   }, [tab]);
 
   const pushBoard = async (id: string) => {
     try {
       const res = await fetch(`/api/admin/boards/${id}/push`, { method: 'POST', headers });
       const data = await res.json();
-      if (data.success) {
-        toast.success('Board pushed to all players!');
-        fetchBoards();
-      }
-    } catch {
-      toast.error('Failed to push board');
-    }
+      if (data.success) { toast.success('Board pushed to all players!'); fetchBoards(); }
+    } catch { toast.error('Failed to push board'); }
   };
 
   const deleteBoard = async (id: string) => {
@@ -138,34 +178,20 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
       await fetch(`/api/admin/boards/${id}`, { method: 'DELETE', headers });
       toast.success('Board deleted');
       fetchBoards();
-    } catch {
-      toast.error('Failed to delete board');
-    }
+    } catch { toast.error('Failed to delete board'); }
   };
 
   const saveBoard = async (board: Omit<CustomBoard, 'id' | 'createdAt'>) => {
     try {
       if (editingBoard?.id) {
-        await fetch(`/api/admin/boards/${editingBoard.id}`, {
-          method: 'PUT',
-          headers,
-          body: JSON.stringify(board),
-        });
+        await fetch(`/api/admin/boards/${editingBoard.id}`, { method: 'PUT', headers, body: JSON.stringify(board) });
         toast.success('Board updated!');
       } else {
-        await fetch('/api/admin/boards', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(board),
-        });
+        await fetch('/api/admin/boards', { method: 'POST', headers, body: JSON.stringify(board) });
         toast.success('Board saved!');
       }
-      setEditingBoard(null);
-      setTab('boards');
-      fetchBoards();
-    } catch {
-      toast.error('Failed to save board');
-    }
+      setEditingBoard(null); setTab('boards'); fetchBoards();
+    } catch { toast.error('Failed to save board'); }
   };
 
   return (
@@ -174,7 +200,9 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
       <header className="border-b border-border bg-card sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <LayoutGrid className="h-5 w-5 text-primary" />
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+              <span className="text-xs font-black text-white">C</span>
+            </div>
             <span className="font-semibold text-lg">Cashly Admin</span>
             {activeBoard && (
               <>
@@ -187,8 +215,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
             )}
           </div>
           <Button variant="ghost" size="sm" onClick={onLogout}>
-            <LogOut className="h-4 w-4 mr-2" />
-            Logout
+            <LogOut className="h-4 w-4 mr-2" />Logout
           </Button>
         </div>
       </header>
@@ -197,22 +224,21 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
         <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="mb-6 flex-wrap h-auto gap-1">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="analytics">
+              <BarChart3 className="h-3.5 w-3.5 mr-1.5" />Analytics
+            </TabsTrigger>
             <TabsTrigger value="builder">Board Builder</TabsTrigger>
             <TabsTrigger value="boards">
               Saved Boards
               {boards.length > 0 && (
-                <Badge variant="secondary" className="ml-1.5 h-4 min-w-4 px-1 text-[10px]">
-                  {boards.length}
-                </Badge>
+                <Badge variant="secondary" className="ml-1.5 h-4 min-w-4 px-1 text-[10px]">{boards.length}</Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="users">
-              <Users className="h-3.5 w-3.5 mr-1.5" />
-              Users
+              <Users className="h-3.5 w-3.5 mr-1.5" />Users
             </TabsTrigger>
             <TabsTrigger value="store">
-              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
-              Store
+              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />Store
             </TabsTrigger>
           </TabsList>
 
@@ -222,9 +248,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Active Board</CardDescription>
-                  <CardTitle className="text-xl">
-                    {activeBoard ? activeBoard.name : 'Classic (default)'}
-                  </CardTitle>
+                  <CardTitle className="text-xl">{activeBoard ? activeBoard.name : 'Classic (default)'}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Badge variant={activeBoard ? 'default' : 'secondary'}>
@@ -232,40 +256,27 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                   </Badge>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader className="pb-2">
                   <CardDescription>Saved Boards</CardDescription>
                   <CardTitle className="text-xl">{boards.length}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <span className="text-sm text-muted-foreground">Custom configurations</span>
-                </CardContent>
+                <CardContent><span className="text-sm text-muted-foreground">Custom configurations</span></CardContent>
               </Card>
-
               <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Quick Actions</CardDescription>
-                </CardHeader>
+                <CardHeader className="pb-2"><CardDescription>Quick Actions</CardDescription></CardHeader>
                 <CardContent className="flex flex-col gap-2">
                   <Button size="sm" onClick={() => { setEditingBoard(null); setTab('builder'); }}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Board
+                    <Plus className="h-4 w-4 mr-2" />New Board
                   </Button>
                   {boards.length > 0 && !activeBoard && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => pushBoard(boards[0].id)}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Push Latest
+                    <Button size="sm" variant="outline" onClick={() => pushBoard(boards[0].id)}>
+                      <Upload className="h-4 w-4 mr-2" />Push Latest
                     </Button>
                   )}
                 </CardContent>
               </Card>
             </div>
-
             {activeBoard && (
               <Card className="border-primary/30 bg-primary/5">
                 <CardHeader>
@@ -273,20 +284,107 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                     <Radio className="h-4 w-4 text-green-500" />
                     <CardTitle>Live: {activeBoard.name}</CardTitle>
                   </div>
-                  <CardDescription>
-                    New games will use this board until you push a different one.
-                  </CardDescription>
+                  <CardDescription>New games will use this board until you push a different one.</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="flex items-center gap-3 flex-wrap">
                     <Badge variant="outline">{activeBoard.boardSize}×{activeBoard.boardSize}</Badge>
                     <Badge variant="outline">{activeBoard.tiles.length} tiles</Badge>
-                    <Badge variant="outline">
-                      Pushed {new Date(activeBoard.createdAt).toLocaleDateString()}
-                    </Badge>
+                    <Badge variant="outline">Pushed {new Date(activeBoard.createdAt).toLocaleDateString()}</Badge>
                   </div>
                 </CardContent>
               </Card>
+            )}
+          </TabsContent>
+
+          {/* ── Analytics ── */}
+          <TabsContent value="analytics">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2"><BarChart3 className="h-5 w-5" /> Analytics</h2>
+              <Button size="sm" variant="outline" onClick={fetchAnalytics} disabled={analyticsLoading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${analyticsLoading ? 'animate-spin' : ''}`} />Refresh
+              </Button>
+            </div>
+            {analyticsLoading && !analytics ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Loading analytics…</CardContent></Card>
+            ) : analytics ? (
+              <>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+                  {[
+                    { label: 'Total Users', value: analytics.totalUsers, icon: <Users className="h-5 w-5 text-indigo-400" />, color: 'text-indigo-400' },
+                    { label: 'Total Games Played', value: analytics.totalGamesPlayed, icon: <TrendingUp className="h-5 w-5 text-emerald-400" />, color: 'text-emerald-400' },
+                    { label: 'Total Wins', value: analytics.totalWins, icon: <Crown className="h-5 w-5 text-amber-400" />, color: 'text-amber-400' },
+                    { label: 'Avg Coins / User', value: analytics.avgCoins, icon: <Coins className="h-5 w-5 text-yellow-400" />, color: 'text-yellow-400' },
+                    { label: 'Total Coins in Circulation', value: analytics.totalCoins.toLocaleString(), icon: <Coins className="h-5 w-5 text-orange-400" />, color: 'text-orange-400' },
+                    { label: 'Banned Users', value: analytics.bannedCount, icon: <UserX className="h-5 w-5 text-rose-400" />, color: 'text-rose-400' },
+                    { label: 'Active Users', value: analytics.totalUsers - analytics.bannedCount, icon: <UserCheck className="h-5 w-5 text-green-400" />, color: 'text-green-400' },
+                    { label: 'Win Rate', value: analytics.totalGamesPlayed > 0 ? `${((analytics.totalWins / analytics.totalGamesPlayed) * 100).toFixed(1)}%` : '—', icon: <Shield className="h-5 w-5 text-purple-400" />, color: 'text-purple-400' },
+                  ].map((stat, i) => (
+                    <Card key={i}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <CardDescription>{stat.label}</CardDescription>
+                          {stat.icon}
+                        </div>
+                        <CardTitle className={`text-2xl ${stat.color}`}>{stat.value}</CardTitle>
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Coins className="h-4 w-4 text-amber-400" /> Top Coin Holders
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {analytics.topEarners.map((e, i) => (
+                          <div key={i} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-muted-foreground w-4">#{i + 1}</span>
+                              <span className="text-sm font-medium">{e.name || 'Unknown'}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Coins className="h-3.5 w-3.5 text-amber-500" />
+                              <span className="text-sm font-bold text-amber-400">{e.coins}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {analytics.topEarners.length === 0 && <p className="text-sm text-muted-foreground">No data yet</p>}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Users className="h-4 w-4 text-indigo-400" /> Recent Sign-Ups
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        {analytics.recentUsers.map((u, i) => (
+                          <div key={i} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                            <div>
+                              <p className="text-sm font-medium">{u.name || 'Unknown'}</p>
+                              <p className="text-xs text-muted-foreground">{u.email}</p>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                              {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                            </span>
+                          </div>
+                        ))}
+                        {analytics.recentUsers.length === 0 && <p className="text-sm text-muted-foreground">No users yet</p>}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            ) : (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Click Refresh to load analytics.</CardContent></Card>
             )}
           </TabsContent>
 
@@ -304,16 +402,11 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Saved Boards</h2>
               <Button onClick={() => { setEditingBoard(null); setTab('builder'); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Board
+                <Plus className="h-4 w-4 mr-2" />New Board
               </Button>
             </div>
             {boards.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center text-muted-foreground">
-                  No boards saved yet. Create one in the Board Builder.
-                </CardContent>
-              </Card>
+              <Card><CardContent className="py-16 text-center text-muted-foreground">No boards saved yet. Create one in the Board Builder.</CardContent></Card>
             ) : (
               <div className="grid gap-3">
                 {boards.map(board => (
@@ -324,37 +417,19 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="font-medium">{board.name}</p>
-                            {activeBoard?.id === board.id && (
-                              <Badge variant="default" className="text-xs">Live</Badge>
-                            )}
+                            {activeBoard?.id === board.id && <Badge variant="default" className="text-xs">Live</Badge>}
                           </div>
                           <p className="text-sm text-muted-foreground">
-                            {board.boardSize}×{board.boardSize} · {board.tiles.length} tiles ·
-                            Created {new Date(board.createdAt).toLocaleDateString()}
+                            {board.boardSize}×{board.boardSize} · {board.tiles.length} tiles · Created {new Date(board.createdAt).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => { setEditingBoard(board); setTab('builder'); }}
-                        >
-                          Edit
+                        <Button variant="outline" size="sm" onClick={() => { setEditingBoard(board); setTab('builder'); }}>Edit</Button>
+                        <Button variant="default" size="sm" onClick={() => pushBoard(board.id)}>
+                          <Upload className="h-4 w-4 mr-1" />Push
                         </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => pushBoard(board.id)}
-                        >
-                          <Upload className="h-4 w-4 mr-1" />
-                          Push
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => deleteBoard(board.id)}
-                        >
+                        <Button variant="destructive" size="sm" onClick={() => deleteBoard(board.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -364,6 +439,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
               </div>
             )}
           </TabsContent>
+
           {/* ── Users ── */}
           <TabsContent value="users">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -375,6 +451,105 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                 onChange={e => setUserSearch(e.target.value)}
               />
             </div>
+
+            {/* User Edit Modal */}
+            {editingUser && (
+              <Card className="mb-4 border-primary/40 bg-primary/5">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Edit2 className="h-4 w-4" /> Editing: {editingUser.name}
+                    </CardTitle>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingUser(null)}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Display Name</label>
+                      <Input
+                        value={editForm.name}
+                        onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                        placeholder="Display name"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Role</label>
+                      <select
+                        value={editForm.role}
+                        onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
+                      >
+                        <option value="user">user</option>
+                        <option value="admin">admin</option>
+                        <option value="moderator">moderator</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Set Coins Directly</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={editForm.coins}
+                        onChange={e => setEditForm(f => ({ ...f, coins: Number(e.target.value), addCoins: '' }))}
+                        placeholder="Exact coin amount"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Add / Remove Coins</label>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setEditForm(f => ({ ...f, addCoins: String(Number(f.addCoins || 0) - 10) }))}
+                          className="px-2.5 py-2 bg-muted border border-border rounded-lg text-sm hover:bg-muted/80 transition-colors"
+                        ><Minus className="h-3.5 w-3.5" /></button>
+                        <Input
+                          type="number"
+                          value={editForm.addCoins}
+                          onChange={e => setEditForm(f => ({ ...f, addCoins: e.target.value, coins: editingUser.coins }))}
+                          placeholder="+/- amount"
+                          className="flex-1"
+                        />
+                        <button
+                          onClick={() => setEditForm(f => ({ ...f, addCoins: String(Number(f.addCoins || 0) + 10) }))}
+                          className="px-2.5 py-2 bg-muted border border-border rounded-lg text-sm hover:bg-muted/80 transition-colors"
+                        ><Plus className="h-3.5 w-3.5" /></button>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-1">Current: {editingUser.coins} coins</p>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Account Status</label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditForm(f => ({ ...f, banned: !f.banned }))}
+                          className={`px-3 py-2 text-sm rounded-lg border font-medium transition-colors ${editForm.banned ? 'bg-rose-500/10 border-rose-500/40 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400'}`}
+                        >
+                          {editForm.banned ? <><Ban className="h-3.5 w-3.5 inline mr-1" />Banned</> : <><Check className="h-3.5 w-3.5 inline mr-1" />Active</>}
+                        </button>
+                      </div>
+                    </div>
+                    {editForm.banned && (
+                      <div>
+                        <label className="text-xs text-muted-foreground mb-1 block font-medium">Ban Reason</label>
+                        <Input
+                          value={editForm.banReason}
+                          onChange={e => setEditForm(f => ({ ...f, banReason: e.target.value }))}
+                          placeholder="Reason for ban"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveUserEdit}><Check className="h-4 w-4 mr-1" />Save Changes</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingUser(null)}>
+                      <X className="h-4 w-4 mr-1" />Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {usersLoading ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground">Loading users…</CardContent></Card>
             ) : (
@@ -382,7 +557,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
-                      {['Name', 'Email', 'Role', 'Coins', 'Status', 'Actions'].map(h => (
+                      {['Name', 'Email', 'Role', 'Coins', 'Status', 'Joined', 'Actions'].map(h => (
                         <th key={h} className="text-left px-4 py-2.5 font-medium text-muted-foreground">{h}</th>
                       ))}
                     </tr>
@@ -393,21 +568,14 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                       .map((u, i) => (
                         <tr key={u.id} className={i % 2 === 0 ? 'bg-background' : 'bg-muted/20'}>
                           <td className="px-4 py-2.5 font-medium">{u.name}</td>
-                          <td className="px-4 py-2.5 text-muted-foreground">{u.email}</td>
+                          <td className="px-4 py-2.5 text-muted-foreground text-xs">{u.email}</td>
                           <td className="px-4 py-2.5">
-                            <select
-                              value={u.role ?? 'user'}
-                              onChange={e => updateUser(u.id, { role: e.target.value })}
-                              className="bg-background border border-border rounded px-2 py-0.5 text-xs"
-                            >
-                              <option value="user">user</option>
-                              <option value="admin">admin</option>
-                            </select>
+                            <Badge variant={u.role === 'admin' ? 'default' : 'secondary'} className="text-xs">{u.role || 'user'}</Badge>
                           </td>
                           <td className="px-4 py-2.5">
                             <div className="flex items-center gap-1">
                               <Coins className="h-3.5 w-3.5 text-amber-500" />
-                              <span>{u.coins}</span>
+                              <span className="font-mono font-bold">{u.coins}</span>
                             </div>
                           </td>
                           <td className="px-4 py-2.5">
@@ -415,20 +583,14 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                               {u.banned ? 'Banned' : 'Active'}
                             </Badge>
                           </td>
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground">
+                            {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—'}
+                          </td>
                           <td className="px-4 py-2.5">
                             <div className="flex gap-1.5">
-                              {u.banned ? (
-                                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => updateUser(u.id, { banned: false, banReason: null })}>
-                                  <Check className="h-3 w-3 mr-1" /> Unban
-                                </Button>
-                              ) : (
-                                <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => {
-                                  const reason = prompt('Ban reason?');
-                                  if (reason !== null) updateUser(u.id, { banned: true, banReason: reason });
-                                }}>
-                                  <Ban className="h-3 w-3 mr-1" /> Ban
-                                </Button>
-                              )}
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openEditUser(u)}>
+                                <Edit2 className="h-3 w-3 mr-1" />Edit
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -451,7 +613,6 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
               </Button>
             </div>
 
-            {/* Item form */}
             {showItemForm && (
               <Card className="mb-4 border-primary/30">
                 <CardHeader className="pb-2">
@@ -466,12 +627,8 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                     ].map(({ label, key, type }) => (
                       <div key={key}>
                         <label className="text-xs text-muted-foreground mb-1 block">{label}</label>
-                        <input
-                          type={type}
-                          value={(itemForm as any)[key]}
-                          onChange={e => setItemForm(f => ({ ...f, [key]: e.target.value }))}
-                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring"
-                        />
+                        <input type={type} value={(itemForm as any)[key]} onChange={e => setItemForm(f => ({ ...f, [key]: e.target.value }))}
+                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring" />
                       </div>
                     ))}
                     <div>
@@ -502,8 +659,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
               <Card><CardContent className="py-12 text-center text-muted-foreground">Loading store items…</CardContent></Card>
             ) : storeItems.length === 0 ? (
               <Card><CardContent className="py-12 text-center text-muted-foreground">
-                <Package className="h-10 w-10 mx-auto mb-2 opacity-40" />
-                No store items yet. Create one above.
+                <Package className="h-10 w-10 mx-auto mb-2 opacity-40" />No store items yet.
               </CardContent></Card>
             ) : (
               <div className="rounded-lg border border-border overflow-hidden">

@@ -954,17 +954,40 @@ Keep it very short (under 30 words), punchy, and strategic.`;
   });
 
   app.patch('/api/admin/users/:id', requireAdmin, async (req, res) => {
-    const { role, banned, banReason, coins } = req.body ?? {};
+    const { role, banned, banReason, coins, name, addCoins } = req.body ?? {};
     const updates: Record<string, any> = {};
     if (role !== undefined) updates.role = role;
     if (banned !== undefined) updates.banned = banned;
     if (banReason !== undefined) updates.banReason = banReason;
-    if (coins !== undefined) updates.coins = coins;
+    if (coins !== undefined) updates.coins = Number(coins);
+    if (name !== undefined) updates.name = String(name).trim().slice(0, 40);
     try {
+      if (addCoins !== undefined && addCoins !== 0) {
+        const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, req.params.id));
+        if (rows.length) updates.coins = Math.max(0, (rows[0].coins || 0) + Number(addCoins));
+      }
       await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, req.params.id));
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
+  app.get('/api/admin/analytics', requireAdmin, async (_req, res) => {
+    try {
+      const users = await db.select().from(schema.profiles);
+      const stats = await db.select().from(schema.profilesStats);
+      const totalUsers = users.length;
+      const totalGamesPlayed = stats.reduce((s: number, r: any) => s + (r.gamesPlayed || 0), 0);
+      const totalWins = stats.reduce((s: number, r: any) => s + (r.gamesWon || 0), 0);
+      const totalCoins = users.reduce((s: number, u: any) => s + (u.coins || 0), 0);
+      const avgCoins = totalUsers > 0 ? Math.round(totalCoins / totalUsers) : 0;
+      const topEarners = [...users].sort((a: any, b: any) => b.coins - a.coins).slice(0, 5).map((u: any) => ({ name: u.name, coins: u.coins }));
+      const bannedCount = users.filter((u: any) => u.banned).length;
+      const recentUsers = [...users].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5).map((u: any) => ({ name: u.name, email: u.email, createdAt: u.createdAt }));
+      res.json({ totalUsers, totalGamesPlayed, totalWins, totalCoins, avgCoins, topEarners, bannedCount, recentUsers });
+    } catch {
+      res.status(500).json({ error: 'Failed to load analytics' });
     }
   });
 
@@ -1070,6 +1093,20 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update stats' });
+    }
+  });
+
+  app.post('/api/profile/win-coin', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    try {
+      const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));
+      if (!rows.length) return res.status(404).json({ error: 'User not found' });
+      const newCoins = (rows[0].coins || 0) + 1;
+      await db.update(schema.profiles).set({ coins: newCoins }).where(eq(schema.profiles.id, sessionUser.id));
+      res.json({ success: true, coins: newCoins });
+    } catch {
+      res.status(500).json({ error: 'Failed to award coin' });
     }
   });
 
