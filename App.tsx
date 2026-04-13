@@ -12,7 +12,7 @@ import { CreateTradeModal } from './components/CreateTradeModal';
 import { AuctionModal } from './components/AuctionModal';
 import { GameSettings, TileType, ColorGroup } from './types';
 import {
-  Play, Settings, Users, Info, ShieldCheck, Globe, Lock, Cpu,
+  Play, Settings, Users, UsersRound, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
   TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle
@@ -1633,9 +1633,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                     className="flex items-center gap-2 hover:text-slate-200 transition-colors"
                     title="Friends"
                   >
-                    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
-                    </svg>
+                    <UsersRound size={16} />
                     Friends
                   </button>
                   <button
