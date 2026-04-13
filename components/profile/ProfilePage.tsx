@@ -1,17 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import {
-  Trophy, Coins, LogOut, Calendar, Gamepad2, TrendingUp,
-  Building2, Loader2, Pencil, Check, AlertCircle, Skull,
-  X, ArrowLeft, Users, Star, Target, Zap,
+  Trophy, Coins, LogOut, Calendar, Gamepad2,
+  Loader2, Pencil, Check, X, Users, Star, ArrowLeft,
+  Package, Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase, authFetch } from '../../lib/auth-client';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Card, CardContent } from '../ui/card';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Separator } from '../ui/separator';
+import AvatarPickerModal from './AvatarPickerModal';
 
 interface Props {
   sessionData: { user: { id: string; name: string; email: string; image?: string } };
@@ -31,28 +27,40 @@ interface ProfileData {
   };
 }
 
-const StatCard: React.FC<{
-  icon: React.ElementType; label: string; value: string | number;
-  color: string; bg: string; border: string;
-}> = ({ icon: Icon, label, value, color, bg, border }) => (
-  <Card className={`${bg} ${border} border rounded-2xl`}>
-    <CardContent className="p-4 flex flex-col gap-1.5">
-      <div className={`w-8 h-8 rounded-xl ${bg} border ${border} flex items-center justify-center`}>
-        <Icon className={`h-4 w-4 ${color}`} />
-      </div>
-      <p className="text-[11px] text-slate-500 font-semibold leading-tight mt-1">{label}</p>
-      <p className={`text-2xl font-black ${color}`}>{value}</p>
-    </CardContent>
-  </Card>
-);
+interface Friend { id: string; name: string; image?: string; }
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const years = Math.floor(diff / (1000 * 60 * 60 * 24 * 365));
+  const months = Math.floor(diff / (1000 * 60 * 60 * 24 * 30));
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  if (years >= 1) return `${years} year${years > 1 ? 's' : ''} ago`;
+  if (months >= 1) return `${months} month${months > 1 ? 's' : ''} ago`;
+  if (days >= 1) return `${days} day${days > 1 ? 's' : ''} ago`;
+  return 'today';
+}
+
+function FriendAvatar({ image, name, size = 40 }: { image?: string; name: string; size?: number }) {
+  const colors = ['#4338ca','#7c3aed','#b45309','#15803d','#0e7490','#be185d','#c2410c','#334155'];
+  const bg = colors[(name.charCodeAt(0) ?? 0) % colors.length];
+  const s = `${size}px`;
+  if (image) return <img src={image} style={{ width: s, height: s }} className="rounded-full object-cover shrink-0" alt="" />;
+  return (
+    <div style={{ width: s, height: s, background: bg }} className="rounded-full flex items-center justify-center text-white font-black text-sm shrink-0">
+      {name[0]?.toUpperCase() ?? '?'}
+    </div>
+  );
+}
 
 const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenFriends, onProfileUpdated }) => {
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(sessionData.user.name ?? '');
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -60,6 +68,11 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
       .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
       .then(data => { setProfile(data); setLoading(false); })
       .catch(() => setLoading(false));
+
+    fetch('/api/friends', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { friends: [] })
+      .then(data => setFriends(data.friends ?? []))
+      .catch(() => {});
   }, [sessionData.user.id]);
 
   const currentImage = profile?.image ?? sessionData.user.image;
@@ -68,14 +81,8 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const winRate = profile?.stats?.gamesPlayed
     ? Math.round((profile.stats.gamesWon / profile.stats.gamesPlayed) * 100)
     : 0;
-  const avgTurns = profile?.stats?.gamesPlayed
-    ? Math.round((profile.stats.totalTurns ?? 0) / profile.stats.gamesPlayed)
-    : 0;
-  const lossRate = profile?.stats?.gamesPlayed
-    ? Math.round(((profile.stats.gamesLost ?? 0) / profile.stats.gamesPlayed) * 100)
-    : 0;
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) { toast.error('Image must be under 2 MB'); return; }
@@ -94,6 +101,16 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
     } catch { toast.error('Upload failed'); } finally { setUploadingAvatar(false); }
   };
 
+  const handleEmojiAvatar = async (url: string) => {
+    setUploadingAvatar(true);
+    try {
+      await authFetch('/api/profile', { method: 'PATCH', body: JSON.stringify({ image: url }) });
+      setProfile(prev => prev ? { ...prev, image: url } : prev);
+      onProfileUpdated?.(currentName, url);
+      toast.success('Avatar updated!');
+    } catch { toast.error('Failed to save avatar'); } finally { setUploadingAvatar(false); }
+  };
+
   const saveName = async () => {
     if (!editName.trim() || editName.trim() === currentName) { setEditing(false); return; }
     setSaving(true);
@@ -107,281 +124,226 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
     } catch { toast.error('Failed to save'); } finally { setSaving(false); }
   };
 
-  const primaryStats = profile?.stats ? [
-    { icon: Gamepad2,    label: 'Games Played',     value: profile.stats.gamesPlayed,    color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/20' },
-    { icon: Trophy,      label: 'Wins',              value: profile.stats.gamesWon,       color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/20' },
-    { icon: AlertCircle, label: 'Losses',            value: profile.stats.gamesLost ?? 0, color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/20' },
-    { icon: Target,      label: 'Win Rate',          value: `${winRate}%`,                color: 'text-green-400',  bg: 'bg-green-500/10',  border: 'border-green-500/20' },
-  ] : [];
-
-  const secondaryStats = profile?.stats ? [
-    { icon: Building2, label: 'Properties Bought', value: profile.stats.propertiesBought,       color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/20' },
-    { icon: Star,      label: 'Peak Properties',   value: profile.stats.peakPropertiesOwned ?? 0, color: 'text-indigo-400', bg: 'bg-indigo-500/10', border: 'border-indigo-500/20' },
-    { icon: Skull,     label: 'Bankruptcies',      value: profile.stats.bankruptcies ?? 0,       color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/20' },
-    { icon: Zap,       label: 'Avg Turns / Game',  value: avgTurns,                              color: 'text-cyan-400',   bg: 'bg-cyan-500/10',   border: 'border-cyan-500/20' },
-  ] : [];
-
   return (
-    <div className="w-full h-full flex flex-col bg-slate-950 overflow-hidden">
+    <div className="w-full h-full flex flex-col bg-[#13131a] overflow-hidden">
       {/* Top bar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/5 shrink-0">
         <button
           onClick={onClose}
-          className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-medium"
+          className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-sm font-medium"
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </button>
-        <span className="text-sm font-black text-white tracking-wide">PROFILE</span>
-        <Button
-          variant="ghost"
-          size="sm"
+        <button
           onClick={onSignOut}
-          className="text-slate-400 hover:text-red-400 hover:bg-red-500/10 text-xs gap-1.5"
+          className="flex items-center gap-1.5 text-slate-500 hover:text-red-400 transition-colors text-sm font-medium"
         >
-          <LogOut className="h-3.5 w-3.5" /> Sign Out
-        </Button>
+          <LogOut className="h-4 w-4" /> Sign out
+        </button>
       </div>
 
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
-        {/* Hero */}
-        <div className="relative px-6 py-8 border-b border-slate-800">
-          <div
-            className="absolute inset-0 opacity-30"
-            style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.25) 0%, transparent 70%)' }}
-          />
-          <div className="relative flex flex-col sm:flex-row items-center sm:items-start gap-6">
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-transparent">
+        <div className="max-w-3xl mx-auto px-5 py-8 space-y-8">
+
+          {/* ── Profile header ──────────────────────────────────── */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {/* Avatar */}
-            <div
-              className="relative shrink-0 group cursor-pointer"
-              onClick={() => fileRef.current?.click()}
-            >
+            <div className="relative shrink-0 group">
               {currentImage ? (
-                <img
-                  src={currentImage}
-                  className="h-24 w-24 rounded-2xl object-cover border-2 border-indigo-500/40 shadow-lg shadow-indigo-500/10"
-                  alt=""
-                />
+                <img src={currentImage} className="h-[90px] w-[90px] rounded-full object-cover border-4 border-slate-700/60" alt="" />
               ) : (
-                <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-3xl shadow-lg shadow-indigo-500/20">
+                <div className="h-[90px] w-[90px] rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-3xl border-4 border-slate-700/60">
                   {currentName?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}
-              <div className="absolute inset-0 rounded-2xl bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Upload overlay */}
+              <div className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 cursor-pointer">
                 {uploadingAvatar
-                  ? <Loader2 className="h-6 w-6 text-white animate-spin" />
-                  : <div className="flex flex-col items-center gap-1"><Pencil className="h-5 w-5 text-white" /><span className="text-[10px] text-white/80 font-bold">Change</span></div>
+                  ? <Loader2 className="h-5 w-5 text-white animate-spin" />
+                  : <>
+                      <button onClick={() => setShowPicker(true)} className="text-white text-[10px] font-bold hover:underline leading-tight">Pick</button>
+                      <button onClick={() => fileRef.current?.click()} className="text-white/70 text-[10px] hover:underline leading-tight">Upload</button>
+                    </>
                 }
               </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
             </div>
 
-            {/* Info */}
+            {/* Name + email */}
             <div className="flex-1 min-w-0 text-center sm:text-left">
-              {/* Name */}
               {editing ? (
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-1 justify-center sm:justify-start">
                   <input
                     autoFocus
                     value={editName}
                     onChange={e => setEditName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') saveName(); if (e.key === 'Escape') setEditing(false); }}
                     maxLength={40}
-                    className="bg-slate-800 border border-indigo-500 rounded-xl px-3 py-1.5 text-xl font-black text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 w-full max-w-xs"
+                    className="bg-slate-800 border border-indigo-500 rounded-lg px-3 py-1 text-2xl font-black text-white focus:outline-none w-full max-w-xs"
                   />
-                  <button onClick={saveName} disabled={saving} className="p-2 text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-colors shrink-0">
+                  <button onClick={saveName} disabled={saving} className="p-1.5 text-emerald-400 hover:bg-emerald-500/20 rounded-lg transition-colors shrink-0">
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   </button>
-                  <button onClick={() => setEditing(false)} className="p-2 text-slate-500 hover:text-white rounded-xl transition-colors shrink-0">
+                  <button onClick={() => setEditing(false)} className="p-1.5 text-slate-500 hover:text-white rounded-lg shrink-0">
                     <X className="h-4 w-4" />
                   </button>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 justify-center sm:justify-start mb-2 group/name">
-                  <h1 className="text-2xl font-black text-white truncate">{currentName}</h1>
+                <div className="flex items-center gap-2 mb-1 group/name justify-center sm:justify-start">
+                  <h1 className="text-2xl font-black text-white">{currentName}</h1>
                   <button
                     onClick={() => { setEditName(currentName); setEditing(true); }}
-                    className="opacity-0 group-hover/name:opacity-100 p-1.5 text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 rounded-lg transition-all shrink-0"
+                    className="opacity-0 group-hover/name:opacity-100 p-1 text-slate-500 hover:text-indigo-400 rounded-md transition-all"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 </div>
               )}
-
-              <p className="text-sm text-slate-400 mb-3">{sessionData.user.email}</p>
-
-              {/* Badges row */}
-              <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
-                {profile && (
-                  <Badge className="bg-amber-500/15 text-amber-300 border border-amber-500/30 gap-1.5 px-3 py-1 text-xs font-bold">
-                    <Coins className="h-3 w-3" />
-                    {profile.coins.toLocaleString()} coins
-                  </Badge>
-                )}
-                {profile?.createdAt && (
-                  <Badge className="bg-slate-800 text-slate-400 border border-slate-700 gap-1.5 px-3 py-1 text-xs font-medium">
-                    <Calendar className="h-3 w-3" />
-                    Joined {new Date(profile.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                  </Badge>
-                )}
-                {profile !== null && (
-                  <button
-                    onClick={onOpenFriends}
-                    className="inline-flex items-center gap-1.5 bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 hover:bg-indigo-500/20 hover:border-indigo-500/40 transition-all rounded-full px-3 py-1 text-xs font-bold"
-                  >
-                    <Users className="h-3 w-3" />
-                    {profile?.friendCount ?? 0} {(profile?.friendCount ?? 0) === 1 ? 'friend' : 'friends'}
-                  </button>
-                )}
-              </div>
+              <p className="text-sm text-slate-500 mb-3">{sessionData.user.email}</p>
             </div>
-          </div>
-        </div>
 
-        {/* Tabs */}
-        <div className="px-6 py-6">
-          <Tabs defaultValue="stats">
-            <TabsList className="bg-slate-900 border border-slate-800 rounded-xl mb-6 w-full sm:w-auto">
-              <TabsTrigger value="stats" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg text-sm font-bold px-6">
-                Stats
-              </TabsTrigger>
-              <TabsTrigger value="earnings" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-lg text-sm font-bold px-6">
-                Earnings
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Stats tab */}
-            <TabsContent value="stats" className="mt-0 space-y-6">
-              {loading ? (
-                <div className="flex justify-center py-16">
-                  <Loader2 className="h-7 w-7 animate-spin text-slate-600" />
+            {/* Right: key stats */}
+            {profile && (
+              <div className="flex sm:flex-col gap-5 sm:gap-3 text-center sm:text-right shrink-0">
+                <div>
+                  <div className="flex items-center gap-1.5 justify-center sm:justify-end">
+                    <Star className="h-4 w-4 text-amber-400" />
+                    <span className="text-xl font-black text-white">{profile.coins.toLocaleString()}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Coins</p>
                 </div>
-              ) : !profile ? (
-                <p className="text-slate-500 text-center py-12">Could not load profile data</p>
-              ) : (
-                <>
-                  {/* Win rate progress bar */}
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-bold text-slate-300">Win Rate</span>
-                      <span className="text-xl font-black text-green-400">{winRate}%</span>
-                    </div>
-                    <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden">
-                      <motion.div
-                        className="h-full rounded-full bg-gradient-to-r from-green-500 to-emerald-400"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${winRate}%` }}
-                        transition={{ duration: 1, ease: 'easeOut', delay: 0.2 }}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between mt-2 text-[11px] text-slate-500 font-medium">
-                      <span>{profile.stats.gamesWon} wins</span>
-                      <span>{profile.stats.gamesPlayed} total games</span>
-                    </div>
+                <div>
+                  <div className="flex items-center gap-1.5 justify-center sm:justify-end">
+                    <Trophy className="h-4 w-4 text-indigo-400" />
+                    <span className="text-xl font-black text-white">{winRate}%</span>
                   </div>
+                  <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wide">Win Rate</p>
+                </div>
+              </div>
+            )}
+          </div>
 
-                  {/* Primary stats */}
-                  <div>
-                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">Game Record</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {primaryStats.map(s => <StatCard key={s.label} {...s} />)}
+          {/* ── Statistics ─────────────────────────────────────── */}
+          <section>
+            <h2 className="text-base font-black text-white mb-4">Statistics</h2>
+            {loading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-slate-600" /></div>
+            ) : profile ? (
+              <div className="bg-[#1a1a24] border border-white/5 rounded-2xl divide-y divide-white/5">
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <Gamepad2 className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span className="text-sm text-slate-300">Played <span className="font-bold text-white">{profile.stats.gamesPlayed}</span> games</span>
+                </div>
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <Trophy className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span className="text-sm text-slate-300">Won <span className="font-bold text-white">{profile.stats.gamesWon}</span> games</span>
+                </div>
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <Calendar className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span className="text-sm text-slate-300">Joined <span className="font-bold text-white">{timeAgo(profile.createdAt)}</span></span>
+                </div>
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  <Users className="h-4 w-4 text-slate-500 shrink-0" />
+                  <span className="text-sm text-slate-300">Has <span className="font-bold text-white">{profile.friendCount}</span> {profile.friendCount === 1 ? 'friend' : 'friends'}</span>
+                </div>
+                {profile.stats.gamesPlayed > 0 && (
+                  <>
+                    <div className="flex items-center gap-3 px-5 py-3.5">
+                      <Coins className="h-4 w-4 text-slate-500 shrink-0" />
+                      <span className="text-sm text-slate-300">Earned <span className="font-bold text-white">${(profile.stats.totalEarnings ?? 0).toLocaleString()}</span> total in-game</span>
                     </div>
-                  </div>
-
-                  {/* Secondary stats */}
-                  <div>
-                    <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest mb-3">Property &amp; Turns</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {secondaryStats.map(s => <StatCard key={s.label} {...s} />)}
-                    </div>
-                  </div>
-
-                  {/* Loss rate bar */}
-                  {profile.stats.gamesPlayed > 0 && (
-                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-bold text-slate-300">Loss Rate</span>
-                        <span className="text-xl font-black text-red-400">{lossRate}%</span>
+                    <div className="px-5 py-3.5">
+                      <div className="flex items-center justify-between text-xs text-slate-500 mb-2 font-medium">
+                        <span>Win rate</span>
+                        <span className="text-white font-bold">{winRate}%</span>
                       </div>
-                      <div className="h-2.5 rounded-full bg-slate-800 overflow-hidden">
+                      <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
                         <motion.div
-                          className="h-full rounded-full bg-gradient-to-r from-red-600 to-rose-400"
+                          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
                           initial={{ width: 0 }}
-                          animate={{ width: `${lossRate}%` }}
-                          transition={{ duration: 1, ease: 'easeOut', delay: 0.4 }}
+                          animate={{ width: `${winRate}%` }}
+                          transition={{ duration: 0.8, ease: 'easeOut' }}
                         />
                       </div>
                     </div>
-                  )}
-                </>
+                  </>
+                )}
+              </div>
+            ) : (
+              <p className="text-slate-600 text-sm text-center py-6">Could not load statistics</p>
+            )}
+          </section>
+
+          {/* ── Inventory ──────────────────────────────────────── */}
+          <section>
+            <h2 className="text-base font-black text-white mb-4">Inventory</h2>
+            <div className="bg-[#1a1a24] border border-white/5 rounded-2xl px-5 py-10 flex flex-col items-center gap-2">
+              <Package className="h-8 w-8 text-slate-700" />
+              <p className="text-sm text-slate-600">No items owned</p>
+            </div>
+          </section>
+
+          {/* ── Friends ────────────────────────────────────────── */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-black text-white">Friends</h2>
+              {friends.length > 0 && (
+                <button onClick={onOpenFriends} className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                  Manage →
+                </button>
               )}
-            </TabsContent>
+            </div>
+            {friends.length === 0 ? (
+              <div className="bg-[#1a1a24] border border-white/5 rounded-2xl px-5 py-10 flex flex-col items-center gap-2">
+                <Users className="h-8 w-8 text-slate-700" />
+                <p className="text-sm text-slate-600">No friends yet</p>
+                <button onClick={onOpenFriends} className="mt-1 text-xs text-indigo-400 hover:text-indigo-300 font-semibold transition-colors">
+                  Find friends →
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {friends.map(f => (
+                  <div key={f.id} className="bg-[#1a1a24] border border-white/5 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <FriendAvatar image={f.image} name={f.name} size={38} />
+                    <span className="text-sm font-bold text-white truncate">{f.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
 
-            {/* Earnings tab */}
-            <TabsContent value="earnings" className="mt-0">
-              {loading ? (
-                <div className="flex justify-center py-16">
-                  <Loader2 className="h-7 w-7 animate-spin text-slate-600" />
-                </div>
-              ) : !profile ? (
-                <p className="text-slate-500 text-center py-12">Could not load data</p>
-              ) : (
-                <div className="space-y-4">
-                  <Card className="bg-slate-900 border-slate-800 rounded-2xl">
-                    <CardContent className="p-6 flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-                        <TrendingUp className="h-6 w-6 text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total In-Game Earnings</p>
-                        <p className="text-3xl font-black text-amber-300">
-                          ${(profile.stats.totalEarnings ?? 0).toLocaleString()}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
+          {/* ── Last games ─────────────────────────────────────── */}
+          <section>
+            <h2 className="text-base font-black text-white mb-1">Last games</h2>
+            <p className="text-xs text-slate-600 mb-4">Game history tracking coming soon</p>
+            <div className="bg-[#1a1a24] border border-white/5 rounded-2xl px-5 py-10 flex flex-col items-center gap-2">
+              <Clock className="h-8 w-8 text-slate-700" />
+              <p className="text-sm text-slate-600">No game history available yet</p>
+            </div>
+          </section>
 
-                  <Card className="bg-slate-900 border-slate-800 rounded-2xl">
-                    <CardContent className="p-6 flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/25 flex items-center justify-center">
-                        <Coins className="h-6 w-6 text-amber-400" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Cashly Coins Balance</p>
-                        <p className="text-3xl font-black text-amber-300">
-                          {profile.coins.toLocaleString()}
-                        </p>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {profile.stats.gamesPlayed > 0 && (
-                    <Card className="bg-slate-900 border-slate-800 rounded-2xl">
-                      <CardContent className="p-6">
-                        <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-4">Per-Game Average</p>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-[11px] text-slate-500 mb-1">Avg Earnings / Game</p>
-                            <p className="text-xl font-black text-white">
-                              ${Math.round((profile.stats.totalEarnings ?? 0) / profile.stats.gamesPlayed).toLocaleString()}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-[11px] text-slate-500 mb-1">Avg Properties / Game</p>
-                            <p className="text-xl font-black text-white">
-                              {(profile.stats.propertiesBought / profile.stats.gamesPlayed).toFixed(1)}
-                            </p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
+          {/* Back button */}
+          <div className="pb-4">
+            <button
+              onClick={onClose}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl text-sm font-bold transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" /> Back to lobby
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Avatar picker modal */}
+      {showPicker && (
+        <AvatarPickerModal
+          currentImage={currentImage}
+          onSelect={handleEmojiAvatar}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
     </div>
   );
 };

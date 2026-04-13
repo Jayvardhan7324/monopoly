@@ -15,8 +15,12 @@ import {
   Play, Settings, Users, UsersRound, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle, ChevronDown, User
 } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from './components/ui/dropdown-menu';
 import { playSound } from './services/audioService';
 import {
   INITIAL_TILES,
@@ -45,12 +49,13 @@ interface AppProps {
   onOpenStore?: () => void;
   onOpenLogin?: () => void;
   onOpenProfile?: () => void;
+  onOpenSettings?: () => void;
   onOpenFriends?: () => void;
   onSignOut?: () => void;
   sessionUser?: any | null;
 }
 
-const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOpenFriends, onSignOut, sessionUser }) => {
+const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOpenSettings, onOpenFriends, onSignOut, sessionUser }) => {
   const [gameState, dispatch] = useReducer(gameReducer, initialState);
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<number | null>(null);
@@ -1636,25 +1641,55 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                     <UsersRound size={16} />
                     Friends
                   </button>
-                  <button
-                    onClick={() => onOpenProfile?.()}
-                    className="flex items-center gap-2 hover:text-slate-200 transition-colors"
-                    title={session.user.email}
-                  >
-                    {session.user.image ? (
-                      <img src={session.user.image} className="h-5 w-5 rounded-full object-cover border border-slate-600" alt="" />
-                    ) : (
-                      <UserCircle size={16} />
-                    )}
-                    <span className="max-w-[100px] truncate">{session.user.name}</span>
-                  </button>
-                  <button
-                    onClick={() => onSignOut?.()}
-                    className="flex items-center gap-2 hover:text-red-400 transition-colors"
-                    title="Sign out"
-                  >
-                    <LogOut size={16} />
-                  </button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button className="flex items-center gap-2 hover:text-slate-200 transition-colors focus:outline-none">
+                        {session.user.image ? (
+                          <img src={session.user.image} className="h-6 w-6 rounded-full object-cover border border-slate-600" alt="" />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-black">
+                            {session.user.name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )}
+                        <ChevronDown size={13} className="text-slate-500" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52 bg-[#1a1a24] border border-white/10 rounded-xl shadow-2xl p-1.5">
+                      {/* User info */}
+                      <div className="flex flex-col items-center gap-2 px-3 py-3 mb-1">
+                        {session.user.image ? (
+                          <img src={session.user.image} className="h-12 w-12 rounded-full object-cover border-2 border-indigo-500/30" alt="" />
+                        ) : (
+                          <div className="h-12 w-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg">
+                            {session.user.name?.[0]?.toUpperCase() ?? '?'}
+                          </div>
+                        )}
+                        <div className="text-center">
+                          <p className="text-sm font-black text-white leading-tight">{session.user.name}</p>
+                        </div>
+                      </div>
+                      <DropdownMenuSeparator className="bg-white/5 my-1" />
+                      <DropdownMenuItem
+                        onClick={() => onOpenProfile?.()}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg cursor-pointer focus:bg-white/5 focus:text-white"
+                      >
+                        <User size={14} className="text-slate-500" /> Your profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => onOpenSettings?.()}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg cursor-pointer focus:bg-white/5 focus:text-white"
+                      >
+                        <Settings size={14} className="text-slate-500" /> Settings
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator className="bg-white/5 my-1" />
+                      <DropdownMenuItem
+                        onClick={() => onSignOut?.()}
+                        className="flex items-center gap-2.5 px-3 py-2 text-sm text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 rounded-lg cursor-pointer focus:bg-rose-500/10 focus:text-rose-300"
+                      >
+                        <LogOut size={14} /> Sign out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </>
               ) : (
                 <div className="relative group">

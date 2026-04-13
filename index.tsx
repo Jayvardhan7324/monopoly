@@ -5,6 +5,7 @@ import AdminPage from './components/admin/AdminPage';
 import LoginPage from './components/auth/LoginPage';
 import StorePage from './components/store/StorePage';
 import ProfilePage from './components/profile/ProfilePage';
+import SettingsPage from './components/settings/SettingsPage';
 import FriendsPanel from './components/friends/FriendsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { supabase } from './lib/auth-client';
@@ -51,6 +52,7 @@ function Root() {
   const [showLogin, setShowLogin] = useState(false);
   const [showStore, setShowStore] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
 
   const refreshSession = useCallback(async () => {
@@ -90,6 +92,7 @@ function Root() {
       setSessionData(null);
       setShowStore(false);
       setShowProfile(false);
+      setShowSettings(false);
       setShowFriends(false);
       setShowLogin(false);
     });
@@ -112,6 +115,7 @@ function Root() {
         sessionUser={sessionData?.user ?? null}
         onOpenStore={() => setShowStore(true)}
         onOpenProfile={() => setShowProfile(true)}
+        onOpenSettings={() => setShowSettings(true)}
         onOpenLogin={() => setShowLogin(true)}
         onOpenFriends={() => setShowFriends(true)}
         onSignOut={handleSignOut}
@@ -201,6 +205,35 @@ function Root() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* ── Settings page ──────────────────────────────────────── */}
+      <AnimatePresence>
+        {showSettings && sessionData && (
+          <motion.div
+            key="settings-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center"
+            onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}
+          >
+            <motion.div
+              initial={{ y: 60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 60, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+              className="relative w-full max-w-2xl h-[90vh] bg-[#13131a] rounded-t-2xl sm:rounded-2xl border border-white/5 overflow-hidden flex flex-col"
+            >
+              <SettingsPage
+                sessionData={sessionData}
+                onClose={() => setShowSettings(false)}
+                onOpenProfile={() => { setShowSettings(false); setShowProfile(true); }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ── Friends modal ───────────────────────────────────────── */}
       <AnimatePresence>
         {showFriends && sessionData && (
