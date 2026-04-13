@@ -51,6 +51,20 @@ export const profilesStats = pgTable("user_stats", {
   updatedAt:           timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ── Bug Reports ───────────────────────────────────────────────────────────────
+export const bugReport = pgTable("bug_report", {
+  id:          text("id").primaryKey().$defaultFn(() => randomUUID()),
+  title:       text("title").notNull(),
+  description: text("description").notNull(),
+  ip:          text("ip"),
+  userAgent:   text("user_agent"),
+  status:      text("status").notNull().default("open"), // 'open' | 'resolved' | 'wontfix'
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+}, (t) => [
+  index("bug_report_status_idx").on(t.status),
+  index("bug_report_created_at_idx").on(t.createdAt),
+]);
+
 // ── Friendships ───────────────────────────────────────────────────────────────
 export const friendships = pgTable("friendships", {
   id:          text("id").primaryKey().$defaultFn(() => randomUUID()),

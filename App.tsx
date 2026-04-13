@@ -125,6 +125,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [activePolicyPage, setActivePolicyPage] = useState<'privacy' | 'terms' | 'cookies' | 'contact' | null>(null);
+  const [showBugModal, setShowBugModal] = useState(false);
+  const [bugTitle, setBugTitle] = useState('');
+  const [bugDesc, setBugDesc] = useState('');
+  const [bugSubmitting, setBugSubmitting] = useState(false);
+  const [bugSubmitted, setBugSubmitted] = useState(false);
+  const [bugError, setBugError] = useState<string | null>(null);
   const session = sessionUser ? { user: sessionUser } : null;
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
@@ -2021,6 +2027,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         <button onClick={() => setActivePolicyPage('cookies')} className="hover:text-slate-400 transition-colors">Cookie Policy</button>
                         <span className="text-slate-800 hidden sm:inline">·</span>
                         <button onClick={() => setActivePolicyPage('contact')} className="hover:text-slate-400 transition-colors">Contact</button>
+                        <span className="text-slate-800 hidden sm:inline">·</span>
+                        <button onClick={() => { setShowBugModal(true); setBugSubmitted(false); setBugError(null); setBugTitle(''); setBugDesc(''); }} className="hover:text-rose-400 transition-colors flex items-center gap-1">
+                          <Flag size={10} /> Report a Bug
+                        </button>
                       </div>
                       <p className="text-[10px] text-slate-700 font-medium">© 2025 Cashly.io · All rights reserved</p>
                     </div>
@@ -2899,6 +2909,99 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   Confirm
                 </button>
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Bug Report Modal */}
+        {showBugModal && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={e => { if (e.target === e.currentTarget) setShowBugModal(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 16 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 16 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-black text-white flex items-center gap-2">
+                  <Flag size={16} className="text-rose-400" /> Report a Bug
+                </h3>
+                <button onClick={() => setShowBugModal(false)} className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+
+              {bugSubmitted ? (
+                <div className="flex flex-col items-center gap-3 py-4 text-center">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
+                    <Flag size={22} className="text-emerald-400" />
+                  </div>
+                  <p className="text-white font-bold">Report submitted!</p>
+                  <p className="text-slate-400 text-sm">Thanks for helping improve Cashly.</p>
+                  <button onClick={() => setShowBugModal(false)} className="mt-2 px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold text-sm transition-colors">
+                    Close
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1.5 block">Title</label>
+                      <input
+                        type="text"
+                        value={bugTitle}
+                        onChange={e => { setBugTitle(e.target.value); setBugError(null); }}
+                        placeholder="Short summary of the bug…"
+                        maxLength={120}
+                        className="w-full bg-[#111116] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-1.5 block">Description</label>
+                      <textarea
+                        value={bugDesc}
+                        onChange={e => { setBugDesc(e.target.value); setBugError(null); }}
+                        placeholder="What happened? What did you expect?"
+                        maxLength={2000}
+                        rows={4}
+                        className="w-full bg-[#111116] border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                      />
+                      <p className="text-[10px] text-slate-600 text-right mt-0.5">{bugDesc.length}/2000</p>
+                    </div>
+                    {bugError && (
+                      <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">{bugError}</p>
+                    )}
+                  </div>
+                  <button
+                    disabled={bugSubmitting}
+                    onClick={async () => {
+                      setBugError(null);
+                      setBugSubmitting(true);
+                      try {
+                        const res = await fetch('/api/bug-report', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ title: bugTitle, description: bugDesc }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) { setBugError(data.error ?? 'Failed to submit.'); return; }
+                        setBugSubmitted(true);
+                      } catch {
+                        setBugError('Network error — try again.');
+                      } finally {
+                        setBugSubmitting(false);
+                      }
+                    }}
+                    className="w-full py-3 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl font-bold text-sm transition-colors flex items-center justify-center gap-2 active:scale-[0.98]"
+                  >
+                    {bugSubmitting ? <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}><Flag size={14} /></motion.div> : <Flag size={14} />}
+                    Submit Report
+                  </button>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}

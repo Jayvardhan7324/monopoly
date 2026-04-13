@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import {
   LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag,
   Ban, Shield, Coins, Edit2, X, Check, Package, BarChart3, TrendingUp,
-  UserCheck, UserX, Crown, Minus, RefreshCw,
+  UserCheck, UserX, Crown, Minus, RefreshCw, Flag, AlertCircle,
 } from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
@@ -49,6 +49,10 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   // Analytics tab
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // Bug reports tab
+  const [bugReports, setBugReports] = useState<any[]>([]);
+  const [bugsLoading, setBugsLoading] = useState(false);
 
   // Store tab
   const [storeItems, setStoreItems] = useState<StoreItemRow[]>([]);
@@ -158,10 +162,29 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
     } catch { toast.error('Failed to deactivate item'); }
   };
 
+  const fetchBugReports = async () => {
+    setBugsLoading(true);
+    try {
+      const res = await fetch('/api/admin/bug-reports', { headers });
+      const data = await res.json();
+      setBugReports(data.reports ?? []);
+    } catch { toast.error('Failed to load bug reports'); }
+    finally { setBugsLoading(false); }
+  };
+
+  const updateBugStatus = async (id: string, status: string) => {
+    try {
+      await fetch(`/api/admin/bug-reports/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ status }) });
+      toast.success('Status updated');
+      fetchBugReports();
+    } catch { toast.error('Failed to update status'); }
+  };
+
   useEffect(() => {
     if (tab === 'users') fetchUsers();
     if (tab === 'store') fetchStoreItems();
     if (tab === 'analytics') fetchAnalytics();
+    if (tab === 'bugs') fetchBugReports();
   }, [tab]);
 
   const pushBoard = async (id: string) => {
@@ -237,6 +260,14 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
             </TabsTrigger>
             <TabsTrigger value="store">
               <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />Store
+            </TabsTrigger>
+            <TabsTrigger value="bugs">
+              <Flag className="h-3.5 w-3.5 mr-1.5" />Bug Reports
+              {bugReports.filter(b => b.status === 'open').length > 0 && (
+                <Badge variant="destructive" className="ml-1.5 h-4 min-w-4 px-1 text-[10px]">
+                  {bugReports.filter(b => b.status === 'open').length}
+                </Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -709,6 +740,70 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
               </div>
             )}
           </TabsContent>
+          {/* ── Bug Reports ── */}
+          <TabsContent value="bugs">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Flag className="h-5 w-5 text-rose-400" /> Bug Reports
+              </h2>
+              <Button size="sm" variant="outline" onClick={fetchBugReports} disabled={bugsLoading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${bugsLoading ? 'animate-spin' : ''}`} />Refresh
+              </Button>
+            </div>
+
+            {bugsLoading ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Loading bug reports…</CardContent></Card>
+            ) : bugReports.length === 0 ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">
+                <AlertCircle className="h-10 w-10 mx-auto mb-2 opacity-40" />No bug reports yet.
+              </CardContent></Card>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {bugReports.map(report => (
+                  <Card key={report.id} className={report.status === 'open' ? 'border-rose-500/30' : 'opacity-60'}>
+                    <CardContent className="py-4 px-5">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <Badge variant={report.status === 'open' ? 'destructive' : report.status === 'resolved' ? 'default' : 'secondary'}>
+                              {report.status}
+                            </Badge>
+                            <span className="font-bold text-sm text-white truncate">{report.title}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words mb-2">{report.description}</p>
+                          <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                            <span>{report.createdAt ? new Date(report.createdAt).toLocaleString() : '—'}</span>
+                            {report.ip && <span className="font-mono">IP: {report.ip}</span>}
+                          </div>
+                        </div>
+                        <div className="flex gap-1.5 shrink-0">
+                          {report.status !== 'resolved' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-emerald-400 border-emerald-500/30 hover:border-emerald-500"
+                              onClick={() => updateBugStatus(report.id, 'resolved')}>
+                              <Check className="h-3 w-3 mr-1" />Resolve
+                            </Button>
+                          )}
+                          {report.status !== 'wontfix' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-slate-400"
+                              onClick={() => updateBugStatus(report.id, 'wontfix')}>
+                              <X className="h-3 w-3 mr-1" />Won't fix
+                            </Button>
+                          )}
+                          {report.status !== 'open' && (
+                            <Button size="sm" variant="outline" className="h-7 text-xs text-rose-400 border-rose-500/30"
+                              onClick={() => updateBugStatus(report.id, 'open')}>
+                              Reopen
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
         </Tabs>
       </main>
     </div>

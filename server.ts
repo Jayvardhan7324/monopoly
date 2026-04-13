@@ -105,6 +105,62 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // ── Bug Reports ───────────────────────────────────────────────────────────────
+  const bugReportRateLimit = new Map<string, number>(); // IP -> last submit timestamp
+  setInterval(() => {
+    const cutoff = Date.now() - 60_000;
+    for (const [ip, ts] of bugReportRateLimit) { if (ts < cutoff) bugReportRateLimit.delete(ip); }
+  }, 60_000);
+
+  app.post('/api/bug-report', async (req, res) => {
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    const last = bugReportRateLimit.get(ip) ?? 0;
+    if (Date.now() - last < 60_000) {
+      return res.status(429).json({ error: 'Please wait before submitting another report.' });
+    }
+    const { title, description } = req.body ?? {};
+    if (!title || typeof title !== 'string' || title.trim().length < 3) {
+      return res.status(400).json({ error: 'Title is required (min 3 chars).' });
+    }
+    if (!description || typeof description !== 'string' || description.trim().length < 10) {
+      return res.status(400).json({ error: 'Description is required (min 10 chars).' });
+    }
+    bugReportRateLimit.set(ip, Date.now());
+    try {
+      await db.insert(schema.bugReport).values({
+        title: title.trim().slice(0, 120),
+        description: description.trim().slice(0, 2000),
+        ip,
+        userAgent: (req.headers['user-agent'] ?? '').slice(0, 300),
+      });
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to save report.' });
+    }
+  });
+
+  app.get('/api/admin/bug-reports', requireAdmin, async (_req, res) => {
+    try {
+      const reports = await db.select().from(schema.bugReport).orderBy(schema.bugReport.createdAt);
+      res.json({ reports: reports.reverse() });
+    } catch {
+      res.status(500).json({ error: 'Failed to load bug reports.' });
+    }
+  });
+
+  app.patch('/api/admin/bug-reports/:id', requireAdmin, async (req, res) => {
+    const { status } = req.body ?? {};
+    if (!['open', 'resolved', 'wontfix'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status.' });
+    }
+    try {
+      await db.update(schema.bugReport).set({ status }).where(eq(schema.bugReport.id, req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to update report.' });
+    }
+  });
+
   // ─── Admin ─────────────────────────────────────────────────────────────────
   const ADMIN_TOKEN    = process.env.ADMIN_TOKEN    || '';
   const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
