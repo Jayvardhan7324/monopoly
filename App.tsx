@@ -29,6 +29,7 @@ import {
 import { Avatar, APPEARANCE_COLORS } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
 import { Button } from './components/ui/button';
+import NavDock, { NavDockItem, NavDockLink, NavDockSep } from './components/ui/NavDock';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1628,38 +1629,38 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             >
               {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
             </button>
-            <div className="flex items-center gap-4 text-sm font-medium text-slate-400">
-              <button
-                onClick={onOpenStore}
-                className="flex items-center gap-2 hover:text-slate-200 transition-colors"
-              >
-                <ShoppingCart size={16} /> Store
-              </button>
+            <NavDock>
+              {/* Store */}
+              <NavDockItem onClick={onOpenStore}>
+                <ShoppingCart size={15} /> Store
+              </NavDockItem>
+
               {session?.user ? (
                 <>
-                  <button
-                    onClick={() => onOpenFriends?.()}
-                    className="flex items-center gap-2 hover:text-slate-200 transition-colors"
-                    title="Friends"
-                  >
-                    <UsersRound size={16} />
-                    Friends
-                  </button>
+                  <NavDockSep />
+                  {/* Friends */}
+                  <NavDockItem onClick={() => onOpenFriends?.()} title="Friends">
+                    <UsersRound size={15} /> Friends
+                  </NavDockItem>
+
+                  <NavDockSep />
+
+                  {/* User avatar dropdown */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <button className="flex items-center gap-2 hover:text-slate-200 transition-colors focus:outline-none">
+                      <NavDockItem className="gap-2">
                         {session.user.image ? (
-                          <img src={session.user.image} className="h-6 w-6 rounded-full object-cover border border-slate-600" alt="" />
+                          <img src={session.user.image} className="h-5 w-5 rounded-full object-cover border border-slate-600" alt="" />
                         ) : (
-                          <div className="h-6 w-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[10px] font-black">
+                          <div className="h-5 w-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-[9px] font-black">
                             {session.user.name?.[0]?.toUpperCase() ?? '?'}
                           </div>
                         )}
-                        <ChevronDown size={13} className="text-slate-500" />
-                      </button>
+                        <span className="max-w-[80px] truncate text-sm">{session.user.name}</span>
+                        <ChevronDown size={12} className="text-slate-500 shrink-0" />
+                      </NavDockItem>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-52 bg-[#1a1a24] border border-white/10 rounded-xl shadow-2xl p-1.5">
-                      {/* User info */}
                       <div className="flex flex-col items-center gap-2 px-3 py-3 mb-1">
                         {session.user.image ? (
                           <img src={session.user.image} className="h-12 w-12 rounded-full object-cover border-2 border-indigo-500/30" alt="" />
@@ -1696,36 +1697,36 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   </DropdownMenu>
                 </>
               ) : (
-                <div className="relative group">
-                  <button
-                    onClick={() => onOpenLogin?.()}
-                    className="flex items-center gap-2 hover:text-slate-200 transition-colors"
-                  >
-                    <LogIn size={16} /> Login
-                  </button>
-                  {/* Tooltip */}
-                  <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800 border border-slate-700 rounded-xl p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-50 text-left">
-                    <p className="text-xs font-bold text-white mb-2">Sign in to unlock:</p>
-                    <ul className="space-y-1 text-xs text-slate-400">
-                      <li>📊 Stats tracking (wins, earnings)</li>
-                      <li>👥 Friends &amp; lobby invites</li>
-                      <li>🖼️ Profile picture &amp; username</li>
-                      <li>🪙 Coins &amp; store rewards</li>
-                    </ul>
+                <>
+                  <NavDockSep />
+                  {/* Login with hover tooltip */}
+                  <div className="relative group">
+                    <NavDockItem onClick={() => onOpenLogin?.()}>
+                      <LogIn size={15} /> Login
+                    </NavDockItem>
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-slate-800 border border-slate-700 rounded-xl p-3 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-150 z-50 text-left">
+                      <p className="text-xs font-bold text-white mb-2">Sign in to unlock:</p>
+                      <ul className="space-y-1 text-xs text-slate-400">
+                        <li>📊 Stats tracking (wins, earnings)</li>
+                        <li>👥 Friends &amp; lobby invites</li>
+                        <li>🖼️ Profile picture &amp; username</li>
+                        <li>🪙 Coins &amp; store rewards</li>
+                      </ul>
+                    </div>
                   </div>
-                </div>
+                </>
               )}
+
+              <NavDockSep />
+
               {/* Discord */}
-              <a
-                href="#"
-                className="p-1.5 text-slate-400 hover:text-indigo-400 transition-colors rounded-lg hover:bg-slate-800/60"
-                title="Join our Discord"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
+              <NavDockLink href="#" title="Join our Discord">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.030zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
                 </svg>
-              </a>
-            </div>
+                Discord
+              </NavDockLink>
+            </NavDock>
           </nav>
 
           {/* Floating Icons Background */}
