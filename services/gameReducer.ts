@@ -762,13 +762,32 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'SKIP_JAIL_TURN': {
       const player = state.players[state.currentPlayerIndex];
       if (!player.inJail) return state;
+      const nextJailTurns = player.jailTurns + 1;
+      // BUG-9: Force exit at MAX_JAIL_TURNS so players can't skip indefinitely
+      if (nextJailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS) {
+        const fine = GAME_CONSTANTS.JAIL_FINE;
+        const newMoney = player.money - fine;
+        const newPlayers = [...state.players];
+        newPlayers[state.currentPlayerIndex] = { ...player, inJail: false, jailTurns: 0, money: newMoney };
+        const jailFinePool = state.settings.rules.vacationCash ? state.taxPool + fine : state.taxPool;
+        return withSound(
+          {
+            ...state,
+            players: newPlayers,
+            taxPool: jailFinePool,
+            phase: 'ROLL',
+            logs: addLog(state.logs, `${player.name} has skipped too many turns — forced to pay $${fine} and leave Jail.`),
+          },
+          'pay'
+        );
+      }
       const newPlayers = [...state.players];
-      newPlayers[state.currentPlayerIndex] = { ...player, jailTurns: player.jailTurns + 1 };
+      newPlayers[state.currentPlayerIndex] = { ...player, jailTurns: nextJailTurns };
       return {
         ...state,
         players: newPlayers,
         phase: 'TURN_END',
-        logs: addLog(state.logs, `${player.name} stayed in Jail.`),
+        logs: addLog(state.logs, `${player.name} stayed in Jail (turn ${nextJailTurns}/${GAME_CONSTANTS.MAX_JAIL_TURNS}).`),
       };
     }
 
@@ -810,6 +829,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (amount <= state.auction.currentBid) return state;
       const bidder = state.players.find(p => p.id === playerId);
       if (!bidder || bidder.money < amount || bidder.isBankrupt) return state;
+      // BUG-5: Only eligible bidders (set at auction start) can place bids
+      if (!state.auction.bidders.includes(playerId)) return state;
       return withSound(
         {
           ...state,
@@ -1108,6 +1129,13 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // Cannot trade with yourself or a bankrupt player
       if (proposerId === targetOwnerId) return state;
       if (targetPlayer.isBankrupt) return state;
+
+      // BUG-3: Reject negative cash values — would grant money instead of costing it
+      if ((offerCash ?? 0) < 0 || (requestCash ?? 0) < 0) return state;
+
+      // BUG-12: Proposer must own all properties they are offering
+      const offerContainsUnowned = offerPropertyIds.some(id => state.tiles[id]?.ownerId !== proposerId);
+      if (offerContainsUnowned) return state;
 
       // BUG-03 / BUG-13: Do not allow offering mortgaged properties (applies to all trades, not just bot)
       const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
@@ -1410,22 +1438,24 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const currentPlayerId = state.players[state.currentPlayerIndex].id;
       const votekicksAfterTurn = state.votekicks.filter(v => v.targetId !== currentPlayerId);
 
-      // If the next player is on vacation, skip their turn and clear the flag
+      // BUG-7: Loop so consecutive vacation players are all skipped (not just the first)
       let finalIndex = nextIndex;
       let vacationSkipLogs = processedLogs;
-      if (processedPlayers[nextIndex]?.onVacation) {
-        const vacationPlayerName = processedPlayers[nextIndex].name;
+      let vacationGuard = 0;
+      while (processedPlayers[finalIndex]?.onVacation && vacationGuard < processedPlayers.length) {
+        const vacationPlayerName = processedPlayers[finalIndex].name;
         processedPlayers = processedPlayers.map((p, i) =>
-          i === nextIndex ? { ...p, onVacation: false } : p
+          i === finalIndex ? { ...p, onVacation: false } : p
         );
         vacationSkipLogs = addLog(vacationSkipLogs, `${vacationPlayerName} is resting on Vacation — turn skipped!`);
-        // Advance past them
-        finalIndex = (nextIndex + 1) % processedPlayers.length;
+        finalIndex = (finalIndex + 1) % processedPlayers.length;
+        // Skip bankrupt players in the advance
         let loopGuard2 = 0;
         while (processedPlayers[finalIndex].isBankrupt && loopGuard2 < processedPlayers.length) {
           finalIndex = (finalIndex + 1) % processedPlayers.length;
           loopGuard2++;
         }
+        vacationGuard++;
       }
 
       return withSound(
@@ -1465,6 +1495,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── DECLARE_BANKRUPT ──────────────────────────────────────────────────────
     case 'DECLARE_BANKRUPT': {
+      // BUG-11: Only valid during ACTION or TURN_END; not during AUCTION/MOVING/RESOLVING
+      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const player = state.players[state.currentPlayerIndex];
       if (player.isBankrupt) return state;
       const { players, tiles, logs } = declareBankruptcy(state, player.id);
