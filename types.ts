@@ -53,6 +53,7 @@ export interface Player {
   jailTurns: number;
   personality?: BotPersonalityType;
   avatarId?: number;
+  profileImage?: string;
   onVacation?: boolean;
 }
 

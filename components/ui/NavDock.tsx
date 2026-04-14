@@ -1,25 +1,20 @@
 import React from 'react';
 import { motion } from 'motion/react';
 
-interface NavDockItemProps {
+interface NavDockItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   children: React.ReactNode;
   className?: string;
-  onClick?: () => void;
-  href?: string;
-  title?: string;
-  asChild?: boolean;
 }
 
 export const NavDockItem = React.forwardRef<HTMLButtonElement, NavDockItemProps>(
-  ({ children, className = '', onClick, title }, ref) => (
+  ({ children, className = '', ...rest }, ref) => (
     <motion.button
       ref={ref}
-      onClick={onClick}
-      title={title}
       whileHover={{ scale: 1.06 }}
       whileTap={{ scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/8 transition-colors text-sm font-medium cursor-pointer select-none focus:outline-none ${className}`}
+      {...rest}
     >
       {children}
     </motion.button>
@@ -42,7 +37,6 @@ export const NavDockLink: React.FC<{ href: string; title?: string; children: Rea
   </motion.a>
 );
 
-/** Thin separator between dock sections */
 export const NavDockSep: React.FC = () => (
   <div className="w-px h-4 bg-slate-700/60 mx-0.5 shrink-0" />
 );
@@ -51,7 +45,6 @@ interface NavDockProps {
   children: React.ReactNode;
 }
 
-/** A single rounded pill that holds all top-nav items */
 const NavDock: React.FC<NavDockProps> = ({ children }) => (
   <motion.div
     initial={{ opacity: 0, y: -8 }}

@@ -793,6 +793,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         settings: effectiveSettings,
         lobbyPlayers: isOnline ? lobbyPlayers : null,
         selectedAvatar,
+        profileImage: session?.user?.image ?? undefined,
         customTiles: settings.boardMap !== 'Classic' && customBoard?.tiles
           ? (customBoard.tiles as any[]).map((t: any) => ({
               id: t.position ?? t.id,
@@ -824,7 +825,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       const r = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, isPrivate, maxPlayers: settings.maxPlayers }),
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined, isPrivate, maxPlayers: settings.maxPlayers }),
       });
       if (!r.ok) throw new Error(await r.text());
       const res = await r.json();
@@ -857,7 +858,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       const r = await fetch(`/api/rooms/${cleanId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined }),
       });
       if (!r.ok) throw new Error(await r.text());
       const res = await r.json();
@@ -887,7 +888,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       const r = await fetch("/api/rooms/random", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: humanName, avatar: selectedAvatar }),
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined }),
       });
       if (!r.ok) throw new Error(await r.text());
       const res = await r.json();
@@ -2583,14 +2584,22 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                 {isActive && !player.isBankrupt && (
                   <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-[#111116] animate-pulse z-10" />
                 )}
-                <div className="relative">
-                  <Avatar
-                    avatarId={player.avatarId}
-                    color={player.color}
-                    isBankrupt={player.isBankrupt}
-                    inJail={player.inJail}
-                    className={`w-9 h-9 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''}`}
-                  />
+                <div className="relative shrink-0">
+                  {player.profileImage ? (
+                    <img
+                      src={player.profileImage}
+                      alt=""
+                      className={`w-9 h-9 rounded-full object-cover shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''} ${player.isBankrupt ? 'opacity-40 grayscale' : ''}`}
+                    />
+                  ) : (
+                    <Avatar
+                      avatarId={player.avatarId}
+                      color={player.color}
+                      isBankrupt={player.isBankrupt}
+                      inJail={player.inJail}
+                      className={`w-9 h-9 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''}`}
+                    />
+                  )}
                   {player.isBankrupt && (
                     <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">
                       <X size={12} className="text-rose-500" strokeWidth={3} />

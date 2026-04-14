@@ -467,7 +467,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
     // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
     const roomId = randomBytes(3).toString('hex').toUpperCase();
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
-    const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, isHost: true };
+    const safeImg = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
+    const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg(data.profileImage), isHost: true };
     rooms.set(roomId, {
       host: playerId, // Will be updated to socket.id when they connect
       hostName: sanitizeName(data.name) || 'Player',
@@ -503,7 +504,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       const room = rooms.get(targetRoomId)!;
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
-      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
+      const safeImg2 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
+      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg2(data.profileImage), isHost: false };
       room.players.push(player);
       // We don't broadcast room_updated here because socket isn't connected yet.
       // We will broadcast when they actually connect their socket.
@@ -512,7 +514,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       // Create a new room
       const roomId = randomBytes(3).toString('hex').toUpperCase();
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
-      const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, isHost: true };
+      const safeImg3 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
+      const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg3(data.profileImage), isHost: true };
       rooms.set(roomId, {
         host: playerId,
         hostName: sanitizeName(data.name) || 'Player',
@@ -548,7 +551,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       if (allDisconnected) {
         // All game players are gone — new joiner becomes host so they can control/restart
         room.players.forEach((p: any) => { p.isHost = false; });
-        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: true };
+        const safeImg4 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
+        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg4(data.profileImage), isHost: true };
         room.players.push(player);
         room.host = playerId; // updated to socket.id on join_session
         room.hostName = uniqueName;
@@ -560,7 +564,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
         res.json({ success: true, roomId, playerId, players: room.players, isSpectator: false, becameHost: true });
       } else {
         // Game in progress with active players — join as spectator
-        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false, isSpectator: true };
+        const safeImg5 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
+        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg5(data.profileImage), isHost: false, isSpectator: true };
         room.players.push(player);
         res.json({ success: true, roomId, playerId, players: room.players, isSpectator: true });
       }
@@ -572,7 +577,8 @@ Keep it very short (under 30 words), punchy, and strategic.`;
 
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
-    const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, isHost: false };
+    const safeImg6 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
+    const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg6(data.profileImage), isHost: false };
     room.players.push(player);
 
     scheduleRoomsListBroadcast();
@@ -1179,6 +1185,17 @@ Keep it very short (under 30 words), punchy, and strategic.`;
       const users = await db.select().from(schema.profiles).where(eq(schema.profiles.id, userId));
       if (!users.length) return res.status(404).json({ error: 'User not found' });
       const u = users[0];
+      // Auto-backfill OAuth profile image into DB on first visit if missing
+      if (!u.image && supabaseAdmin) {
+        try {
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+          const avatarUrl = authUser?.user?.user_metadata?.avatar_url;
+          if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.startsWith('https://') && avatarUrl.length <= 500) {
+            await db.update(schema.profiles).set({ image: avatarUrl }).where(eq(schema.profiles.id, userId));
+            u.image = avatarUrl;
+          }
+        } catch {}
+      }
       const statsList = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, userId));
       const stats = statsList[0] ?? { gamesPlayed: 0, gamesWon: 0, totalEarnings: 0, propertiesBought: 0 };
       const friendRows = schema.friendships

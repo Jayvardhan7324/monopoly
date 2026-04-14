@@ -38,7 +38,7 @@ import {
 import { APPEARANCE_COLORS } from '../components/Avatar';
 
 export type Action =
-  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null; selectedAvatar?: number; customTiles?: Tile[] } }
+  | { type: 'START_GAME'; payload: { humanName: string; settings: GameSettings; lobbyPlayers?: any[] | null; selectedAvatar?: number; customTiles?: Tile[]; profileImage?: string } }
   | { type: 'ROLL_DICE' }
   | { type: 'MOVE_PLAYER' }
   | { type: 'LAND_ON_TILE' }
@@ -203,7 +203,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     case 'START_GAME': {
       if (!action.payload) return state;
-      const { humanName, settings, lobbyPlayers, selectedAvatar } = action.payload;
+      const { humanName, settings, lobbyPlayers, selectedAvatar, profileImage } = action.payload;
 
       let players: Player[] = [];
 
@@ -238,6 +238,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             inJail: false,
             jailTurns: 0,
             avatarId: p.avatar,
+            profileImage: p.profileImage ?? undefined,
           }))
           .map((p: any, i: number) => ({ ...p, id: i }));
       } else {
@@ -254,6 +255,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             inJail: false,
             jailTurns: 0,
             avatarId: selectedAvatar,
+            profileImage: profileImage ?? undefined,
           },
         ];
       }
