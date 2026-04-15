@@ -40,14 +40,14 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
   const getIcon = () => {
     switch (tile.type) {
       case ETileType.RAILROAD:
-        return <Plane size={20} className="text-slate-300 drop-shadow-md" />;
+        return <Plane size={28} className="text-slate-300 drop-shadow-md" />;
       case ETileType.UTILITY:
         return (
           <div className="flex flex-col items-center gap-[1px]">
             {tile.name.includes('Water') ? (
-              <Droplets size={18} className="text-cyan-400 drop-shadow-md" />
+              <Droplets size={24} className="text-cyan-400 drop-shadow-md" />
             ) : (
-              <Zap size={18} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
+              <Zap size={24} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
             )}
             <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">
               {tile.name.includes('Water') ? 'Water' : 'Electric'}
@@ -57,7 +57,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
         );
       case ETileType.CHANCE:
         return (
-          <div className="text-rose-400 font-black text-2xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">
+          <div className="text-rose-400 font-black text-3xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">
             ?
           </div>
         );
@@ -68,10 +68,10 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               <img
                 src="/assets/money-3221936.svg"
                 alt="Treasure"
-                className="w-[22px] h-[22px] drop-shadow-md"
+                className="w-[28px] h-[28px] drop-shadow-md"
               />
             ) : (
-              <Package size={24} className="text-amber-400 drop-shadow-md" fill="currentColor" />
+              <Package size={28} className="text-amber-400 drop-shadow-md" fill="currentColor" />
             )}
           </div>
         );
@@ -269,6 +269,11 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
                 className="flex flex-col items-center justify-center gap-[2px] w-full"
                 style={{ transform: contentRotate }}
               >
+                {(!tile.countryCode && getIcon() !== null) && (
+                  <div className="flex items-center justify-center shrink-0 min-h-0 min-w-0">
+                    {getIcon()}
+                  </div>
+                )}
                 {tile.name && tile.type !== ETileType.UTILITY && (
                   <span
                     className="max-w-[48px] overflow-hidden whitespace-nowrap text-ellipsis text-center font-bold uppercase tracking-tighter text-slate-100 leading-none"
@@ -276,11 +281,6 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
                   >
                     {tile.name}
                   </span>
-                )}
-                {(!tile.countryCode && getIcon() !== null) && (
-                  <div className="flex items-center justify-center shrink-0 min-h-0 min-w-0">
-                    {getIcon()}
-                  </div>
                 )}
               </div>
             </div>
