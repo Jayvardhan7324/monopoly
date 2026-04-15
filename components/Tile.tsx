@@ -57,19 +57,13 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
         );
       case ETileType.CHANCE:
         return (
-          <motion.div
-            className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full"
-            animate={{ scale: [1, 1.15, 1], opacity: [0.85, 1, 0.85] }}
-            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
-          >?</motion.div>
+          <div className="text-rose-400 font-black text-xl drop-shadow-md flex items-center justify-center select-none leading-none w-full h-full">
+            ?
+          </div>
         );
       case ETileType.COMMUNITY_CHEST:
         return (
-          <motion.div
-            animate={{ y: [0, -2, 0] }}
-            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
-            className="flex items-center justify-center"
-          >
+          <div className="flex items-center justify-center">
             {tile.name === 'Treasure' ? (
               <img
                 src="/assets/money-3221936.svg"
@@ -79,7 +73,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
             ) : (
               <Package size={20} className="text-amber-400 drop-shadow-md" fill="currentColor" />
             )}
-          </motion.div>
+          </div>
         );
       case ETileType.TAX:
         return (
@@ -95,6 +89,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               <motion.div
                 animate={{ x: [0, 4, 0] }}
                 transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
+                style={{ willChange: 'transform' }}
               >
                 <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
               </motion.div>
@@ -115,37 +110,33 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
         if (tile.name === 'Vacation')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full relative bg-gradient-to-br from-[#1c2236] to-[#162030] overflow-hidden">
-              {/* Shimmer background */}
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-transparent"
-                animate={{ opacity: [0.3, 0.7, 0.3] }}
-                transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
-              />
-              <motion.div
-                animate={{ rotate: [-4, 4, -4] }}
-                transition={{ repeat: Infinity, duration: 2.5, ease: 'easeInOut' }}
-              >
-                <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
-              </motion.div>
-              <span className="text-[10px] text-slate-200 mt-1 font-bold relative z-10">Vacation</span>
+              <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
+              <span className="text-[10px] text-slate-200 mt-1 font-bold">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <motion.div
-                  className="mt-0.5 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/40 relative z-10"
-                  animate={{
-                    boxShadow: ['0 0 6px rgba(16,185,129,0.2)', '0 0 14px rgba(16,185,129,0.5)', '0 0 6px rgba(16,185,129,0.2)'],
-                  }}
-                  transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-                >
+                <div className="mt-0.5 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/40">
                   <span className="text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
-                </motion.div>
+                </div>
               )}
             </div>
           );
         if (tile.name === 'Go to Prison')
           return (
-            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1e1c28] to-[#181520]">
-              <Skull size={34} className="text-slate-100 drop-shadow-lg mb-1" />
-              <span className="text-[10px] text-slate-100 font-bold">Go to prison</span>
+            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1e1c28] to-[#181520] relative overflow-hidden">
+              <motion.div
+                className="absolute inset-0 bg-rose-600/10"
+                animate={{ opacity: [0, 0.5, 0] }}
+                transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                style={{ willChange: 'opacity' }}
+              />
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                style={{ willChange: 'transform' }}
+                className="mb-1 relative z-10"
+              >
+                <Skull size={34} className="text-rose-300 drop-shadow-[0_0_12px_rgba(244,63,94,0.5)]" />
+              </motion.div>
+              <span className="text-[10px] text-slate-100 font-bold relative z-10">Go to prison</span>
             </div>
           );
         return null;
@@ -192,7 +183,8 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
     <motion.div
       onClick={onClick}
       whileHover={!isCurrent ? { scale: isCorner ? 1.01 : 1.04, zIndex: 30 } : undefined}
-      transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+      transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+      style={{ willChange: 'transform' }}
       className={`
         relative w-full h-full flex items-center justify-center
         ${isCorner ? 'bg-[#21262d] rounded-[4px]' : 'bg-[#2a303c] rounded-[4px]'}
@@ -330,15 +322,17 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               {players.map(p => (
                 <motion.div
                   layoutId={`player-${p.id}`}
-                  transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  transition={{ type: 'spring', stiffness: 260, damping: 22 }}
                   key={p.id}
                   className="relative"
+                  style={{ willChange: 'transform' }}
                 >
                   {isCurrent && (
                     <motion.div
-                      className="absolute inset-0 bg-white/40 blur-md rounded-full scale-150"
-                      animate={{ opacity: [0.3, 0.6, 0.3] }}
-                      transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                      className="absolute inset-0 bg-white/30 blur-md rounded-full scale-150"
+                      animate={{ opacity: [0.2, 0.5, 0.2] }}
+                      transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
+                      style={{ willChange: 'opacity' }}
                     />
                   )}
                   <div className="relative">
