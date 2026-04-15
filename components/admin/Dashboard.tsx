@@ -771,6 +771,11 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                             <span className="font-bold text-sm text-white truncate">{report.title}</span>
                           </div>
                           <p className="text-xs text-muted-foreground whitespace-pre-wrap break-words mb-2">{report.description}</p>
+                          {report.imageUrl && (
+                            <a href={report.imageUrl} target="_blank" rel="noopener noreferrer" className="inline-block mb-2">
+                              <img src={report.imageUrl} alt="Bug screenshot" className="max-h-40 max-w-xs rounded-lg border border-slate-700 object-contain" />
+                            </a>
+                          )}
                           <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
                             <span>{report.createdAt ? new Date(report.createdAt).toLocaleString() : '—'}</span>
                             {report.ip && <span className="font-mono">IP: {report.ip}</span>}

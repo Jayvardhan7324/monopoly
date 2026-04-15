@@ -1,17 +1,25 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import AdminPage from './components/admin/AdminPage';
-import LoginPage from './components/auth/LoginPage';
-import StorePage from './components/store/StorePage';
-import ProfilePage from './components/profile/ProfilePage';
-import SettingsPage from './components/settings/SettingsPage';
-import FriendsPanel from './components/friends/FriendsPanel';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { supabase } from './lib/auth-client';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import './index.css';
+
+// Lazy-load heavy page/panel components — only fetched when the modal actually opens
+const AdminPage   = lazy(() => import('./components/admin/AdminPage'));
+const LoginPage   = lazy(() => import('./components/auth/LoginPage'));
+const StorePage   = lazy(() => import('./components/store/StorePage'));
+const ProfilePage = lazy(() => import('./components/profile/ProfilePage'));
+const SettingsPage = lazy(() => import('./components/settings/SettingsPage'));
+const FriendsPanel = lazy(() => import('./components/friends/FriendsPanel'));
+
+const PageSpinner = () => (
+  <div className="flex-1 flex items-center justify-center p-12">
+    <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Could not find root element to mount to");
@@ -21,7 +29,9 @@ if (window.location.pathname.startsWith('/admin')) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
-        <AdminPage />
+        <Suspense fallback={<PageSpinner />}>
+          <AdminPage />
+        </Suspense>
       </ErrorBoundary>
     </React.StrictMode>
   );
@@ -141,10 +151,12 @@ function Root() {
               </button>
             )}
             <div className="w-full">
-              <LoginPage onSuccess={async () => {
-                await refreshSession();
-                setShowLogin(false);
-              }} />
+              <Suspense fallback={<PageSpinner />}>
+                <LoginPage onSuccess={async () => {
+                  await refreshSession();
+                  setShowLogin(false);
+                }} />
+              </Suspense>
             </div>
           </motion.div>
         )}
@@ -169,7 +181,9 @@ function Root() {
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               className="relative w-full max-w-5xl h-[90vh] bg-slate-950 rounded-t-2xl sm:rounded-2xl border border-slate-800 overflow-hidden flex flex-col"
             >
-              <StorePage onBack={() => setShowStore(false)} userId={sessionData?.user?.id} />
+              <Suspense fallback={<PageSpinner />}>
+                <StorePage onBack={() => setShowStore(false)} userId={sessionData?.user?.id} />
+              </Suspense>
             </motion.div>
           </motion.div>
         )}
@@ -194,13 +208,15 @@ function Root() {
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               className="relative w-full max-w-2xl h-[90vh] bg-slate-950 rounded-t-2xl sm:rounded-2xl border border-slate-800 overflow-hidden flex flex-col"
             >
-              <ProfilePage
-                sessionData={sessionData}
-                onClose={() => setShowProfile(false)}
-                onSignOut={handleSignOut}
-                onOpenFriends={() => { setShowProfile(false); setShowFriends(true); }}
-                onProfileUpdated={handleProfileUpdated}
-              />
+              <Suspense fallback={<PageSpinner />}>
+                <ProfilePage
+                  sessionData={sessionData}
+                  onClose={() => setShowProfile(false)}
+                  onSignOut={handleSignOut}
+                  onOpenFriends={() => { setShowProfile(false); setShowFriends(true); }}
+                  onProfileUpdated={handleProfileUpdated}
+                />
+              </Suspense>
             </motion.div>
           </motion.div>
         )}
@@ -224,11 +240,13 @@ function Root() {
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               className="relative w-full max-w-2xl h-[90vh] bg-[#13131a] rounded-t-2xl sm:rounded-2xl border border-white/5 overflow-hidden flex flex-col"
             >
-              <SettingsPage
-                sessionData={sessionData}
-                onClose={() => setShowSettings(false)}
-                onOpenProfile={() => { setShowSettings(false); setShowProfile(true); }}
-              />
+              <Suspense fallback={<PageSpinner />}>
+                <SettingsPage
+                  sessionData={sessionData}
+                  onClose={() => setShowSettings(false)}
+                  onOpenProfile={() => { setShowSettings(false); setShowProfile(true); }}
+                />
+              </Suspense>
             </motion.div>
           </motion.div>
         )}
@@ -246,10 +264,12 @@ function Root() {
             className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={e => { if (e.target === e.currentTarget) setShowFriends(false); }}
           >
-            <FriendsPanel
-              userId={sessionData.user.id}
-              onClose={() => setShowFriends(false)}
-            />
+            <Suspense fallback={<PageSpinner />}>
+              <FriendsPanel
+                userId={sessionData.user.id}
+                onClose={() => setShowFriends(false)}
+              />
+            </Suspense>
           </motion.div>
         )}
       </AnimatePresence>

@@ -40,14 +40,14 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
   const getIcon = () => {
     switch (tile.type) {
       case ETileType.RAILROAD:
-        return <Plane size={28} className="text-slate-300 drop-shadow-md" />;
+        return <Plane size={20} className="text-slate-300 drop-shadow-md" />;
       case ETileType.UTILITY:
         return (
           <div className="flex flex-col items-center gap-[1px]">
             {tile.name.includes('Water') ? (
-              <Droplets size={24} className="text-cyan-400 drop-shadow-md" />
+              <Droplets size={18} className="text-cyan-400 drop-shadow-md" />
             ) : (
-              <Zap size={24} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
+              <Zap size={18} className="text-yellow-400 drop-shadow-md" fill="currentColor" />
             )}
             <span className="text-[5px] font-bold text-slate-400 uppercase tracking-tight leading-none">
               {tile.name.includes('Water') ? 'Water' : 'Electric'}

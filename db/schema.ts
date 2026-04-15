@@ -59,6 +59,7 @@ export const bugReport = pgTable("bug_report", {
   description: text("description").notNull(),
   ip:          text("ip"),
   userAgent:   text("user_agent"),
+  imageUrl:    text("image_url"),
   status:      text("status").notNull().default("open"), // 'open' | 'resolved' | 'wontfix'
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 }, (t) => [

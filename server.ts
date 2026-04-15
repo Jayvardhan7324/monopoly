@@ -118,18 +118,23 @@ async function startServer() {
     if (Date.now() - last < 60_000) {
       return res.status(429).json({ error: 'Please wait before submitting another report.' });
     }
-    const { title, description } = req.body ?? {};
+    const { title, description, imageUrl } = req.body ?? {};
     if (!title || typeof title !== 'string' || title.trim().length < 3) {
       return res.status(400).json({ error: 'Title is required (min 3 chars).' });
     }
     if (!description || typeof description !== 'string' || description.trim().length < 10) {
       return res.status(400).json({ error: 'Description is required (min 10 chars).' });
     }
+    // imageUrl must be a data URL (base64 image), max ~1.5 MB
+    const cleanImageUrl = (typeof imageUrl === 'string' && imageUrl.startsWith('data:image/'))
+      ? (imageUrl.length <= 1_500_000 ? imageUrl : null)
+      : null;
     bugReportRateLimit.set(ip, Date.now());
     try {
       await db.insert(schema.bugReport).values({
         title: title.trim().slice(0, 120),
         description: description.trim().slice(0, 2000),
+        imageUrl: cleanImageUrl,
         ip,
         userAgent: (req.headers['user-agent'] ?? '').slice(0, 300),
       });
