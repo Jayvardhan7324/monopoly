@@ -2335,8 +2335,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-first group-data-[layout=row]:order-1">
           {renderShareBox(false)}
 
-          {/* Ad Banner Space */}
-          <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
+          {/* Ad Banner Space — desktop only; mobile version sits below board */}
+          <div className="hidden sm:flex bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
             <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
           </div>
@@ -2477,6 +2477,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               </div>
             </Board>
           </div>
+        </div>
+
+        {/* Ad Banner — mobile only, below board */}
+        <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-[100px]">
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
+          <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
 
         {/* Right Column: Profile & Settings */}
@@ -2632,8 +2638,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-first group-data-[layout=row]:order-1">
         {isOnline && renderShareBox(true)}
 
-        {/* Ad Banner Space */}
-        <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
+        {/* Ad Banner Space — desktop only; mobile version sits below board */}
+        <div className="hidden sm:flex bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
           <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
@@ -2748,6 +2754,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             />
           </Board>
         </motion.div>
+      </div>
+
+      {/* Ad Banner — mobile only, below board */}
+      <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-[100px]">
+        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
+        <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
       </div>
 
       {/* Right Column: Players, Actions & Properties */}
