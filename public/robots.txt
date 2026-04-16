@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /api/
-Disallow: /admin/
+Disallow: /__sys
 
 Sitemap: https://YOUR_DOMAIN/sitemap.xml

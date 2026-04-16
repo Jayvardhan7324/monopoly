@@ -244,54 +244,6 @@ async function startServer() {
     res.json({ board: activeAdminBoard });
   });
 
-  // Per-IP rate limit for AI advice (5 req/min)
-  const aiRateLimitMap = new Map<string, number[]>();
-  function isAIRateLimited(ip: string): boolean {
-    const now = Date.now();
-    const timestamps = aiRateLimitMap.get(ip) || [];
-    const filtered = timestamps.filter(t => now - t < 60000);
-    if (filtered.length >= 5) { aiRateLimitMap.set(ip, filtered); return true; }
-    filtered.push(now);
-    aiRateLimitMap.set(ip, filtered);
-    return false;
-  }
-
-  // SEC-07: Gemini API key is never sent to the client — all AI calls go through this proxy.
-  // ERR-02: Use gemini-2.0-flash (correct model name).
-  app.post("/api/ai-advice", async (req, res) => {
-    const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '');
-    if (isAIRateLimited(ip)) return res.status(429).json({ advice: "Too many requests. Please wait a moment." });
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({ advice: "AI advisor is not configured on this server." });
-    }
-    try {
-      const { context } = req.body || {};
-      if (!context) return res.status(400).json({ advice: "Missing context." });
-
-      const prompt = `You are a Monopoly expert advisor.
-Game State:
-- Current Player: ${context.playerName} (Cash: $${context.playerMoney})
-- Position: ${context.tileName} (Type: ${context.tileType}, Price: $${context.tilePrice}, Owned By: ${context.tileOwnerId ?? 'None'})
-- My Properties: ${context.myPropertyCount}
-- Opponents: ${(context.opponents || []).map((p: any) => `${p.name} ($${p.money})`).join(', ')}
-
-Advice needed on what to do (Buy? Pass? Trade strategy?).
-Keep it very short (under 30 words), punchy, and strategic.`;
-
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.0-flash',
-        contents: prompt,
-      });
-      res.json({ advice: response.text || "No advice generated." });
-    } catch (err: any) {
-      console.error("AI advice error:", err?.message);
-      res.status(500).json({ advice: "Unable to reach the advisor. Please try again." });
-    }
-  });
-
   // SEC-02: Simple per-IP rate limiter factory — creates isolated limiters per endpoint
   function makeRateLimiter(maxRequests: number, windowMs: number) {
     const map = new Map<string, number[]>();

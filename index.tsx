@@ -24,8 +24,8 @@ const PageSpinner = () => (
 const rootElement = document.getElementById('root');
 if (!rootElement) throw new Error("Could not find root element to mount to");
 
-// Admin panel — no auth gate, uses its own token
-if (window.location.pathname.startsWith('/admin')) {
+// Internal panel — no auth gate, uses its own token
+if (window.location.pathname.startsWith('/__sys')) {
   ReactDOM.createRoot(rootElement).render(
     <React.StrictMode>
       <ErrorBoundary>
