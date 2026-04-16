@@ -17,5 +17,20 @@ export default defineConfig(({ mode }) => {
           '@': path.resolve(__dirname, '.'),
         }
       },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              'react-vendor': ['react', 'react-dom'],
+              'motion': ['motion/react'],
+              'ui': ['@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-scroll-area', '@radix-ui/react-separator', '@radix-ui/react-avatar', '@radix-ui/react-sheet'],
+              'lucide': ['lucide-react'],
+              'socket': ['socket.io-client'],
+              'supabase': ['@supabase/supabase-js'],
+            },
+          },
+        },
+        chunkSizeWarningLimit: 600,
+      },
     };
 });

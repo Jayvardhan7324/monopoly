@@ -1,4 +1,5 @@
 import express from "express";
+import compression from "compression";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { randomBytes, randomUUID, timingSafeEqual } from "crypto";
@@ -1375,9 +1376,21 @@ async function startServer() {
   } else {
     const path = await import("path");
     const distPath = path.default.resolve(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    // Gzip/brotli compress all responses
+    app.use(compression());
+    // Hashed assets (JS/CSS chunks) are immutable — cache for 1 year
+    app.use(express.static(distPath, {
+      setHeaders(res, filePath) {
+        if (/\.(js|css)$/.test(filePath) && /[.-][a-f0-9]{8,}\.(js|css)$/.test(filePath)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+      },
+    }));
     // SPA fallback: serve index.html for all non-API routes
     app.use((req, res) => {
+      res.setHeader('Cache-Control', 'no-cache');
       res.sendFile(path.default.resolve(distPath, "index.html"));
     });
   }

@@ -9,7 +9,7 @@
     "build": "vite build",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-"lint": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "cannon-es": "^0.20.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "compression": "^1.8.1",
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
@@ -40,6 +41,7 @@
     "tsx": "^4.21.0"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/express": "^5.0.6",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
