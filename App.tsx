@@ -2090,7 +2090,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                               className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center"
                             >
                               <div className="text-lg font-black text-white">{stat.value}</div>
-                              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
+                              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
                             </motion.div>
                           ))}
                         </div>
@@ -2954,7 +2954,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                 <span className="text-slate-500">for {gameState.tiles[gameState.pendingTrade.targetPropertyId]?.name}</span>
               </div>
               {gameState.pendingTrade.botDecision ? (
-                <p className="text-[9px] text-slate-500 italic">Bot is deciding…</p>
+                <p className="text-[9px] text-slate-400 italic">Bot is deciding…</p>
               ) : gameState.pendingTrade.proposerId === myPlayerId ? (
                 <button
                   onClick={() => handleDispatch({ type: 'CANCEL_TRADE' })}
@@ -3008,7 +3008,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                     style={{ backgroundColor: gameState.players.find(p => p.id === myPlayerId)?.color || '#888' }}
                   />
                   <span className="flex-1 text-[10px] font-bold text-slate-200 truncate">{prop.name}</span>
-                  <span className="text-[9px] font-mono text-slate-500 shrink-0">${prop.price}</span>
+                  <span className="text-[9px] font-mono text-slate-400 shrink-0">${prop.price}</span>
                   {prop.buildingCount > 0 && (
                     <span className="text-[9px] text-emerald-400 font-bold shrink-0">
                       {prop.buildingCount === 5 ? '🏨' : `🏠×${prop.buildingCount}`}
