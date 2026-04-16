@@ -80,6 +80,9 @@ async function startServer() {
     console.warn("DATABASE_URL not set — auth and store routes disabled");
   }
 
+  // Gzip/brotli compress all responses
+  app.use(compression());
+
   // ── Security headers ────────────────────────────────────────────────────────
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');

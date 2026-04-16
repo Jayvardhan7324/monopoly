@@ -1471,6 +1471,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25 }}
+          role="main"
           className="min-h-screen bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto"
         >
           {/* Creating room overlay */}
@@ -1627,6 +1628,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
             <button
               onClick={() => setSoundEnabled(!soundEnabled)}
+              aria-label={soundEnabled ? "Mute sound" : "Unmute sound"}
               className="p-2 text-slate-400 hover:text-slate-200 transition-colors rounded-xl hover:bg-slate-800/60"
             >
               {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
@@ -1955,7 +1957,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
                       <div className="w-full space-y-3 mt-1">
                         <div>
-                          <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
+                          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5 text-center">Playing as</p>
                           {sessionUser ? (
                             <div className="w-full flex items-center gap-2.5 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-3.5 py-2.5">
                               {sessionUser.image ? (
@@ -2105,9 +2107,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.5, delay: 0.05 }}
                     >
-                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                      <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                         <Zap size={11} /> Features
-                      </h3>
+                      </h2>
                       <div className="flex flex-col gap-2">
                         {[
                           { icon: <Globe size={12} className="text-indigo-400" />, title: 'Online Multiplayer' },
@@ -2139,9 +2141,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.5, delay: 0.1 }}
                     >
-                      <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+                      <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
                         <Info size={11} /> How to play
-                      </h3>
+                      </h2>
                       <div className="flex flex-col gap-2">
                         {[
                           { icon: <Coins size={12} className="text-emerald-400" />, title: 'Start with configurable cash' },
@@ -2170,20 +2172,20 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   {/* Footer */}
                   <footer className="w-full border-t border-slate-800/60 py-5 px-4 sm:px-6 mt-auto">
                     <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-                      <div className="flex items-center gap-4 text-xs text-slate-600 flex-wrap justify-center">
-                        <button onClick={() => setActivePolicyPage('privacy')} className="hover:text-slate-400 transition-colors">Privacy Policy</button>
-                        <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button onClick={() => setActivePolicyPage('terms')} className="hover:text-slate-400 transition-colors">Terms of Service</button>
-                        <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button onClick={() => setActivePolicyPage('cookies')} className="hover:text-slate-400 transition-colors">Cookie Policy</button>
-                        <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button onClick={() => setActivePolicyPage('contact')} className="hover:text-slate-400 transition-colors">Contact</button>
-                        <span className="text-slate-800 hidden sm:inline">·</span>
-                        <button onClick={() => { setShowBugModal(true); setBugSubmitted(false); setBugError(null); setBugTitle(''); setBugDesc(''); setBugImage(null); }} className="hover:text-rose-400 transition-colors flex items-center gap-1">
+                      <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap justify-center">
+                        <button onClick={() => setActivePolicyPage('privacy')} className="hover:text-slate-200 transition-colors">Privacy Policy</button>
+                        <span className="text-slate-600 hidden sm:inline">·</span>
+                        <button onClick={() => setActivePolicyPage('terms')} className="hover:text-slate-200 transition-colors">Terms of Service</button>
+                        <span className="text-slate-600 hidden sm:inline">·</span>
+                        <button onClick={() => setActivePolicyPage('cookies')} className="hover:text-slate-200 transition-colors">Cookie Policy</button>
+                        <span className="text-slate-600 hidden sm:inline">·</span>
+                        <button onClick={() => setActivePolicyPage('contact')} className="hover:text-slate-200 transition-colors">Contact</button>
+                        <span className="text-slate-600 hidden sm:inline">·</span>
+                        <button onClick={() => { setShowBugModal(true); setBugSubmitted(false); setBugError(null); setBugTitle(''); setBugDesc(''); setBugImage(null); }} className="text-slate-400 hover:text-rose-400 transition-colors flex items-center gap-1">
                           <Flag size={10} /> Report a Bug
                         </button>
                       </div>
-                      <p className="text-[10px] text-slate-700 font-medium">© 2025 Cashly.io · All rights reserved</p>
+                      <p className="text-[10px] text-slate-500 font-medium">© 2025 Cashly.io · All rights reserved</p>
                     </div>
                   </footer>
                 </motion.div>
