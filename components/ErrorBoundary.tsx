@@ -1,9 +1,13 @@
 import React from 'react';
 
+interface Props { children?: React.ReactNode }
 interface State { hasError: boolean; message: string }
 
-export class ErrorBoundary extends React.Component<React.PropsWithChildren, State> {
-  state: State = { hasError: false, message: '' };
+export class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, message: error?.message || 'Unknown error' };
@@ -29,6 +33,6 @@ export class ErrorBoundary extends React.Component<React.PropsWithChildren, Stat
         </div>
       );
     }
-    return this.props.children;
+    return (this as unknown as { props: Props }).props.children ?? null;
   }
 }

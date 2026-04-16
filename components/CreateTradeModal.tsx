@@ -37,17 +37,12 @@ function FlagImg({ countryCode, name }: { countryCode?: string; name: string }) 
   );
 }
 
-function PropertyRow({
-  tile,
-  selected,
-  onClick,
-  dimmed,
-}: {
+const PropertyRow: React.FC<{
   tile: Tile;
   selected: boolean;
   onClick: () => void;
   dimmed?: boolean;
-}) {
+}> = ({ tile, selected, onClick, dimmed }) => {
   return (
     <button
       onClick={onClick}

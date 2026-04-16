@@ -1,4 +1,4 @@
-import { pgTable, text, boolean, timestamp, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, text, boolean, timestamp, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 
 // ── Profiles (mirrors Supabase auth.users — FK to auth.users enforced by SQL migration) ──
@@ -36,6 +36,7 @@ export const purchase = pgTable("purchase", {
   purchasedAt: timestamp("purchased_at").notNull(),
 }, (t) => [
   index("purchase_user_id_idx").on(t.userId),
+  uniqueIndex("purchase_user_item_unique").on(t.userId, t.itemId),
 ]);
 
 // ── Player stats ──────────────────────────────────────────────────────────────

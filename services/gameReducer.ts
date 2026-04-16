@@ -63,8 +63,8 @@ export type Action =
   | { type: 'KICK_PLAYER'; payload: { playerId: number } }
   | { type: 'DECLARE_BANKRUPT' }
   | { type: 'DOWNGRADE_PROPERTY'; payload: { tileId: number } }
-  | { type: 'VOTE_KICK'; payload: { targetId: number; voterId: number } }
-  | { type: 'CHECK_VOTEKICKS' }
+  | { type: 'VOTE_KICK'; payload: { targetId: number; voterId: number; expiresAt?: number } }
+  | { type: 'CHECK_VOTEKICKS'; payload?: { now?: number } }
   | { type: 'SYNC_STATE'; payload: GameState }
   | { type: 'FORCE_END_TURN'; payload: { removedPlayerId: string } }
   | { type: 'RESET_GAME' };

@@ -17,7 +17,7 @@ import {
   TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle, ChevronDown, User
 } from 'lucide-react';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
 import { playSound } from './services/audioService';
@@ -29,13 +29,6 @@ import { Avatar, APPEARANCE_COLORS } from './components/Avatar';
 import { Switch } from './components/animate-ui/components/base/switch';
 import { Button } from './components/ui/button';
 import NavDock, { NavDockItem, NavDockLink, NavDockSep } from './components/ui/NavDock';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './components/ui/dropdown-menu';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
 import { supabase } from './lib/auth-client';
@@ -364,6 +357,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     // ERR-04: Surface action rejections from the server (rate limit or not-a-player)
     const handleActionError = (data: any) => {
       console.warn('[action_error]', data?.error);
+      if (data?.error) setSystemAlert(data.error);
     };
 
     const handleSocketDisconnect = () => setIsSocketDisconnected(true);

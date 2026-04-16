@@ -1,9 +1,20 @@
 import React from 'react';
 import { motion } from 'motion/react';
 
-interface NavDockItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface NavDockItemProps {
   children: React.ReactNode;
   className?: string;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
+  onMouseEnter?: React.MouseEventHandler<HTMLButtonElement>;
+  onMouseLeave?: React.MouseEventHandler<HTMLButtonElement>;
+  disabled?: boolean;
+  type?: 'button' | 'submit' | 'reset';
+  title?: string;
+  'aria-label'?: string;
+  'aria-expanded'?: boolean | 'true' | 'false';
+  'aria-haspopup'?: boolean | 'true' | 'false' | 'menu' | 'listbox' | 'tree' | 'grid' | 'dialog';
+  id?: string;
+  tabIndex?: number;
 }
 
 export const NavDockItem = React.forwardRef<HTMLButtonElement, NavDockItemProps>(
@@ -14,7 +25,7 @@ export const NavDockItem = React.forwardRef<HTMLButtonElement, NavDockItemProps>
       whileTap={{ scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 400, damping: 20 }}
       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/8 transition-colors text-sm font-medium cursor-pointer select-none focus:outline-none ${className}`}
-      {...rest}
+      {...(rest as any)}
     >
       {children}
     </motion.button>

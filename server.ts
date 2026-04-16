@@ -12,6 +12,7 @@ interface RoomData {
   isPrivate: boolean;
   maxPlayers: number;
   createdAt: number;
+  socketToGamePlayerId?: Record<string, number>;
 }
 
 // Dev-only logger — silent in production
@@ -20,16 +21,25 @@ const log = isDev ? (...args: any[]) => console.log(...args) : () => {};
 
 async function startServer() {
   // ── Startup env validation ──────────────────────────────────────────────────
+  const isProd = process.env.NODE_ENV === 'production';
   const missingCritical: string[] = [];
-  if (!process.env.ADMIN_TOKEN)    console.warn('[WARN] ADMIN_TOKEN not set — admin endpoints are unprotected');
-  if (!process.env.ADMIN_USERNAME) console.warn('[WARN] ADMIN_USERNAME not set — admin login uses insecure default');
-  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD not set — admin login uses insecure default');
+  if (!process.env.DATABASE_URL)              missingCritical.push('DATABASE_URL');
+  if (!process.env.SUPABASE_URL)              missingCritical.push('SUPABASE_URL');
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingCritical.push('SUPABASE_SERVICE_ROLE_KEY');
   if (missingCritical.length) {
     console.error('[FATAL] Missing required env vars:', missingCritical.join(', '));
     process.exit(1);
   }
+  if (!process.env.ADMIN_TOKEN)    console.warn('[WARN] ADMIN_TOKEN not set — admin endpoints are unprotected');
+  if (!process.env.ADMIN_USERNAME) console.warn('[WARN] ADMIN_USERNAME not set — admin login disabled');
+  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD not set — admin login disabled');
+  if (isProd && !process.env.ALLOWED_ORIGINS) {
+    console.warn('[WARN] ALLOWED_ORIGINS not set in production — Socket.io will accept connections from any origin');
+  }
 
   const app = express();
+  // SEC-04: Trust first proxy hop so req.ip reflects real client IP (used for rate limiting)
+  app.set('trust proxy', 1);
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = createHttpServer(app);
   // SEC-01: Restrict CORS to known origins; fall back to wildcard only in dev
@@ -53,6 +63,7 @@ async function startServer() {
   let eq: any = null;
   let and: any = null;
   let or: any = null;
+  let sql: any = null;
   let inArray: any = null;
   let ilike: any = null;
 
@@ -70,6 +81,7 @@ async function startServer() {
       eq = drizzle.eq;
       and = drizzle.and;
       or = drizzle.or;
+      sql = drizzle.sql;
       inArray = drizzle.inArray;
       ilike = drizzle.ilike;
       log("Supabase + DB loaded");
@@ -105,8 +117,17 @@ async function startServer() {
     pathModule.default.resolve(process.cwd(), "assets")
   ));
 
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok" });
+  app.get("/api/health", async (_req, res) => {
+    if (db && sql) {
+      try {
+        await db.execute(sql`SELECT 1`);
+        res.json({ status: "ok", db: "ok" });
+      } catch {
+        res.status(503).json({ status: "ok", db: "unreachable" });
+      }
+    } else {
+      res.json({ status: "ok", db: "disabled" });
+    }
   });
 
   // ── Bug Reports ───────────────────────────────────────────────────────────────
@@ -117,7 +138,7 @@ async function startServer() {
   }, 60_000);
 
   app.post('/api/bug-report', async (req, res) => {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    const ip = req.ip || 'unknown';
     const last = bugReportRateLimit.get(ip) ?? 0;
     if (Date.now() - last < 60_000) {
       return res.status(429).json({ error: 'Please wait before submitting another report.' });
@@ -199,7 +220,7 @@ async function startServer() {
     if (!ADMIN_USERNAME || !ADMIN_PASSWORD || !ADMIN_TOKEN) {
       return res.status(503).json({ success: false, error: 'Admin access not configured on this server.' });
     }
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    const ip = req.ip || 'unknown';
     if (isAdminLoginRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many login attempts.' });
     const { username, password } = req.body || {};
     if (safeEqual(String(username ?? ''), ADMIN_USERNAME) && safeEqual(String(password ?? ''), ADMIN_PASSWORD)) {
@@ -214,7 +235,9 @@ async function startServer() {
   });
 
   app.post('/api/admin/boards', requireAdmin, (req, res) => {
-    const board = { ...req.body, id: randomUUID(), createdAt: Date.now() };
+    // SEC-03: Whitelist known fields — never spread raw req.body into stored objects
+    const { name, boardSize, tiles } = req.body ?? {};
+    const board = { name, boardSize, tiles, id: randomUUID(), createdAt: Date.now() };
     adminBoards.set(board.id, board);
     res.json({ success: true, board });
   });
@@ -222,7 +245,8 @@ async function startServer() {
   app.put('/api/admin/boards/:id', requireAdmin, (req, res) => {
     const existing = adminBoards.get(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Board not found' });
-    const updated = { ...existing, ...req.body, id: existing.id, createdAt: existing.createdAt };
+    const { name, boardSize, tiles } = req.body ?? {};
+    const updated = { ...existing, name, boardSize, tiles, id: existing.id, createdAt: existing.createdAt };
     adminBoards.set(existing.id, updated);
     if (activeAdminBoard?.id === existing.id) activeAdminBoard = updated;
     res.json({ success: true, board: updated });
@@ -422,7 +446,7 @@ async function startServer() {
 
   // REST API: Create a room
   app.post("/api/rooms", (req, res) => {
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || 'unknown';
+    const ip = req.ip || 'unknown';
     if (isRoomCreateRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many requests. Please wait.' });
     const data = req.body;
     // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
@@ -1002,29 +1026,39 @@ async function startServer() {
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
 
     const { itemId } = req.body ?? {};
-    if (!itemId) return res.status(400).json({ error: 'itemId required' });
+    if (!itemId || typeof itemId !== 'string') return res.status(400).json({ error: 'itemId required' });
 
     try {
-      // Load item
+      // Load item outside transaction (read-only, no race risk)
       const [item] = await db.select().from(schema.storeItem).where(and(eq(schema.storeItem.id, itemId), eq(schema.storeItem.active, true)));
       if (!item) return res.status(404).json({ error: 'Item not found' });
 
-      // Load user coins
-      const [userData] = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));
-      if (!userData) return res.status(404).json({ error: 'User not found' });
+      // SEC-01/02: Atomic transaction — prevents double-spend race and duplicate purchases
+      let newCoins: number;
+      try {
+        newCoins = await db.transaction(async (tx: any) => {
+          // Re-check ownership inside transaction
+          const [existing] = await tx.select({ id: schema.purchase.id })
+            .from(schema.purchase)
+            .where(and(eq(schema.purchase.userId, sessionUser.id), eq(schema.purchase.itemId, itemId)));
+          if (existing) throw Object.assign(new Error('Already owned'), { code: 'ALREADY_OWNED' });
 
-      if (userData.coins < item.priceCoins) return res.status(400).json({ error: 'Insufficient coins' });
+          // Atomic deduction: only succeeds if coins >= price at this exact moment
+          const [updated] = await tx.update(schema.profiles)
+            .set({ coins: sql`coins - ${item.priceCoins}` })
+            .where(and(eq(schema.profiles.id, sessionUser.id), sql`coins >= ${item.priceCoins}`))
+            .returning({ coins: schema.profiles.coins });
 
-      // Check not already owned
-      const [existing] = await db.select().from(schema.purchase).where(and(eq(schema.purchase.userId, sessionUser.id), eq(schema.purchase.itemId, itemId)));
-      if (existing) return res.status(400).json({ error: 'Already owned' });
+          if (!updated) throw Object.assign(new Error('Insufficient coins'), { code: 'INSUFFICIENT_COINS' });
 
-      // Deduct coins + record purchase (in parallel)
-      const newCoins = userData.coins - item.priceCoins;
-      await Promise.all([
-        db.update(schema.profiles).set({ coins: newCoins }).where(eq(schema.profiles.id, sessionUser.id)),
-        db.insert(schema.purchase).values({ id: randomUUID(), userId: sessionUser.id, itemId, purchasedAt: new Date() }),
-      ]);
+          await tx.insert(schema.purchase).values({ id: randomUUID(), userId: sessionUser.id, itemId, purchasedAt: new Date() });
+          return updated.coins;
+        });
+      } catch (txErr: any) {
+        if (txErr?.code === 'ALREADY_OWNED') return res.status(400).json({ error: 'Already owned' });
+        if (txErr?.code === 'INSUFFICIENT_COINS') return res.status(400).json({ error: 'Insufficient coins' });
+        throw txErr;
+      }
 
       res.json({ success: true, coins: newCoins });
     } catch (err: any) {
@@ -1051,14 +1085,20 @@ async function startServer() {
     const { role, banned, banReason, coins, name, addCoins } = req.body ?? {};
     const updates: Record<string, any> = {};
     if (role !== undefined) updates.role = role;
-    if (banned !== undefined) updates.banned = banned;
+    if (banned !== undefined) updates.banned = Boolean(banned);
     if (banReason !== undefined) updates.banReason = banReason;
-    if (coins !== undefined) updates.coins = Number(coins);
+    if (coins !== undefined) {
+      const parsedCoins = Number(coins);
+      if (!isFinite(parsedCoins)) return res.status(400).json({ error: 'Invalid coins value' });
+      updates.coins = Math.max(0, Math.floor(parsedCoins));
+    }
     if (name !== undefined) updates.name = String(name).trim().slice(0, 40);
     try {
       if (addCoins !== undefined && addCoins !== 0) {
+        const delta = Number(addCoins);
+        if (!isFinite(delta)) return res.status(400).json({ error: 'Invalid addCoins value' });
         const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, req.params.id));
-        if (rows.length) updates.coins = Math.max(0, (rows[0].coins || 0) + Number(addCoins));
+        if (rows.length) updates.coins = Math.max(0, Math.floor((rows[0].coins || 0) + delta));
       }
       await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, req.params.id));
       res.json({ success: true });
@@ -1402,5 +1442,15 @@ async function startServer() {
     log(`Server running on http://localhost:${PORT}`);
   });
 }
+
+// SEC-05: Global crash guards — prevent a single unhandled async error from killing the process
+process.on('unhandledRejection', (reason: any) => {
+  console.error('[UNHANDLED_REJECTION]', reason?.stack || reason);
+});
+process.on('uncaughtException', (err: Error) => {
+  console.error('[UNCAUGHT_EXCEPTION]', err.stack || err.message);
+  // Give the process a moment to flush logs, then exit so the process manager restarts cleanly
+  setTimeout(() => process.exit(1), 500);
+});
 
 startServer();
