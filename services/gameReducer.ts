@@ -54,6 +54,7 @@ export type Action =
   | { type: 'DECLINE_TRADE' }
   | { type: 'CANCEL_TRADE' }
   | { type: 'PAY_JAIL_FINE' }
+  | { type: 'USE_JAIL_CARD' }
   | { type: 'ATTEMPT_JAIL_ROLL' }
   | { type: 'SKIP_JAIL_TURN' }
   | { type: 'START_AUCTION' }
@@ -550,12 +551,14 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         }
 
         if (card.type === 'JAIL_FREE') {
-          // For simplicity: give them $50 as a stand-in (full GOOJF tracking is a future feature)
+          // GL-11: Proper "Get Out of Jail Free" — add to the player's held count. Consumed
+          // later via USE_JAIL_CARD (player choice) or auto-applied on forced jail exit.
+          const currentCards = updatedPlayers[state.currentPlayerIndex].jailFreeCards ?? 0;
           updatedPlayers[state.currentPlayerIndex] = {
             ...updatedPlayers[state.currentPlayerIndex],
-            money: updatedPlayers[state.currentPlayerIndex].money + 50,
+            jailFreeCards: currentCards + 1,
           };
-          logs = addLog(logs, `${player.name} drew: "${card.description}" (+$50 equivalent)`);
+          logs = addLog(logs, `${player.name} drew: "${card.description}"`);
           return withSound({ ...state, players: updatedPlayers, logs, phase: 'TURN_END' }, 'buy');
         }
 
@@ -686,6 +689,31 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           logs: addLog(state.logs, `${player.name} paid $${GAME_CONSTANTS.JAIL_FINE} to leave Jail.`),
         },
         'pay'
+      );
+    }
+
+    // ─── USE_JAIL_CARD ─────────────────────────────────────────────────────────
+    // GL-11: Consume a held "Get Out of Jail Free" card to leave jail without paying.
+    case 'USE_JAIL_CARD': {
+      const player = state.players[state.currentPlayerIndex];
+      if (!player.inJail) return state;
+      const held = player.jailFreeCards ?? 0;
+      if (held <= 0) return state;
+      const newPlayers = [...state.players];
+      newPlayers[state.currentPlayerIndex] = {
+        ...player,
+        inJail: false,
+        jailTurns: 0,
+        jailFreeCards: held - 1,
+      };
+      return withSound(
+        {
+          ...state,
+          players: newPlayers,
+          phase: 'ROLL',
+          logs: addLog(state.logs, `${player.name} used a "Get Out of Jail Free" card!`),
+        },
+        'buy'
       );
     }
 
@@ -1092,10 +1120,13 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // Only the current player can downgrade their own buildings
       if (tile.ownerId !== state.players[state.currentPlayerIndex]?.id) return state;
 
-      // Enforce even-build: can only sell from the tile with the MOST buildings in its group
-      const groupTiles = state.tiles.filter(t => t.group === tile.group && t.ownerId === tile.ownerId);
-      const maxBuildings = Math.max(...groupTiles.map(t => t.buildingCount));
-      if (tile.buildingCount < maxBuildings) return state;
+      // GL-3: Mirror UPGRADE's evenBuild gate. Enforce even-build on sell only when the
+      // rule is enabled — can only sell from the tile with the MOST buildings in its group.
+      if (state.settings.rules.evenBuild) {
+        const groupTiles = state.tiles.filter(t => t.group === tile.group && t.ownerId === tile.ownerId);
+        const maxBuildings = Math.max(...groupTiles.map(t => t.buildingCount));
+        if (tile.buildingCount < maxBuildings) return state;
+      }
 
       const refund = Math.floor(tile.houseCost * 0.5);
       const newPlayers = [...state.players];

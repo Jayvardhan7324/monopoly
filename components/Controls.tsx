@@ -245,6 +245,15 @@ export const Controls: React.FC<ControlsProps> = ({
                           <Coins size={14} />
                           Bail ${GAME_CONSTANTS.JAIL_FINE}
                         </button>
+                        {(currentPlayer.jailFreeCards ?? 0) > 0 && (
+                          <button
+                            onClick={() => dispatch({ type: 'USE_JAIL_CARD' })}
+                            className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs shadow-lg shadow-amber-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
+                            aria-label={`Use Get Out of Jail Free card (${currentPlayer.jailFreeCards} held)`}
+                          >
+                            🎟️ Use Card ({currentPlayer.jailFreeCards})
+                          </button>
+                        )}
                         <button
                           onClick={() => dispatch({ type: 'ATTEMPT_JAIL_ROLL' })}
                           className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"

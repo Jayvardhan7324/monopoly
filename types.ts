@@ -51,6 +51,9 @@ export interface Player {
   isBankrupt: boolean;
   inJail: boolean;
   jailTurns: number;
+  // GL-11: Number of "Get Out of Jail Free" cards held. Consumed by USE_JAIL_CARD action.
+  // Optional so older persisted sessions without the field still decode.
+  jailFreeCards?: number;
   personality?: BotPersonalityType;
   avatarId?: number;
   profileImage?: string;

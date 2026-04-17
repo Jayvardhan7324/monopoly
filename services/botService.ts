@@ -15,6 +15,7 @@ import { GAME_CONSTANTS } from '../constants';
 export type BotAction =
   | { type: 'ROLL_DICE' }
   | { type: 'PAY_JAIL_FINE' }
+  | { type: 'USE_JAIL_CARD' }
   | { type: 'ATTEMPT_JAIL_ROLL' }
   | { type: 'BUY_PROPERTY' }
   | { type: 'START_AUCTION' }
@@ -186,8 +187,17 @@ export function getBotAction(gameState: GameState): BotAction {
       if (currentPlayer.money > 800) payProbability += 0.2;
       // Each turn in jail increases urgency
       payProbability += currentPlayer.jailTurns * 0.15;
+      // GL-11: If holding a Get Out of Jail Free card AND the bot decided to leave, prefer
+      // using the card over paying cash (free). Save card for monopoly sprints only:
+      // bot spends it when it'd otherwise pay the fine OR on its forced-last turn.
+      const heldJailCards = currentPlayer.jailFreeCards ?? 0;
+      const forcedExit = currentPlayer.jailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS - 1;
+      const wantsToLeave = forcedExit || (currentPlayer.money >= GAME_CONSTANTS.JAIL_FINE && decide(payProbability));
+      if (wantsToLeave && heldJailCards > 0) {
+        return { type: 'USE_JAIL_CARD' };
+      }
       // Last turn: must decide
-      if (currentPlayer.jailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS - 1 && currentPlayer.money >= GAME_CONSTANTS.JAIL_FINE) {
+      if (forcedExit && currentPlayer.money >= GAME_CONSTANTS.JAIL_FINE) {
         return { type: 'PAY_JAIL_FINE' };
       }
 

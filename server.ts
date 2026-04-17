@@ -3,6 +3,7 @@ import compression from "compression";
 import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { randomBytes, randomUUID, timingSafeEqual } from "crypto";
+import { PLAYER_ALLOWED_ACTIONS } from "./services/actionPolicy";
 
 interface RoomData {
   host: string;
@@ -348,16 +349,21 @@ async function startServer() {
     } else {
       // Transfer host if the removed player was host
       if (room.host === player.id) {
-        const next = room.players.find((p: any) => !p.disconnected) || room.players[0];
-        const heir = next;
-        room.host = heir.id;
-        heir.isHost = true;
-        room.hostName = heir.name || 'Player';
-        // B4: Sync full game state to new host and inform them of their new role
-        if (room.state) {
-          io.to(heir.id).emit("sync_state", { state: room.state });
+        // GL-6: Prefer a currently connected player; only fall back to any remaining slot if
+        // everyone is offline. Skip emitting "you_are_host" when the heir is disconnected so
+        // join_session can re-promote them on reconnect.
+        const next = room.players.find((p: any) => !p.disconnected);
+        const heir = next || room.players[0];
+        if (heir) {
+          room.host = heir.id;
+          heir.isHost = true;
+          room.hostName = heir.name || 'Player';
+          // B4: Sync full game state to new host and inform them of their new role
+          if (next && room.state) {
+            io.to(heir.id).emit("sync_state", { state: room.state });
+          }
+          if (next) io.to(heir.id).emit("you_are_host");
         }
-        io.to(heir.id).emit("you_are_host");
       }
       io.to(roomId).emit("room_updated", { players: room.players });
       // B3: If the removed player was the current turn player, force turn advancement
@@ -403,8 +409,29 @@ async function startServer() {
     return `${adj}${noun}`;
   }
 
+  // SEC-11: Whitelist alphanumerics + a few safe separators. Strips HTML metachars
+  // (<, >, ", ', &), backticks, and anything that could land unescaped in rendered chat.
+  // SEC-10: Reject prototype-pollution sentinels as names so they can never be used as object keys.
+  const NAME_BLOCKLIST = new Set(['__proto__', 'prototype', 'constructor']);
   function sanitizeName(name: any): string {
-    return (String(name || '')).replace(/[^\x20-\x7E]/g, '').trim().slice(0, 20);
+    const cleaned = String(name || '')
+      .replace(/[^A-Za-z0-9 _\-]/g, '')
+      .trim()
+      .slice(0, 20);
+    if (NAME_BLOCKLIST.has(cleaned.toLowerCase())) return '';
+    return cleaned;
+  }
+
+  // SEC-4: HTML-escape text before it is broadcast to any client that may render it.
+  // React auto-escapes via text interpolation, but this is defence-in-depth for logs,
+  // admin dashboards, and any consumer that forgets to escape.
+  function escapeHtml(input: string): string {
+    return input
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
   }
 
   function getUniqueName(baseName: string, players: any[]) {
@@ -825,22 +852,51 @@ async function startServer() {
         if (!room) return;
         const chatPlayer = room.players.find((p: any) => p.id === socket.id);
         if (!chatPlayer) return;
-        io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: data.text, time: data.time });
+        // SEC-4: Strip control characters and HTML-escape before broadcast.
+        const safeText = escapeHtml(data.text.replace(/[\u0000-\u001F\u007F]/g, '').trim());
+        if (!safeText) return;
+        io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: safeText, time: data.time });
       }
     });
 
-    // SEC-05: Allowlist of action types non-host players may submit
-    const PLAYER_ALLOWED_ACTIONS = new Set([
-      'ROLL_DICE', 'BUY_PROPERTY', 'ATTEMPT_JAIL_ROLL', 'SKIP_JAIL_TURN', 'PAY_JAIL_FINE',
-      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY', 'DOWNGRADE_PROPERTY', 'SELL_PROPERTY',
-      'PROPOSE_TRADE', 'ACCEPT_TRADE', 'DECLINE_TRADE', 'CANCEL_TRADE',
-      'PLACE_BID', 'END_TURN', 'DECLARE_BANKRUPT',
-      'VOTE_KICK', 'CANCEL_VOTE_KICK',
-    ]);
+    // SEC-05 / CQ-8: Allowlist lives in services/actionPolicy.ts — shared with App.tsx host gate.
+
+    // SEC-9: Reject action payloads that are abusively large or deeply nested. Prevents a
+    // malicious client from tying up the host with pathological JSON structures.
+    const MAX_PAYLOAD_BYTES = 16 * 1024;
+    const MAX_PAYLOAD_DEPTH = 5;
+    function payloadDepth(v: any, depth = 0): number {
+      if (depth > MAX_PAYLOAD_DEPTH) return depth;
+      if (v === null || typeof v !== 'object') return depth;
+      let max = depth;
+      for (const key of Object.keys(v)) {
+        // SEC-10: Prototype-pollution sentinel guard on any key we might later iterate.
+        if (key === '__proto__' || key === 'prototype' || key === 'constructor') return MAX_PAYLOAD_DEPTH + 1;
+        const next = payloadDepth(v[key], depth + 1);
+        if (next > max) max = next;
+        if (max > MAX_PAYLOAD_DEPTH) return max;
+      }
+      return max;
+    }
 
     socket.on("game_action", (data) => {
       if (isRateLimited('action')) {
         socket.emit("action_error", { error: "Too many actions — slow down" });
+        return;
+      }
+      // SEC-9: Size + depth guard before we spend more CPU on this action.
+      try {
+        const serialised = JSON.stringify(data ?? {});
+        if (serialised.length > MAX_PAYLOAD_BYTES) {
+          socket.emit("action_error", { error: "Action payload too large" });
+          return;
+        }
+        if (payloadDepth(data) > MAX_PAYLOAD_DEPTH) {
+          socket.emit("action_error", { error: "Action payload too deeply nested" });
+          return;
+        }
+      } catch {
+        socket.emit("action_error", { error: "Invalid action payload" });
         return;
       }
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
@@ -1183,6 +1239,10 @@ async function startServer() {
   app.get('/api/profile/:userId', async (req, res) => {
     try {
       const { userId } = req.params;
+      // SEC-7: Email is PII — only return it when the requester IS the profile owner.
+      // Anyone else sees the public-facing subset (name, image, stats, friend count).
+      const viewer = await getSessionUser(req).catch(() => null);
+      const isSelf = !!(viewer && viewer.id === userId);
       const users = await db.select().from(schema.profiles).where(eq(schema.profiles.id, userId));
       if (!users.length) return res.status(404).json({ error: 'User not found' });
       const u = users[0];
@@ -1207,7 +1267,17 @@ async function startServer() {
             )
           )
         : [];
-      res.json({ id: u.id, name: u.name, email: u.email, image: u.image, coins: u.coins, createdAt: u.createdAt, stats, friendCount: friendRows.length });
+      res.json({
+        id: u.id,
+        name: u.name,
+        // SEC-7: gate email on self-request
+        email: isSelf ? u.email : undefined,
+        image: u.image,
+        coins: u.coins,
+        createdAt: u.createdAt,
+        stats,
+        friendCount: friendRows.length,
+      });
     } catch {
       res.status(500).json({ error: 'Failed to load profile' });
     }

@@ -1,6 +1,7 @@
 import React, { useReducer, useEffect, useState, useRef, useMemo } from 'react';
 import { SetCompleteAnimation } from './components/SetCompleteAnimation';
 import { gameReducer, initialState } from './services/gameReducer';
+import { PLAYER_ALLOWED_ACTIONS } from './services/actionPolicy';
 import { getBotAction, getBotBidAction } from './services/botService';
 import { Board } from './components/Board';
 import { Controls } from './components/Controls';
@@ -302,14 +303,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     };
 
     // NET-01: Read isHostRef.current (not closed-over isHost) so handler never goes stale
-    // SEC-05: Only dispatch allowlisted action types from non-host players
-    const PLAYER_ALLOWED_ACTIONS = new Set([
-      'ROLL_DICE', 'BUY_PROPERTY', 'ATTEMPT_JAIL_ROLL', 'SKIP_JAIL_TURN', 'PAY_JAIL_FINE',
-      'MORTGAGE_PROPERTY', 'UNMORTGAGE_PROPERTY', 'UPGRADE_PROPERTY', 'DOWNGRADE_PROPERTY', 'SELL_PROPERTY',
-      'PROPOSE_TRADE', 'ACCEPT_TRADE', 'DECLINE_TRADE', 'CANCEL_TRADE',
-      'PLACE_BID', 'END_TURN', 'DECLARE_BANKRUPT',
-      'VOTE_KICK', 'CANCEL_VOTE_KICK',
-    ]);
+    // SEC-05 / CQ-8: Allowlist lives in services/actionPolicy.ts — imported to avoid drift.
     const handleHostProcessAction = (action: any) => {
       if (isHostRef.current && action?.type && PLAYER_ALLOWED_ACTIONS.has(action.type)) {
         dispatch(action);
