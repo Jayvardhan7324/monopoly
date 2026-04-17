@@ -105,11 +105,11 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
         if (cornerName === 'vacation')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full relative bg-gradient-to-br from-[#1c2236] to-[#162030] overflow-hidden">
-              <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
-              <span className="text-[10px] text-slate-200 mt-1 font-bold">Vacation</span>
+              <TreePalm size={32} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
+              <span className="text-[9px] text-slate-200 mt-0.5 font-bold">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <div className="mt-0.5 bg-emerald-500/20 px-1.5 py-0.5 rounded-md border border-emerald-500/40">
-                  <span className="text-[10px] font-mono text-emerald-400 font-bold">${taxPool}</span>
+                <div className="mt-0.5 bg-emerald-500/20 px-1 py-[1px] rounded-[4px] border border-emerald-500/40 leading-none">
+                  <span className="text-[7px] font-mono text-emerald-400 font-bold">${taxPool}</span>
                 </div>
               )}
             </div>

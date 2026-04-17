@@ -174,8 +174,10 @@ async function startServer() {
       ? (imageUrl.length <= 1_500_000 ? imageUrl : null)
       : null;
     bugReportRateLimit.set(ip, Date.now());
+    if (!db || !schema) { return res.status(503).json({ error: 'Database not configured.' }); }
     try {
       await db.insert(schema.bugReport).values({
+        id: randomUUID(),
         title: title.trim().slice(0, 120),
         description: description.trim().slice(0, 2000),
         imageUrl: cleanImageUrl,
@@ -183,7 +185,8 @@ async function startServer() {
         userAgent: (req.headers['user-agent'] ?? '').slice(0, 300),
       });
       res.json({ success: true });
-    } catch {
+    } catch (e: any) {
+      console.error('[bug-report insert failed]', e?.message ?? e);
       res.status(500).json({ error: 'Failed to save report.' });
     }
   });
@@ -214,8 +217,26 @@ async function startServer() {
   const ADMIN_TOKEN    = process.env.ADMIN_TOKEN    || '';
   const ADMIN_USERNAME = process.env.ADMIN_USERNAME || '';
   const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
-  const adminBoards = new Map<string, any>();
+  // In-memory cache of the pushed board for fast /api/active-board reads.
+  // Source of truth is the admin_board table (is_active flag).
   let activeAdminBoard: any = null;
+
+  // Helper: shape a DB row into the legacy client shape (flat fields, ms timestamps).
+  const rowToBoard = (r: any) => r ? ({
+    id: r.id,
+    name: r.name,
+    boardSize: r.boardSize,
+    tiles: r.tiles,
+    createdAt: r.createdAt instanceof Date ? r.createdAt.getTime() : r.createdAt,
+  }) : null;
+
+  // Load active board from DB on startup so it survives restarts.
+  if (db && schema) {
+    try {
+      const rows = await db.select().from(schema.adminBoard).where(eq(schema.adminBoard.isActive, true)).limit(1);
+      if (rows[0]) activeAdminBoard = rowToBoard(rows[0]);
+    } catch (e: any) { log('admin_board startup load failed:', e?.message); }
+  }
 
   // SEC: Timing-safe string comparison to prevent token oracle attacks
   function safeEqual(a: string, b: string): boolean {
@@ -249,41 +270,93 @@ async function startServer() {
     }
   });
 
-  app.get('/api/admin/boards', requireAdmin, (_req, res) => {
-    res.json({ boards: Array.from(adminBoards.values()), activeBoard: activeAdminBoard });
+  const requireDB = (res: any) => {
+    if (!db || !schema) { res.status(503).json({ error: 'Database not configured' }); return false; }
+    return true;
+  };
+
+  app.get('/api/admin/boards', requireAdmin, async (_req, res) => {
+    if (!requireDB(res)) return;
+    try {
+      const rows = await db.select().from(schema.adminBoard).orderBy(schema.adminBoard.createdAt);
+      res.json({
+        boards: rows.reverse().map(rowToBoard),
+        activeBoard: activeAdminBoard,
+      });
+    } catch (e: any) {
+      log('admin boards list failed:', e?.message);
+      res.status(500).json({ error: 'Failed to load boards' });
+    }
   });
 
-  app.post('/api/admin/boards', requireAdmin, (req, res) => {
+  app.post('/api/admin/boards', requireAdmin, async (req, res) => {
+    if (!requireDB(res)) return;
     // SEC-03: Whitelist known fields — never spread raw req.body into stored objects
     const { name, boardSize, tiles } = req.body ?? {};
-    const board = { name, boardSize, tiles, id: randomUUID(), createdAt: Date.now() };
-    adminBoards.set(board.id, board);
-    res.json({ success: true, board });
+    if (!name || typeof name !== 'string' || !Array.isArray(tiles)) {
+      return res.status(400).json({ error: 'Invalid board payload' });
+    }
+    try {
+      const [row] = await db.insert(schema.adminBoard).values({
+        name: name.slice(0, 100),
+        boardSize: Number(boardSize) || 40,
+        tiles,
+      }).returning();
+      res.json({ success: true, board: rowToBoard(row) });
+    } catch (e: any) {
+      log('admin board save failed:', e?.message);
+      res.status(500).json({ error: 'Failed to save board' });
+    }
   });
 
-  app.put('/api/admin/boards/:id', requireAdmin, (req, res) => {
-    const existing = adminBoards.get(req.params.id);
-    if (!existing) return res.status(404).json({ error: 'Board not found' });
+  app.put('/api/admin/boards/:id', requireAdmin, async (req, res) => {
+    if (!requireDB(res)) return;
     const { name, boardSize, tiles } = req.body ?? {};
-    const updated = { ...existing, name, boardSize, tiles, id: existing.id, createdAt: existing.createdAt };
-    adminBoards.set(existing.id, updated);
-    if (activeAdminBoard?.id === existing.id) activeAdminBoard = updated;
-    res.json({ success: true, board: updated });
+    if (!name || !Array.isArray(tiles)) return res.status(400).json({ error: 'Invalid board payload' });
+    try {
+      const [row] = await db.update(schema.adminBoard)
+        .set({ name: name.slice(0, 100), boardSize: Number(boardSize) || 40, tiles, updatedAt: new Date() })
+        .where(eq(schema.adminBoard.id, req.params.id))
+        .returning();
+      if (!row) return res.status(404).json({ error: 'Board not found' });
+      if (activeAdminBoard?.id === row.id) activeAdminBoard = rowToBoard(row);
+      res.json({ success: true, board: rowToBoard(row) });
+    } catch (e: any) {
+      log('admin board update failed:', e?.message);
+      res.status(500).json({ error: 'Failed to update board' });
+    }
   });
 
-  app.delete('/api/admin/boards/:id', requireAdmin, (req, res) => {
-    adminBoards.delete(req.params.id);
-    if (activeAdminBoard?.id === req.params.id) activeAdminBoard = null;
-    res.json({ success: true });
+  app.delete('/api/admin/boards/:id', requireAdmin, async (req, res) => {
+    if (!requireDB(res)) return;
+    try {
+      await db.delete(schema.adminBoard).where(eq(schema.adminBoard.id, req.params.id));
+      if (activeAdminBoard?.id === req.params.id) activeAdminBoard = null;
+      res.json({ success: true });
+    } catch (e: any) {
+      log('admin board delete failed:', e?.message);
+      res.status(500).json({ error: 'Failed to delete board' });
+    }
   });
 
-  app.post('/api/admin/boards/:id/push', requireAdmin, (req, res) => {
-    const board = adminBoards.get(req.params.id);
-    if (!board) return res.status(404).json({ error: 'Board not found' });
-    activeAdminBoard = board;
-    io.emit('admin_board_pushed', { board });
-    log(`Admin pushed board "${board.name}" to all clients.`);
-    res.json({ success: true });
+  app.post('/api/admin/boards/:id/push', requireAdmin, async (req, res) => {
+    if (!requireDB(res)) return;
+    try {
+      // Flip is_active=false on all others, then true on target (enforced by partial unique idx)
+      await db.update(schema.adminBoard).set({ isActive: false }).where(eq(schema.adminBoard.isActive, true));
+      const [row] = await db.update(schema.adminBoard)
+        .set({ isActive: true, updatedAt: new Date() })
+        .where(eq(schema.adminBoard.id, req.params.id))
+        .returning();
+      if (!row) return res.status(404).json({ error: 'Board not found' });
+      activeAdminBoard = rowToBoard(row);
+      io.emit('admin_board_pushed', { board: activeAdminBoard });
+      log(`Admin pushed board "${row.name}" to all clients.`);
+      res.json({ success: true });
+    } catch (e: any) {
+      log('admin board push failed:', e?.message);
+      res.status(500).json({ error: 'Failed to push board' });
+    }
   });
 
   // Public — clients fetch active board on page load / before starting game

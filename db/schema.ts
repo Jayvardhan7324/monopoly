@@ -163,3 +163,17 @@ export const userAchievements = pgTable("user_achievements", {
   index("user_achievements_user_idx").on(t.userId),
   uniqueIndex("user_achievements_user_ach_unique").on(t.userId, t.achievementId),
 ]);
+
+// ── Admin Boards ──────────────────────────────────────────────────────────────
+// Persistent storage for admin-designed board templates (two-way DB sync).
+export const adminBoard = pgTable("admin_board", {
+  id:        text("id").primaryKey().$defaultFn(() => randomUUID()),
+  name:      text("name").notNull(),
+  boardSize: integer("board_size").notNull().default(40),
+  tiles:     jsonb("tiles").notNull(),
+  isActive:  boolean("is_active").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("admin_board_active_idx").on(t.isActive),
+]);
