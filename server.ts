@@ -704,8 +704,10 @@ async function startServer() {
               player.name = getUniqueName(sanitizeName(data.name), otherPlayers);
             }
             if (data.avatar !== undefined) {
-              // SEC: Only accept well-formed avatar values (hex colors or short alphanumeric tokens)
-              if (typeof data.avatar !== 'string' || !/^[#a-zA-Z0-9_-]{1,30}$/.test(data.avatar)) {
+              // SEC: Accept numeric palette index (0..31) OR a short alphanumeric/hex token
+              const isValidNum = typeof data.avatar === 'number' && Number.isInteger(data.avatar) && data.avatar >= 0 && data.avatar < 32;
+              const isValidStr = typeof data.avatar === 'string' && /^[#a-zA-Z0-9_-]{1,30}$/.test(data.avatar);
+              if (!isValidNum && !isValidStr) {
                 if (callback) callback({ success: false, error: 'Invalid avatar' });
                 return;
               }
@@ -1342,9 +1344,11 @@ async function startServer() {
     const updates: Record<string, any> = { updatedAt: new Date() };
     if (name && typeof name === 'string') updates.name = name.trim().slice(0, 40);
     if (image && typeof image === 'string') {
-      // SEC: Only accept HTTPS URLs up to 500 chars to prevent arbitrary string injection
+      // SEC: Accept HTTPS URLs (<=500 chars) or our SVG-emoji data URIs (<=2000 chars)
       const trimmedImage = image.trim();
-      if (trimmedImage.startsWith('https://') && trimmedImage.length <= 500) {
+      const isHttps = trimmedImage.startsWith('https://') && trimmedImage.length <= 500;
+      const isSvgData = trimmedImage.startsWith('data:image/svg+xml,') && trimmedImage.length <= 2000;
+      if (isHttps || isSvgData) {
         updates.image = trimmedImage;
       }
     }

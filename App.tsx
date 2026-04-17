@@ -15,7 +15,8 @@ import {
   Play, Settings, Users, UsersRound, Info, ShieldCheck, Globe, Lock, Cpu,
   LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
-  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle, ChevronDown, User
+  TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle, ChevronDown, User,
+  Building2, Wallet, Gem, Briefcase, Medal, Gift, Car, Anchor, Train
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
@@ -1823,12 +1824,19 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           </nav>
 
           {/* Floating Icons Background */}
-          <div className="absolute inset-0 pointer-events-none overflow-hidden">
-            <div className="absolute top-[20%] left-[15%] opacity-10 rotate-12"><Landmark size={64} /></div>
-            <div className="absolute top-[60%] left-[10%] opacity-10 -rotate-12"><Package size={48} /></div>
-            <div className="absolute top-[30%] right-[15%] opacity-10 rotate-45"><Zap size={56} /></div>
-            <div className="absolute top-[70%] right-[20%] opacity-10 -rotate-12"><Plane size={64} /></div>
-            <div className="absolute bottom-[10%] left-[40%] opacity-10 rotate-12"><Dices size={72} /></div>
+          <div className="absolute inset-0 pointer-events-none overflow-hidden text-slate-400">
+            <div className="absolute top-[12%] left-[15%] opacity-[0.09] rotate-12"><Landmark size={64} /></div>
+            <div className="absolute top-[60%] left-[8%] opacity-[0.08] -rotate-12"><Package size={48} /></div>
+            <div className="absolute top-[28%] right-[14%] opacity-[0.09] rotate-45"><Zap size={56} /></div>
+            <div className="absolute top-[72%] right-[18%] opacity-[0.08] -rotate-12"><Plane size={60} /></div>
+            <div className="absolute bottom-[8%] left-[40%] opacity-[0.09] rotate-12"><Dices size={72} /></div>
+            <div className="absolute top-[42%] left-[45%] opacity-[0.07] -rotate-6"><Building2 size={56} /></div>
+            <div className="absolute top-[18%] right-[38%] opacity-[0.08] rotate-6"><Coins size={44} /></div>
+            <div className="absolute bottom-[24%] right-[8%] opacity-[0.08] rotate-12"><Gem size={48} /></div>
+            <div className="absolute top-[82%] left-[24%] opacity-[0.07] -rotate-12"><Car size={52} /></div>
+            <div className="absolute top-[8%] left-[50%] opacity-[0.07] rotate-6"><Train size={52} /></div>
+            <div className="absolute bottom-[36%] left-[20%] opacity-[0.07] -rotate-6"><Wallet size={46} /></div>
+            <div className="absolute top-[50%] right-[30%] opacity-[0.07] rotate-12"><Trophy size={46} /></div>
           </div>
 
 

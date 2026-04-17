@@ -86,13 +86,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           return (
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
               <span className="text-2xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)] pb-1">Start</span>
-              <motion.div
-                animate={{ x: [0, 4, 0] }}
-                transition={{ repeat: Infinity, duration: 1.5, ease: 'easeInOut' }}
-                style={{ willChange: 'transform' }}
-              >
-                <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
-              </motion.div>
+              <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
             </div>
           );
         if (tile.name === 'In Prison')

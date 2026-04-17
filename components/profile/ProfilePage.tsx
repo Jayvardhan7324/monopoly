@@ -3,10 +3,11 @@ import { motion } from 'motion/react';
 import {
   Trophy, Coins, LogOut, Calendar, Gamepad2,
   Loader2, Pencil, Check, X, Users, Star, ArrowLeft,
-  Package, Clock,
+  Package, Clock, Camera,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { authFetch } from '../../lib/auth-client';
+import AvatarPickerModal from './AvatarPickerModal';
 
 interface Props {
   sessionData: { user: { id: string; name: string; email: string; image?: string } };
@@ -58,6 +59,7 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(sessionData.user.name ?? '');
   const [saving, setSaving] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   useEffect(() => {
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
@@ -90,6 +92,16 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
     } catch { toast.error('Failed to save'); } finally { setSaving(false); }
   };
 
+  const saveAvatar = async (url: string) => {
+    try {
+      const res = await authFetch('/api/profile', { method: 'PATCH', body: JSON.stringify({ image: url }) });
+      if (!res.ok) { toast.error('Failed to update picture'); return; }
+      setProfile(prev => prev ? { ...prev, image: url } : prev);
+      onProfileUpdated?.(currentName, url);
+      toast.success('Profile picture updated!');
+    } catch { toast.error('Failed to update picture'); }
+  };
+
   return (
     <div className="w-full h-full flex flex-col bg-[#13131a] overflow-hidden">
       {/* Top bar */}
@@ -115,15 +127,25 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
           {/* ── Profile header ──────────────────────────────────── */}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {/* Avatar */}
-            <div className="relative shrink-0">
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="relative shrink-0 group/avatar"
+              aria-label="Change profile picture"
+            >
               {currentImage ? (
-                <img src={currentImage} className="h-[90px] w-[90px] rounded-full object-cover border-4 border-slate-700/60" alt="" />
+                <img src={currentImage} className="h-[90px] w-[90px] rounded-full object-cover border-4 border-slate-700/60 group-hover/avatar:border-indigo-500/60 transition-colors" alt="" />
               ) : (
-                <div className="h-[90px] w-[90px] rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-3xl border-4 border-slate-700/60">
+                <div className="h-[90px] w-[90px] rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-3xl border-4 border-slate-700/60 group-hover/avatar:border-indigo-500/60 transition-colors">
                   {currentName?.[0]?.toUpperCase() ?? '?'}
                 </div>
               )}
-            </div>
+              <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover/avatar:opacity-100 transition-opacity flex items-center justify-center">
+                <Camera className="h-5 w-5 text-white" />
+              </div>
+              <div className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-indigo-600 border-2 border-[#13131a] flex items-center justify-center group-hover/avatar:bg-indigo-500 transition-colors">
+                <Pencil className="h-3 w-3 text-white" />
+              </div>
+            </button>
 
             {/* Name + email */}
             <div className="flex-1 min-w-0 text-center sm:text-left">
@@ -291,6 +313,13 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
         </div>
       </div>
 
+      {pickerOpen && (
+        <AvatarPickerModal
+          currentImage={currentImage}
+          onSelect={saveAvatar}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
     </div>
   );
 };
