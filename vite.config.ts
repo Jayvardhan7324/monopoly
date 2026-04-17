@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
             manualChunks: {
               'react-vendor': ['react', 'react-dom'],
               'motion': ['motion/react'],
-              'ui': ['@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-scroll-area', '@radix-ui/react-separator', '@radix-ui/react-avatar', '@radix-ui/react-sheet'],
+              'ui': ['@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-scroll-area', '@radix-ui/react-separator', '@radix-ui/react-avatar', '@radix-ui/react-dialog'],
               'lucide': ['lucide-react'],
               'socket': ['socket.io-client'],
               'supabase': ['@supabase/supabase-js'],
