@@ -205,20 +205,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           .catch(() => window.history.replaceState({}, '', '/'))
           .finally(() => setIsAutoJoining(false));
       }
-    } else if (stored?.playerId && stored?.roomId) {
-      // B6: No room URL but have a recent session — auto-rejoin if < 5 min old
-      const sessionAge = stored.savedAt ? Date.now() - stored.savedAt : Infinity;
-      if (sessionAge < 5 * 60 * 1000) {
-        autoJoinAttemptedRef.current = true;
-        isSessionRestoreRef.current = true;
-        isRestoringSessionRef.current = true;
-        setIsRestoringSession(true);
-        setIsOnline(true);
-        setRoomId(stored.roomId);
-        setSessionPlayerId(stored.playerId);
-        window.history.pushState({}, '', `/room/${stored.roomId}`);
-      }
     }
+    // Intentional leave + page reload should land on the home screen.
+    // Stored session (if recent) is surfaced via the "Rejoin" banner on the
+    // landing page — no silent auto-rejoin here.
   }, []);
 
   // Show appearance modal when entering the lobby (skip on page-reload session restore)
@@ -2438,7 +2428,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           <button
                             onClick={() => { if (canStart) handleStartGame(); }}
                             disabled={!canStart}
-                            className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl font-black text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] enabled:hover:scale-105 active:scale-95 uppercase tracking-widest border-b-4 border-indigo-800"
+                            className="px-6 py-3 sm:px-12 sm:py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl sm:rounded-2xl font-black text-base sm:text-2xl transition-all shadow-[0_0_40px_rgba(79,70,229,0.4)] enabled:hover:scale-105 active:scale-95 uppercase tracking-wider sm:tracking-widest border-b-4 border-indigo-800 max-w-[92vw]"
                           >
                             {isHost ? 'Start Game' : 'Waiting for Host'}
                           </button>

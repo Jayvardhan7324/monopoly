@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
 // BUG-08: Replaced `Palmtree` (removed in lucide-react v0.468) with `TreePalm`
-import { Plane, Zap, Droplets, TreePalm, Skull, ArrowRight, Package, Lock, Home, Building2 } from 'lucide-react';
+import { Plane, Zap, Droplets, TreePalm, ArrowRight, Package, Lock, Home, Building2 } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Avatar } from './Avatar';
 import { motion } from 'motion/react';
@@ -116,22 +116,15 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           );
         if (cornerName === 'go to prison')
           return (
-            <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1e1c28] to-[#181520] relative overflow-hidden">
-              <motion.div
-                className="absolute inset-0 bg-rose-600/10"
-                animate={{ opacity: [0, 0.5, 0] }}
-                transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
-                style={{ willChange: 'opacity' }}
-              />
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ repeat: Infinity, duration: 2.4, ease: 'easeInOut' }}
-                style={{ willChange: 'transform' }}
-                className="mb-1 relative z-10"
-              >
-                <Skull size={34} className="text-rose-300 drop-shadow-[0_0_12px_rgba(244,63,94,0.5)]" />
-              </motion.div>
-              <span className="text-[10px] text-slate-100 font-bold relative z-10">Go to prison</span>
+            <div className="flex flex-col h-full w-full relative bg-gradient-to-br from-[#252331] to-[#1e1b2e] overflow-hidden">
+              <span className="absolute top-1.5 left-1.5 text-[8px] text-slate-400 font-bold tracking-wider uppercase">Go to</span>
+              <div className="absolute top-0 left-0 w-[60%] h-[75%] bg-slate-400/15 border-b border-r border-slate-500/30 flex shadow-inner">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="flex-1 border-r border-slate-500/30 bg-white/5" />
+                ))}
+              </div>
+              <ArrowRight size={22} className="absolute bottom-2 right-2 text-amber-300/90 drop-shadow-md z-10" strokeWidth={2.5} />
+              <span className="absolute bottom-1.5 left-1.5 text-[10px] text-white font-black z-10 leading-none tracking-tight">Prison</span>
             </div>
           );
         return null;
