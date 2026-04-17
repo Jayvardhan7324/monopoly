@@ -32,5 +32,9 @@ export default defineConfig(({ mode }) => {
         },
         chunkSizeWarningLimit: 600,
       },
+      // UX-15 / SEC-17: Strip console.* and debugger in production bundles.
+      esbuild: mode === 'production'
+        ? { drop: ['console', 'debugger'] }
+        : undefined,
     };
 });

@@ -18,7 +18,13 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
   const myPlayer = gameState.players.find(p => p.id === myPlayerId);
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="auction-modal-title"
+      aria-describedby="auction-current-bid"
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -30,7 +36,7 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
           <div className="flex items-center gap-2 text-indigo-400 font-black tracking-[0.2em] uppercase text-[10px] mb-3">
             <Gavel size={16} className="animate-bounce" /> Public Auction
           </div>
-          <h2 className="text-xl font-black text-white uppercase tracking-tighter text-center mb-1 drop-shadow-lg">
+          <h2 id="auction-modal-title" className="text-xl font-black text-white uppercase tracking-tighter text-center mb-1 drop-shadow-lg">
             {gameState.tiles[gameState.auction.tileId].name}
           </h2>
         </div>
@@ -38,7 +44,7 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
         {/* Middle Section (Dynamic centering) */}
         <div className="flex flex-col items-center w-full my-auto py-2">
           <div className="text-slate-500 text-[9px] font-bold uppercase tracking-[0.3em] mb-1">Current Bid</div>
-          <div className="text-4xl font-black text-emerald-400 font-mono tracking-tighter drop-shadow-[0_0_20px_rgba(52,211,153,0.3)]">
+          <div id="auction-current-bid" aria-live="polite" className="text-4xl font-black text-emerald-400 font-mono tracking-tighter drop-shadow-[0_0_20px_rgba(52,211,153,0.3)]">
             ${gameState.auction.currentBid}
           </div>
           {gameState.auction.highestBidderId !== null ? (
@@ -68,7 +74,8 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
                 (myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT ||
                 (myPlayer?.isBankrupt ?? false)
               }
-              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center group"
+              aria-label={`Place minimum bid of $${(gameState.auction?.currentBid || 0) + GAME_CONSTANTS.MIN_AUCTION_INCREMENT}`}
+              className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-indigo-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <span className="text-[8px] opacity-60 font-bold uppercase tracking-widest group-hover:opacity-100 transition-opacity">Min Bid</span>
               <span>+${GAME_CONSTANTS.MIN_AUCTION_INCREMENT}</span>
@@ -81,7 +88,8 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
                 (myPlayer?.money ?? 0) < (gameState.auction?.currentBid || 0) + 20 ||
                 (myPlayer?.isBankrupt ?? false)
               }
-              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-emerald-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center group"
+              aria-label={`Place aggressive bid of $${(gameState.auction?.currentBid || 0) + 20}`}
+              className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-sm transition-all shadow-lg shadow-emerald-600/30 active:scale-95 disabled:opacity-30 flex flex-col items-center justify-center group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
             >
               <span className="text-[8px] opacity-60 font-bold uppercase tracking-widest group-hover:opacity-100 transition-opacity">Aggressive</span>
               <span>+$20</span>

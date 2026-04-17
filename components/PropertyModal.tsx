@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader } from './ui/card';
 import { Separator } from './ui/separator';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
 interface PropertyModalProps {
   tile: Tile;
@@ -63,6 +64,9 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
     onClose();
   };
 
+  // UX-2: Escape to close, focus trap, scroll lock.
+  const modalRef = useModalAccessibility<HTMLDivElement>({ isOpen: true, onClose: handleClose });
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -70,14 +74,18 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm"
       onClick={handleClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="property-modal-title"
     >
       <motion.div
+        ref={modalRef}
         initial={{ scale: 0.95, y: 20, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
         exit={{ scale: 0.95, y: 20, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         // Portrait: narrower & taller
-        className="w-full max-w-[300px] max-h-[85vh] flex flex-col"
+        className="w-full max-w-[300px] max-h-[85vh] flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         <Card className="bg-slate-900 border-slate-800 overflow-hidden flex flex-col max-h-[85vh]">
@@ -85,18 +93,19 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
           <CardHeader className={`${colorMap[tile.group]} p-0 shrink-0 relative overflow-hidden`}>
             <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)] mix-blend-overlay" />
             <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
-            <div className="p-4 pr-8 relative z-10">
-              <h2 className="text-lg font-black text-white drop-shadow-md uppercase tracking-tighter leading-tight">{tile.name}</h2>
+            <div className="p-4 pr-10 relative z-10">
+              <h2 id="property-modal-title" className="text-lg font-black text-white drop-shadow-md uppercase tracking-tighter leading-tight">{tile.name}</h2>
               <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-0.5">
                 {tile.group !== 'NONE' ? tile.group.replace('_', ' ') : tile.type} district
               </p>
             </div>
-            {/* Small X button */}
+            {/* UX-3: 44x44 tap target via invisible padding; visible icon stays small. */}
             <button
               onClick={handleClose}
-              className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/30 hover:bg-black/50 flex items-center justify-center text-white/70 hover:text-white transition-colors z-20 group/close"
+              aria-label="Close property details"
+              className="absolute top-0 right-0 w-11 h-11 flex items-center justify-center text-white/70 hover:text-white transition-colors z-20 group/close focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded-bl-xl"
             >
-              <span className="inline-flex transition-transform duration-200 group-hover/close:rotate-90">
+              <span className="inline-flex w-6 h-6 rounded-full bg-black/30 hover:bg-black/50 items-center justify-center transition-transform duration-200 group-hover/close:rotate-90">
                 <X size={14} />
               </span>
             </button>

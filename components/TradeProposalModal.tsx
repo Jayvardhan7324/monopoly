@@ -3,6 +3,7 @@ import { Player, Tile, TradeOffer } from '../types';
 import { motion } from 'motion/react';
 import { X, ArrowRightLeft, Coins } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { useModalAccessibility } from '../hooks/useModalAccessibility';
 
 interface TradeProposalModalProps {
   trade: TradeOffer;
@@ -31,6 +32,10 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   const offeredTiles = trade.offerPropertyIds.map(id => tiles[id]).filter(Boolean);
   const isTarget = myPlayerId === trade.targetId;
 
+  // UX-2: Escape-to-close (treats dismiss or decline as close action).
+  const closeAction = onDismiss ?? onDecline ?? onCancel ?? (() => {});
+  const modalRef = useModalAccessibility<HTMLDivElement>({ isOpen: true, onClose: closeAction });
+
   if (!proposer || !target) return null;
 
   const groupColor: Record<string, string> = {
@@ -40,16 +45,22 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+    <div
+      className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="trade-proposal-title"
+    >
       <motion.div
+        ref={modalRef}
         initial={{ opacity: 0, scale: 0.9, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-[#0f172a] border border-indigo-500/30 rounded-2xl w-full max-w-[300px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]"
+        className="bg-[#0f172a] border border-indigo-500/30 rounded-2xl w-full max-w-[300px] overflow-hidden shadow-2xl flex flex-col max-h-[90vh] outline-none"
       >
         {/* Header */}
         <div className="p-4 border-b border-white/5 bg-gradient-to-r from-indigo-500/20 to-transparent flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-black text-white uppercase tracking-tight leading-tight">Incoming Trade</h2>
+            <h2 id="trade-proposal-title" className="text-lg font-black text-white uppercase tracking-tight leading-tight">Incoming Trade</h2>
             <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">{proposer.name} wants to deal</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -60,9 +71,10 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
               <button
                 onClick={onDismiss}
                 title="Dismiss — you can review this trade in the Trades panel"
-                className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors group/x"
+                aria-label="Dismiss trade — review later in Trades panel"
+                className="w-11 h-11 -m-1.5 rounded-full hover:bg-slate-700/50 flex items-center justify-center text-slate-400 hover:text-white transition-colors group/x focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
               >
-                <span className="inline-flex transition-transform duration-200 group-hover/x:rotate-90">
+                <span className="inline-flex w-8 h-8 rounded-full bg-slate-800 items-center justify-center transition-transform duration-200 group-hover/x:rotate-90">
                   <X size={14} />
                 </span>
               </button>
@@ -72,7 +84,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
 
         <div className="p-4 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
           {/* Proposer Offers */}
-          <div className="space-y-2">
+          <section role="region" aria-label={`${proposer.name}'s offer`} className="space-y-2">
             <div className="flex items-center gap-1.5 text-indigo-400 mb-1">
               <Avatar avatarId={proposer.avatarId} color={proposer.color} className="w-5 h-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">{proposer.name} Offers:</span>
@@ -94,16 +106,16 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
                 <div className="text-slate-600 text-[10px] italic">Nothing offered</div>
               )}
             </div>
-          </div>
+          </section>
 
-          <div className="flex justify-center -my-2 relative z-10">
+          <div className="flex justify-center -my-2 relative z-10" aria-hidden="true">
             <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-500">
               <ArrowRightLeft size={12} />
             </div>
           </div>
 
           {/* Proposer Requests */}
-          <div className="space-y-2">
+          <section role="region" aria-label={`Requested from ${target.name}`} className="space-y-2">
             <div className="flex items-center gap-1.5 text-rose-400 mb-1">
               <Avatar avatarId={target.avatarId} color={target.color} className="w-5 h-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">In Exchange For:</span>
@@ -125,7 +137,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
                 <div className="text-slate-600 text-[10px] italic">Nothing requested</div>
               )}
             </div>
-          </div>
+          </section>
         </div>
 
         {/* Actions */}
