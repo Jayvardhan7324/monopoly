@@ -127,9 +127,18 @@ GEMINI_API_KEY       # server-side only, never in Vite bundle
 
 ## DB Schema (Drizzle / Postgres)
 - `profiles` — id, name, email, image, role, banned, banReason, coins, createdAt
-- `profilesStats` — userId, gamesPlayed, gamesWon, totalEarnings, propertiesBought, updatedAt
+- `profilesStats` (user_stats) — userId, gamesPlayed/Won/Lost, totalEarnings, propertiesBought, peakPropertiesOwned, bankruptcies, totalTurns
 - `storeItem` — id, name, description, type, priceCoins, assetUrl, active, createdAt
 - `purchase` — id, userId, itemId, purchasedAt
+- `bugReport` — id (gen_random_uuid default), title, description, imageUrl, consentGiven, status, ip, userAgent, createdAt
+- `friendships` — id, requesterId, addresseeId, status
+- `adminBoard` — id, name, boardSize, tiles (jsonb), isActive, createdAt, updatedAt (persistent board templates)
+- `gameHistory` — id, roomId, hostUserId, winnerUserId, players, finalNetWorth, startedAt, endedAt, durationMinutes, turnsPlayed
+- `tradeHistory` — id, gameId, roomId, fromUserId, toUserId, offered, requested, accepted, createdAt
+- `auditLog` — id, adminUserId, action, targetType, targetId, before, after, ipAddress, createdAt
+- `achievements` / `userAchievements` — slug-keyed achievements + user unlocks
+
+All tables have RLS enabled (public-read for leaderboards/active board, admin-only for audit/bug_report, self-scoped for friendships/trades).
 
 ## Build & Dev
 ```bash
