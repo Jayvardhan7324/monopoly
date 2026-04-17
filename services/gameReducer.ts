@@ -478,7 +478,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       // ── Corner tiles ─────────────────────────────────────────────────────────
       if (tile.type === TileType.CORNER) {
-        if (tile.name === 'Go to prison') {
+        if (tile.name.toLowerCase() === 'go to prison') {
           newPlayers[state.currentPlayerIndex] = {
             ...newPlayers[state.currentPlayerIndex],
             position: GAME_CONSTANTS.JAIL_POSITION,

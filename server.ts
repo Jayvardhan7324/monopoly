@@ -5,6 +5,24 @@ import { Server } from "socket.io";
 import { randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import { PLAYER_ALLOWED_ACTIONS } from "./services/actionPolicy";
 
+// Actions that may only be submitted by the player whose turn it currently is.
+// Everything else in PLAYER_ALLOWED_ACTIONS (trades, auction bids, vote-kicks)
+// is valid off-turn and is not gated here.
+const OWN_TURN_ONLY_ACTIONS = new Set<string>([
+  'ROLL_DICE',
+  'BUY_PROPERTY',
+  'ATTEMPT_JAIL_ROLL',
+  'SKIP_JAIL_TURN',
+  'PAY_JAIL_FINE',
+  'MORTGAGE_PROPERTY',
+  'UNMORTGAGE_PROPERTY',
+  'UPGRADE_PROPERTY',
+  'DOWNGRADE_PROPERTY',
+  'SELL_PROPERTY',
+  'END_TURN',
+  'DECLARE_BANKRUPT',
+]);
+
 interface RoomData {
   host: string;
   hostName: string;
@@ -914,6 +932,20 @@ async function startServer() {
           if (!data?.type || !PLAYER_ALLOWED_ACTIONS.has(data.type)) {
             socket.emit("action_error", { error: `Action '${data?.type}' is not allowed` });
             return;
+          }
+          // Own-turn-only guard: actions that mutate the current player's own state
+          // (rolling, buying, building, selling, mortgaging, ending turn, etc.) may
+          // only be submitted by whoever is currently on the clock. Off-turn actions
+          // like trades, auction bids, and kick votes are unrestricted here.
+          if (OWN_TURN_ONLY_ACTIONS.has(data.type) && room.state?.players) {
+            const playerRow = room.players.find((p: any) => p.id === socket.id);
+            const socketKey = playerRow?.originalId || socket.id;
+            const senderGamePlayerId = room.socketToGamePlayerId?.[socketKey];
+            const currentPlayerId = room.state.players?.[room.state.currentPlayerIndex]?.id;
+            if (senderGamePlayerId === undefined || senderGamePlayerId !== currentPlayerId) {
+              socket.emit("action_error", { error: "Not your turn" });
+              return;
+            }
           }
           io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
         }
