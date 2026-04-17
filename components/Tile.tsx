@@ -81,15 +81,16 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
             <span className="text-slate-200 font-black text-[8px] leading-none tracking-tight">×10</span>
           </div>
         );
-      case ETileType.CORNER:
-        if (tile.name === 'START')
+      case ETileType.CORNER: {
+        const cornerName = tile.name.toLowerCase();
+        if (cornerName === 'start')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
               <span className="text-2xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)] pb-1">Start</span>
               <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
             </div>
           );
-        if (tile.name === 'In Prison')
+        if (cornerName === 'in prison')
           return (
             <div className="flex flex-col h-full w-full relative bg-gradient-to-br from-[#252331] to-[#1e1b2e] overflow-hidden">
               <span className="absolute top-1.5 right-1.5 text-[8px] text-slate-300 font-bold tracking-wider">Passing by</span>
@@ -101,7 +102,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               <span className="absolute bottom-1.5 right-1.5 text-[10px] text-white font-black z-10 drop-shadow-lg text-right leading-none w-10 pr-1">In Prison</span>
             </div>
           );
-        if (tile.name === 'Vacation')
+        if (cornerName === 'vacation')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full relative bg-gradient-to-br from-[#1c2236] to-[#162030] overflow-hidden">
               <TreePalm size={36} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
@@ -113,7 +114,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               )}
             </div>
           );
-        if (tile.name === 'Go to Prison')
+        if (cornerName === 'go to prison')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1e1c28] to-[#181520] relative overflow-hidden">
               <motion.div
@@ -134,6 +135,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
             </div>
           );
         return null;
+      }
       default:
         return null;
     }

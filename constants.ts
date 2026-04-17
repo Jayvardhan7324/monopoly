@@ -75,7 +75,7 @@ export const INITIAL_TILES: Tile[] = [
   createTile(27, 'Toulouse', TileType.PROPERTY, 260, ColorGroup.GREEN, [22, 110, 330, 800, 975, 1150], 150, 'fr'),
   createTile(28, 'Water Company', TileType.UTILITY, 150),
   createTile(29, 'Paris', TileType.PROPERTY, 280, ColorGroup.GREEN, [24, 120, 360, 850, 1025, 1200], 150, 'fr'),
-  createTile(30, 'Go to prison', TileType.CORNER),
+  createTile(30, 'Go to Prison', TileType.CORNER),
   createTile(31, 'Liverpool', TileType.PROPERTY, 300, ColorGroup.DARK_BLUE, [26, 130, 390, 900, 1100, 1275], 200, 'gb'),
   createTile(32, 'Manchester', TileType.PROPERTY, 300, ColorGroup.DARK_BLUE, [26, 130, 390, 900, 1100, 1275], 200, 'gb'),
   createTile(33, 'Treasure', TileType.COMMUNITY_CHEST),

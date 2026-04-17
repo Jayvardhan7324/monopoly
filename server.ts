@@ -1142,9 +1142,13 @@ async function startServer() {
   app.patch('/api/admin/users/:id', requireAdmin, async (req, res) => {
     const { role, banned, banReason, coins, name, addCoins } = req.body ?? {};
     const updates: Record<string, any> = {};
-    if (role !== undefined) updates.role = role;
+    if (role !== undefined) {
+      const allowedRoles = new Set(['user', 'admin', 'moderator']);
+      if (!allowedRoles.has(String(role))) return res.status(400).json({ error: 'Invalid role' });
+      updates.role = role;
+    }
     if (banned !== undefined) updates.banned = Boolean(banned);
-    if (banReason !== undefined) updates.banReason = banReason;
+    if (banReason !== undefined) updates.banReason = banReason === null ? null : String(banReason).slice(0, 500);
     if (coins !== undefined) {
       const parsedCoins = Number(coins);
       if (!isFinite(parsedCoins)) return res.status(400).json({ error: 'Invalid coins value' });
@@ -1152,12 +1156,14 @@ async function startServer() {
     }
     if (name !== undefined) updates.name = String(name).trim().slice(0, 40);
     try {
-      if (addCoins !== undefined && addCoins !== 0) {
+      if (addCoins !== undefined && Number(addCoins) !== 0) {
         const delta = Number(addCoins);
         if (!isFinite(delta)) return res.status(400).json({ error: 'Invalid addCoins value' });
         const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, req.params.id));
-        if (rows.length) updates.coins = Math.max(0, Math.floor((rows[0].coins || 0) + delta));
+        if (!rows.length) return res.status(404).json({ error: 'User not found' });
+        updates.coins = Math.max(0, Math.floor((rows[0].coins || 0) + delta));
       }
+      if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update' });
       await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, req.params.id));
       res.json({ success: true });
     } catch {
@@ -1174,9 +1180,16 @@ async function startServer() {
       const totalWins = stats.reduce((s: number, r: any) => s + (r.gamesWon || 0), 0);
       const totalCoins = users.reduce((s: number, u: any) => s + (u.coins || 0), 0);
       const avgCoins = totalUsers > 0 ? Math.round(totalCoins / totalUsers) : 0;
-      const topEarners = [...users].sort((a: any, b: any) => b.coins - a.coins).slice(0, 5).map((u: any) => ({ name: u.name, coins: u.coins }));
+      const topEarners = [...users]
+        .sort((a: any, b: any) => (b.coins || 0) - (a.coins || 0))
+        .slice(0, 5)
+        .map((u: any) => ({ name: u.name, coins: u.coins || 0 }));
       const bannedCount = users.filter((u: any) => u.banned).length;
-      const recentUsers = [...users].sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 5).map((u: any) => ({ name: u.name, email: u.email, createdAt: u.createdAt }));
+      const toTime = (d: any) => { const t = d ? new Date(d).getTime() : 0; return isFinite(t) ? t : 0; };
+      const recentUsers = [...users]
+        .sort((a: any, b: any) => toTime(b.createdAt) - toTime(a.createdAt))
+        .slice(0, 5)
+        .map((u: any) => ({ name: u.name, email: u.email, createdAt: u.createdAt }));
       res.json({ totalUsers, totalGamesPlayed, totalWins, totalCoins, avgCoins, topEarners, bannedCount, recentUsers });
     } catch {
       res.status(500).json({ error: 'Failed to load analytics' });
@@ -1194,14 +1207,24 @@ async function startServer() {
     }
   });
 
+  const ALLOWED_ITEM_TYPES = new Set(['avatar', 'board_skin', 'token', 'profile_pic', 'misc']);
+
   app.post('/api/admin/store/items', requireAdmin, async (req, res) => {
     const { name, description, type, priceCoins, assetUrl } = req.body ?? {};
     if (!name || !type) return res.status(400).json({ error: 'name and type required' });
+    if (!ALLOWED_ITEM_TYPES.has(String(type))) return res.status(400).json({ error: 'Invalid item type' });
+    const price = Number(priceCoins ?? 100);
+    if (!isFinite(price) || price < 0) return res.status(400).json({ error: 'Invalid priceCoins' });
     try {
       const item = {
-        id: randomUUID(), name, description: description ?? '',
-        type, priceCoins: priceCoins ?? 100, assetUrl: assetUrl ?? null,
-        active: true, createdAt: new Date(),
+        id: randomUUID(),
+        name: String(name).slice(0, 80),
+        description: String(description ?? '').slice(0, 500),
+        type: String(type),
+        priceCoins: Math.floor(price),
+        assetUrl: assetUrl ? String(assetUrl).slice(0, 500) : null,
+        active: true,
+        createdAt: new Date(),
       };
       await db.insert(schema.storeItem).values(item);
       res.json({ success: true, item });
@@ -1213,12 +1236,20 @@ async function startServer() {
   app.patch('/api/admin/store/items/:id', requireAdmin, async (req, res) => {
     const { name, description, type, priceCoins, assetUrl, active } = req.body ?? {};
     const updates: Record<string, any> = {};
-    if (name !== undefined) updates.name = name;
-    if (description !== undefined) updates.description = description;
-    if (type !== undefined) updates.type = type;
-    if (priceCoins !== undefined) updates.priceCoins = priceCoins;
-    if (assetUrl !== undefined) updates.assetUrl = assetUrl;
-    if (active !== undefined) updates.active = active;
+    if (name !== undefined) updates.name = String(name).slice(0, 80);
+    if (description !== undefined) updates.description = String(description).slice(0, 500);
+    if (type !== undefined) {
+      if (!ALLOWED_ITEM_TYPES.has(String(type))) return res.status(400).json({ error: 'Invalid item type' });
+      updates.type = String(type);
+    }
+    if (priceCoins !== undefined) {
+      const price = Number(priceCoins);
+      if (!isFinite(price) || price < 0) return res.status(400).json({ error: 'Invalid priceCoins' });
+      updates.priceCoins = Math.floor(price);
+    }
+    if (assetUrl !== undefined) updates.assetUrl = assetUrl === null ? null : String(assetUrl).slice(0, 500);
+    if (active !== undefined) updates.active = Boolean(active);
+    if (Object.keys(updates).length === 0) return res.status(400).json({ error: 'No valid fields to update' });
     try {
       await db.update(schema.storeItem).set(updates).where(eq(schema.storeItem.id, req.params.id));
       res.json({ success: true });

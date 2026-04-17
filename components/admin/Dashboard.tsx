@@ -139,14 +139,19 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
 
   const saveItem = async () => {
     if (!itemForm.name || !itemForm.type) { toast.error('Name and type are required'); return; }
+    if (!Number.isFinite(Number(itemForm.priceCoins)) || Number(itemForm.priceCoins) < 0) {
+      toast.error('Price must be a non-negative number'); return;
+    }
     try {
-      if (editingItem) {
-        await fetch(`/api/admin/store/items/${editingItem.id}`, { method: 'PATCH', headers, body: JSON.stringify(itemForm) });
-        toast.success('Item updated');
-      } else {
-        await fetch('/api/admin/store/items', { method: 'POST', headers, body: JSON.stringify(itemForm) });
-        toast.success('Item created');
+      const res = editingItem
+        ? await fetch(`/api/admin/store/items/${editingItem.id}`, { method: 'PATCH', headers, body: JSON.stringify(itemForm) })
+        : await fetch('/api/admin/store/items', { method: 'POST', headers, body: JSON.stringify(itemForm) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Failed to save item');
+        return;
       }
+      toast.success(editingItem ? 'Item updated' : 'Item created');
       setShowItemForm(false); setEditingItem(null);
       setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
       fetchStoreItems();
@@ -156,7 +161,8 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const deleteItem = async (id: string) => {
     if (!confirm('Deactivate this item?')) return;
     try {
-      await fetch(`/api/admin/store/items/${id}`, { method: 'DELETE', headers });
+      const res = await fetch(`/api/admin/store/items/${id}`, { method: 'DELETE', headers });
+      if (!res.ok) { toast.error('Failed to deactivate item'); return; }
       toast.success('Item deactivated');
       fetchStoreItems();
     } catch { toast.error('Failed to deactivate item'); }
