@@ -1643,7 +1643,14 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (winnerId !== null) {
         return { ...state, winnerId, phase: 'TURN_END' };
       }
-      return { ...state, currentPlayerIndex: nextIndex, phase: 'ROLL', doublesCount: 0, auction: null, pendingTrade: null, turnLogs: [] };
+      // Preserve a bot's outgoing trade across END_TURN — bots can't take back
+      // their offers. Human-proposed trades still clear at end of turn (humans
+      // have an explicit "Cancel offer" button).
+      const proposerForEnd = state.pendingTrade
+        ? state.players.find(p => p.id === state.pendingTrade!.proposerId)
+        : null;
+      const keepPendingTrade = !!(proposerForEnd && proposerForEnd.isBot && !state.pendingTrade!.botDecision);
+      return { ...state, currentPlayerIndex: nextIndex, phase: 'ROLL', doublesCount: 0, auction: null, pendingTrade: keepPendingTrade ? state.pendingTrade : null, turnLogs: [] };
     }
 
     // ─── RESET_GAME (rematch — returns to home without page reload) ────────────

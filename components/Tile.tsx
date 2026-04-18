@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
+import { GAME_CONSTANTS } from '../constants';
 // BUG-08: Replaced `Palmtree` (removed in lucide-react v0.468) with `TreePalm`
 import { Plane, Zap, Droplets, TreePalm, ArrowRight, Package, Lock, Home, Building2 } from 'lucide-react';
 import { Badge } from './ui/badge';
@@ -86,8 +87,11 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
         if (cornerName === 'start')
           return (
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
-              <span className="text-2xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)] pb-1">Start</span>
-              <ArrowRight size={28} className="text-lime-500 drop-shadow-md" />
+              <span className="text-xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)]">Start</span>
+              <ArrowRight size={22} className="text-lime-500 drop-shadow-md mt-0.5" />
+              <div className="mt-0.5 bg-lime-500/20 px-1 py-[1px] rounded-[4px] border border-lime-500/40 leading-none">
+                <span className="text-[7px] font-mono text-lime-400 font-bold">+${GAME_CONSTANTS.GO_BONUS}</span>
+              </div>
             </div>
           );
         if (cornerName === 'in prison')

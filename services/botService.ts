@@ -423,25 +423,28 @@ export function getBotBidAction(
   for (const other of otherPlayers) {
     const otherOwned = groupTiles.filter(t => t.ownerId === other.id).length;
     if (otherOwned === totalInGroup - 1 && totalInGroup > 1) {
-      highestThreatMultiplier = Math.max(highestThreatMultiplier, 1.6);
+      highestThreatMultiplier = Math.max(highestThreatMultiplier, 1.25);
     }
   }
   valuation *= highestThreatMultiplier;
 
-  // Late game scarcity — toned down
-  if (gPhase === 'mid') valuation *= 1.05;
-  if (gPhase === 'late') valuation *= 1.15;
+  // Late game scarcity — toned down further
+  if (gPhase === 'mid') valuation *= 1.02;
+  if (gPhase === 'late') valuation *= 1.08;
 
   // Personality fine-tuning — less extreme
-  if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.15;
-  if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.7;
-  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.05;
+  if (personality === BotPersonalityType.AGGRESSIVE) valuation *= 1.05;
+  if (personality === BotPersonalityType.CONSERVATIVE) valuation *= 0.65;
+  if (personality === BotPersonalityType.OPPORTUNISTIC) valuation *= 1.0;
+
+  // Hard cap: never bid above the tile's listed price by more than a small margin
+  valuation = Math.min(valuation, tile.price * 1.1);
 
   // 2. Financial Limits — bots keep more cash in reserve
-  let moneyLimitPercent = 0.60;
-  if (personality === BotPersonalityType.AGGRESSIVE) moneyLimitPercent = 0.70;
-  if (personality === BotPersonalityType.CONSERVATIVE) moneyLimitPercent = 0.40;
-  if (personality === BotPersonalityType.OPPORTUNISTIC && highestThreatMultiplier > 1) moneyLimitPercent = 0.65;
+  let moneyLimitPercent = 0.45;
+  if (personality === BotPersonalityType.AGGRESSIVE) moneyLimitPercent = 0.55;
+  if (personality === BotPersonalityType.CONSERVATIVE) moneyLimitPercent = 0.30;
+  if (personality === BotPersonalityType.OPPORTUNISTIC && highestThreatMultiplier > 1) moneyLimitPercent = 0.50;
 
   const maxBid = Math.min(valuation, bot.money * moneyLimitPercent);
   const nextMinBid = auction.currentBid + GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
@@ -468,24 +471,24 @@ export function getBotBidAction(
   }
 
   // Completing monopoly: bid more aggressively but not always
-  if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) bidProbability = 0.80;
+  if (botOwnedInGroup === totalInGroup - 1 && totalInGroup > 1) bidProbability = 0.65;
 
   if (!decide(bidProbability)) return null;
 
   // 4. Dynamic Increments with bluffing
   let increment: number = GAME_CONSTANTS.MIN_AUCTION_INCREMENT;
 
-  // Bluff/intimidation bid (aggressive bots sometimes overbid to scare)
+  // Bluff/intimidation bid (aggressive bots sometimes overbid to scare) — rarer and smaller
   const shouldBluffBid =
-    (personality === BotPersonalityType.AGGRESSIVE && decide(0.25)) ||
-    (highestThreatMultiplier > 2 && decide(0.15));
+    (personality === BotPersonalityType.AGGRESSIVE && decide(0.10)) ||
+    (highestThreatMultiplier > 1.2 && decide(0.06));
 
   if (shouldBluffBid) {
     const gap = maxBid - auction.currentBid;
     if (gap > 100) {
-      increment = Math.floor(gap * (0.15 + Math.random() * 0.25));
+      increment = Math.floor(gap * (0.08 + Math.random() * 0.12));
     } else if (gap > 50) {
-      increment = Math.floor(gap * 0.5);
+      increment = Math.floor(gap * 0.25);
     }
   } else if (timeRemaining <= 2 && decide(0.5)) {
     // Last-second snipe: small extra to edge ahead
