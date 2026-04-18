@@ -1,21 +1,73 @@
 import { pgTable, text, boolean, timestamp, integer, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { randomUUID } from "crypto";
 
-// ── Profiles (mirrors Supabase auth.users — FK to auth.users enforced by SQL migration) ──
-export const profiles = pgTable("profiles", {
-  id:          text("id").primaryKey(),            // = auth.users.id (UUID as text)
-  name:        text("name").notNull().default(""),
-  email:       text("email").notNull().default(""),
-  image:       text("image"),
-  role:        text("role").default("user"),
-  banned:      boolean("banned").default(false),
-  banReason:   text("ban_reason"),
-  banExpires:  timestamp("ban_expires"),
+// ── Better Auth core tables ───────────────────────────────────────────────────
+// `user` replaces the old `profiles` table. The admin plugin adds
+// role / banned / banReason / banExpires. We also keep app-specific fields
+// (coins, equippedAvatarItemId) directly on the user row via additionalFields.
+export const user = pgTable("user", {
+  id:                   text("id").primaryKey(),
+  name:                 text("name").notNull(),
+  email:                text("email").notNull().unique(),
+  emailVerified:        boolean("email_verified").notNull().default(false),
+  image:                text("image"),
+  // admin plugin
+  role:                 text("role").default("user"),
+  banned:               boolean("banned").default(false),
+  banReason:            text("ban_reason"),
+  banExpires:           timestamp("ban_expires"),
+  // app-specific
   coins:                integer("coins").notNull().default(500),
-  equippedAvatarItemId: text("equipped_avatar_item_id"),  // FK set via SQL migration
+  equippedAvatarItemId: text("equipped_avatar_item_id"),
   createdAt:            timestamp("created_at").notNull().defaultNow(),
   updatedAt:            timestamp("updated_at").notNull().defaultNow(),
 });
+
+export const session = pgTable("session", {
+  id:             text("id").primaryKey(),
+  expiresAt:      timestamp("expires_at").notNull(),
+  token:          text("token").notNull().unique(),
+  createdAt:      timestamp("created_at").notNull().defaultNow(),
+  updatedAt:      timestamp("updated_at").notNull().defaultNow(),
+  ipAddress:      text("ip_address"),
+  userAgent:      text("user_agent"),
+  userId:         text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  // admin plugin: impersonation tracking
+  impersonatedBy: text("impersonated_by"),
+}, (t) => [
+  index("session_user_id_idx").on(t.userId),
+  index("session_token_idx").on(t.token),
+]);
+
+export const account = pgTable("account", {
+  id:                    text("id").primaryKey(),
+  accountId:             text("account_id").notNull(),
+  providerId:            text("provider_id").notNull(),
+  userId:                text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  accessToken:           text("access_token"),
+  refreshToken:          text("refresh_token"),
+  idToken:               text("id_token"),
+  accessTokenExpiresAt:  timestamp("access_token_expires_at"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scope:                 text("scope"),
+  password:              text("password"),
+  createdAt:             timestamp("created_at").notNull().defaultNow(),
+  updatedAt:             timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("account_user_id_idx").on(t.userId),
+  uniqueIndex("account_provider_account_unique").on(t.providerId, t.accountId),
+]);
+
+export const verification = pgTable("verification", {
+  id:         text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value:      text("value").notNull(),
+  expiresAt:  timestamp("expires_at").notNull(),
+  createdAt:  timestamp("created_at").notNull().defaultNow(),
+  updatedAt:  timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("verification_identifier_idx").on(t.identifier),
+]);
 
 // ── Store tables ──────────────────────────────────────────────────────────────
 export const storeItem = pgTable("store_item", {
@@ -26,14 +78,14 @@ export const storeItem = pgTable("store_item", {
   priceCoins:  integer("price_coins").notNull().default(100),
   assetUrl:    text("asset_url"),
   active:      boolean("active").notNull().default(true),
-  createdAt:   timestamp("created_at").notNull(),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
 });
 
 export const purchase = pgTable("purchase", {
   id:          text("id").primaryKey(),
-  userId:      text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  userId:      text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   itemId:      text("item_id").notNull().references(() => storeItem.id, { onDelete: "cascade" }),
-  purchasedAt: timestamp("purchased_at").notNull(),
+  purchasedAt: timestamp("purchased_at").notNull().defaultNow(),
 }, (t) => [
   index("purchase_user_id_idx").on(t.userId),
   uniqueIndex("purchase_user_item_unique").on(t.userId, t.itemId),
@@ -41,7 +93,7 @@ export const purchase = pgTable("purchase", {
 
 // ── Player stats ──────────────────────────────────────────────────────────────
 export const profilesStats = pgTable("user_stats", {
-  userId:              text("user_id").primaryKey().references(() => profiles.id, { onDelete: "cascade" }),
+  userId:              text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
   gamesPlayed:         integer("games_played").notNull().default(0),
   gamesWon:            integer("games_won").notNull().default(0),
   gamesLost:           integer("games_lost").notNull().default(0),
@@ -61,8 +113,7 @@ export const bugReport = pgTable("bug_report", {
   ip:            text("ip"),
   userAgent:     text("user_agent"),
   imageUrl:      text("image_url"),
-  status:        text("status").notNull().default("open"), // 'open' | 'resolved' | 'wontfix'
-  // SEC-13: Track whether user consented to IP/UA storage.
+  status:        text("status").notNull().default("open"),
   consentGiven:  boolean("consent_given").notNull().default(false),
   createdAt:     timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
@@ -73,9 +124,9 @@ export const bugReport = pgTable("bug_report", {
 // ── Friendships ───────────────────────────────────────────────────────────────
 export const friendships = pgTable("friendships", {
   id:          text("id").primaryKey().$defaultFn(() => randomUUID()),
-  requesterId: text("requester_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
-  addresseeId: text("addressee_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
-  status:      text("status").notNull().default("pending"), // 'pending' | 'accepted' | 'declined'
+  requesterId: text("requester_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  addresseeId: text("addressee_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  status:      text("status").notNull().default("pending"),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
   updatedAt:   timestamp("updated_at").notNull().defaultNow(),
 }, (t) => [
@@ -85,15 +136,14 @@ export const friendships = pgTable("friendships", {
   uniqueIndex("friendships_pair_unique").on(t.requesterId, t.addresseeId),
 ]);
 
-// ── Game History (DB-1) ───────────────────────────────────────────────────────
-// Powers leaderboards, per-player stats screen, and replay system.
+// ── Game History ──────────────────────────────────────────────────────────────
 export const gameHistory = pgTable("game_history", {
   id:              text("id").primaryKey().$defaultFn(() => randomUUID()),
   roomId:          text("room_id").notNull(),
-  hostUserId:      text("host_user_id").references(() => profiles.id, { onDelete: "set null" }),
-  winnerUserId:    text("winner_user_id").references(() => profiles.id, { onDelete: "set null" }),
-  players:         jsonb("players").notNull(),         // [{ userId, name, isBot, finalNetWorth }]
-  finalNetWorth:   jsonb("final_net_worth"),           // { playerId: number }
+  hostUserId:      text("host_user_id").references(() => user.id, { onDelete: "set null" }),
+  winnerUserId:    text("winner_user_id").references(() => user.id, { onDelete: "set null" }),
+  players:         jsonb("players").notNull(),
+  finalNetWorth:   jsonb("final_net_worth"),
   startedAt:       timestamp("started_at").notNull(),
   endedAt:         timestamp("ended_at").notNull().defaultNow(),
   durationMinutes: integer("duration_minutes").notNull().default(0),
@@ -104,18 +154,17 @@ export const gameHistory = pgTable("game_history", {
   index("game_history_ended_idx").on(t.endedAt),
 ]);
 
-// ── Trade History (DB-2) ──────────────────────────────────────────────────────
-// Powers trade log sidebar (F-H) and analytics.
+// ── Trade History ─────────────────────────────────────────────────────────────
 export const tradeHistory = pgTable("trade_history", {
   id:          text("id").primaryKey().$defaultFn(() => randomUUID()),
   gameId:      text("game_id").references(() => gameHistory.id, { onDelete: "cascade" }),
   roomId:      text("room_id").notNull(),
-  fromUserId:  text("from_user_id").references(() => profiles.id, { onDelete: "set null" }),
-  toUserId:    text("to_user_id").references(() => profiles.id, { onDelete: "set null" }),
+  fromUserId:  text("from_user_id").references(() => user.id, { onDelete: "set null" }),
+  toUserId:    text("to_user_id").references(() => user.id, { onDelete: "set null" }),
   fromName:    text("from_name").notNull().default(""),
   toName:      text("to_name").notNull().default(""),
-  offered:     jsonb("offered").notNull(),    // { cash, tileIds, jailCards }
-  requested:   jsonb("requested").notNull(),  // { cash, tileIds, jailCards }
+  offered:     jsonb("offered").notNull(),
+  requested:   jsonb("requested").notNull(),
   accepted:    boolean("accepted").notNull().default(false),
   createdAt:   timestamp("created_at").notNull().defaultNow(),
 }, (t) => [
@@ -125,13 +174,12 @@ export const tradeHistory = pgTable("trade_history", {
   index("trade_history_created_idx").on(t.createdAt),
 ]);
 
-// ── Audit Log (DB-3) ──────────────────────────────────────────────────────────
-// Traces all admin/moderator actions (ban, unban, item changes, coin grants).
+// ── Audit Log ─────────────────────────────────────────────────────────────────
 export const auditLog = pgTable("audit_log", {
   id:           text("id").primaryKey().$defaultFn(() => randomUUID()),
-  adminUserId:  text("admin_user_id").references(() => profiles.id, { onDelete: "set null" }),
-  action:       text("action").notNull(),           // 'BAN_USER' | 'UNBAN_USER' | 'GRANT_COINS' | ...
-  targetType:   text("target_type").notNull(),      // 'user' | 'store_item' | 'bug_report' | ...
+  adminUserId:  text("admin_user_id").references(() => user.id, { onDelete: "set null" }),
+  action:       text("action").notNull(),
+  targetType:   text("target_type").notNull(),
   targetId:     text("target_id").notNull(),
   before:       jsonb("before"),
   after:        jsonb("after"),
@@ -143,9 +191,9 @@ export const auditLog = pgTable("audit_log", {
   index("audit_log_created_idx").on(t.createdAt),
 ]);
 
-// ── Achievements (DB-4) ───────────────────────────────────────────────────────
+// ── Achievements ──────────────────────────────────────────────────────────────
 export const achievements = pgTable("achievements", {
-  id:           text("id").primaryKey(),            // slug: 'first_win', 'monopolize', ...
+  id:           text("id").primaryKey(),
   name:         text("name").notNull(),
   description:  text("description").notNull().default(""),
   iconUrl:      text("icon_url"),
@@ -156,7 +204,7 @@ export const achievements = pgTable("achievements", {
 
 export const userAchievements = pgTable("user_achievements", {
   id:            text("id").primaryKey().$defaultFn(() => randomUUID()),
-  userId:        text("user_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  userId:        text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   achievementId: text("achievement_id").notNull().references(() => achievements.id, { onDelete: "cascade" }),
   unlockedAt:    timestamp("unlocked_at").notNull().defaultNow(),
 }, (t) => [
@@ -165,7 +213,6 @@ export const userAchievements = pgTable("user_achievements", {
 ]);
 
 // ── Admin Boards ──────────────────────────────────────────────────────────────
-// Persistent storage for admin-designed board templates (two-way DB sync).
 export const adminBoard = pgTable("admin_board", {
   id:        text("id").primaryKey().$defaultFn(() => randomUUID()),
   name:      text("name").notNull(),
@@ -177,3 +224,8 @@ export const adminBoard = pgTable("admin_board", {
 }, (t) => [
   index("admin_board_active_idx").on(t.isActive),
 ]);
+
+// ── Back-compat alias ─────────────────────────────────────────────────────────
+// Some older call sites still reference `profiles`. Keep the export name so we
+// can migrate imports one file at a time.
+export const profiles = user;

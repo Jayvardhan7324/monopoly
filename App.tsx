@@ -33,7 +33,7 @@ import { Button } from './components/ui/button';
 import NavDock, { NavDockItem, NavDockLink, NavDockSep } from './components/ui/NavDock';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
-import { supabase } from './lib/auth-client';
+import { authFetch } from './lib/auth-client';
 
 // ─────────────────────────────────────────────────────────────────────────────
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
@@ -992,13 +992,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     if (!gameStarted || gameState.winnerId === null) { winCoinPostedRef.current = false; return; }
     if (gameState.winnerId === myPlayerId && sessionUser && !winCoinPostedRef.current) {
       winCoinPostedRef.current = true;
-      supabase.auth.getSession().then(({ data }) => {
-        if (!data.session) return;
-        fetch('/api/profile/win-coin', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${data.session.access_token}` },
-        }).catch(() => {});
-      });
+      authFetch('/api/profile/win-coin', { method: 'POST' }).catch(() => {});
     }
   }, [gameState.winnerId, myPlayerId, gameStarted, sessionUser]);
 

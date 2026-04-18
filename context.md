@@ -3,10 +3,10 @@
 ## Stack
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS + shadcn/ui + framer-motion
 - **Backend**: Express + Socket.io (single `server.ts`, no separate src/ dir)
-- **Auth**: Supabase Auth (JWT Bearer tokens)
-- **DB**: PostgreSQL via Drizzle ORM (`db/index.ts`, `db/schema.ts`)
+- **Auth**: Better Auth (cookie sessions, email+password + Google + Apple) mounted at `/api/auth/*`
+- **DB**: PostgreSQL via Drizzle ORM (`db/index.ts`, `db/schema.ts`) — Dokploy-hosted in prod, local Docker Postgres in dev
 - **AI**: Google Gemini 2.0 Flash — server-side proxy only at `/api/ai-advice`
-- **Deployment**: nixpacks (`nixpacks.toml`), single process serves both API and static dist
+- **Deployment**: Dokploy — Postgres as a managed database service, app as a Node/nixpacks application service
 
 ## Entry Points
 | File | Purpose |
@@ -15,12 +15,14 @@
 | `index.tsx` | React app entry |
 | `App.tsx` | Top-level router/layout |
 | `vite.config.ts` | Vite config — no secrets exposed to client bundle |
+| `lib/auth.ts` | Better Auth server instance (Drizzle adapter, Google/Apple/email, admin plugin) |
+| `lib/auth-client.ts` | Better Auth React client + `authFetch` wrapper (cookie-credentialed) |
 
 ## Key Directories
 ```
 components/         React UI components
   admin/            Admin dashboard (BoardBuilder, Dashboard, AdminLogin)
-  auth/             LoginPage (Supabase OAuth + email)
+  auth/             LoginPage (Better Auth: Google / Apple / email+password)
   store/            StorePage (coin purchases)
   profile/          ProfileModal
   ui/               shadcn base components
@@ -31,12 +33,11 @@ services/           Client-side logic
   socketService.ts  Socket.io client wrapper
   audioService.ts   Sound effects
 db/
-  index.ts          Drizzle client
-  schema.ts         Tables: profiles, profilesStats, storeItem, purchase
-supabase/migrations/0001_init.sql   DB schema
+  index.ts          Drizzle client (node-postgres pool)
+  schema.ts         Better Auth core + app tables (see DB Schema section below)
 lib/
-  auth-client.ts    Supabase client-side auth helpers
-  auth.ts           Server-side auth helpers
+  auth-client.ts    Better Auth React client + authFetch wrapper
+  auth.ts           Better Auth server instance
   dice3d.ts         3D dice animation
 cashly_assets/      Static images + sounds served at /sounds
 ```
@@ -62,14 +63,16 @@ cashly_assets/      Static images + sounds served at /sounds
 | POST | `/api/admin/login` | none → returns token | needs ADMIN_USERNAME/PASSWORD env vars |
 | GET/POST/PUT/DELETE | `/api/admin/boards*` | x-admin-token header | board CRUD |
 | POST | `/api/admin/boards/:id/push` | x-admin-token | push board to all clients |
+| POST | `/api/admin/db-test` | x-admin-token | exercise connect/read/write/tx + per-table row counts |
 | GET | `/api/store/items` | none | active store items |
 | GET | `/api/store/inventory/:userId` | none | user purchases + coins |
-| POST | `/api/store/purchase` | Bearer JWT | deduct coins, record purchase |
-| GET | `/api/admin/users` | x-admin-token | list all profiles |
+| POST | `/api/store/purchase` | session cookie | deduct coins, record purchase |
+| GET | `/api/admin/users` | x-admin-token | list all users |
 | PATCH | `/api/admin/users/:id` | x-admin-token | update role/ban/coins |
 | GET/POST/PATCH/DELETE | `/api/admin/store/items*` | x-admin-token | store item management |
+| ALL | `/api/auth/*` | handled by Better Auth | sign-in / sign-up / OAuth / sign-out / session |
 | GET | `/api/profile/:userId` | none | profile + stats |
-| POST | `/api/profile/stats` | Bearer JWT | increment game stats |
+| POST | `/api/profile/stats` | session cookie | increment game stats |
 
 ### Socket.io Events
 **Client → Server**: `join_session`, `update_player`, `start_game`, `kick_player`, `update_settings`, `leave_room`, `send_chat`, `game_action`, `sync_state`
@@ -83,14 +86,19 @@ Non-host players may only submit: `ROLL_DICE`, `BUY_PROPERTY`, `ATTEMPT_JAIL_ROL
 
 ## Environment Variables
 ```
-# Required for DB/auth features
-DATABASE_URL
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
+# Required (server fails to start without these)
+DATABASE_URL          # Postgres connection string
+BETTER_AUTH_SECRET    # random 32-byte secret — signs session cookies
 
-# Client-side (Vite VITE_ prefix)
-VITE_SUPABASE_URL
-VITE_SUPABASE_ANON_KEY
+# Better Auth
+BETTER_AUTH_URL       # public URL of the app (used for OAuth callbacks)
+
+# OAuth providers (optional — each provider auto-disables if both vars are empty)
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+APPLE_CLIENT_ID
+APPLE_CLIENT_SECRET
+APPLE_APP_BUNDLE_ID
 
 # Admin panel — all three must be set or admin is disabled
 ADMIN_TOKEN          # Bearer token for x-admin-token header
@@ -100,7 +108,7 @@ ADMIN_PASSWORD
 # App
 PORT                 # default 3000
 NODE_ENV             # production = silent logs
-ALLOWED_ORIGINS      # comma-separated, default allows all in dev
+ALLOWED_ORIGINS      # comma-separated — also doubles as Better Auth trustedOrigins
 
 # AI (optional)
 GEMINI_API_KEY       # server-side only, never in Vite bundle
@@ -126,7 +134,11 @@ GEMINI_API_KEY       # server-side only, never in Vite bundle
 - No DB connection pooling config visible
 
 ## DB Schema (Drizzle / Postgres)
-- `profiles` — id, name, email, image, role, banned, banReason, coins, createdAt
+Better Auth core tables:
+- `user` — id, name, email, emailVerified, image, role, banned, banReason, banExpires, coins, equippedAvatarItemId, createdAt, updatedAt (replaces the old Supabase-backed `profiles` table; exported both as `schema.user` and the back-compat alias `schema.profiles`)
+- `session` — id, expiresAt, token, ipAddress, userAgent, userId, impersonatedBy
+- `account` — OAuth linkages + hashed password for email/password accounts
+- `verification` — email/phone verification tokens
 - `profilesStats` (user_stats) — userId, gamesPlayed/Won/Lost, totalEarnings, propertiesBought, peakPropertiesOwned, bankruptcies, totalTurns
 - `storeItem` — id, name, description, type, priceCoins, assetUrl, active, createdAt
 - `purchase` — id, userId, itemId, purchasedAt
@@ -138,12 +150,21 @@ GEMINI_API_KEY       # server-side only, never in Vite bundle
 - `auditLog` — id, adminUserId, action, targetType, targetId, before, after, ipAddress, createdAt
 - `achievements` / `userAchievements` — slug-keyed achievements + user unlocks
 
-All tables have RLS enabled (public-read for leaderboards/active board, admin-only for audit/bug_report, self-scoped for friendships/trades).
+RLS is not used — the app is the sole DB client and gates access at the API layer (session cookie + `requireAdmin`).
 
 ## Build & Dev
 ```bash
-npm run dev      # starts Vite dev server + Express (NODE_ENV != production path)
-npm run build    # vite build → dist/
-npm start        # NODE_ENV=production, serves dist/ as static
+npm run dev          # starts Express+Vite in dev
+npm run build        # vite build → dist/
+npm start            # NODE_ENV=production, serves dist/ as static
+npm run db:push      # drizzle-kit push — syncs db/schema.ts to DATABASE_URL
+npm run db:generate  # drizzle-kit generate — generate migration SQL
 ```
 In production, Express serves `dist/` as static files with SPA fallback to `index.html`.
+
+## Deployment (Dokploy)
+See `docs/DOKPLOY.md` for the full step-by-step. Short version:
+1. Dokploy → **Databases** → Create **Postgres** → copy the internal connection string.
+2. Dokploy → **Applications** → Create app → point at this Git repo → set env vars (`DATABASE_URL` using the internal connection string, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, OAuth creds, admin creds, `ALLOWED_ORIGINS`).
+3. Deploy. First-boot: run `npm run db:push` once (either via Dokploy shell or as a pre-deploy command) to create Better Auth + app tables.
+4. Admin → Overview → **Run DB Test** to verify connect/read/write/tx.

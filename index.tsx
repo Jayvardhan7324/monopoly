@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { supabase } from './lib/auth-client';
+import { authClient } from './lib/auth-client';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import './index.css';
@@ -45,14 +45,15 @@ if (window.location.pathname.startsWith('/__sys')) {
   );
 }
 
-function normalizeSession(session: any) {
-  if (!session) return null;
+function normalizeSession(data: any) {
+  const u = data?.user;
+  if (!u) return null;
   return {
     user: {
-      id:    session.user.id,
-      email: session.user.email,
-      name:  session.user.user_metadata?.name ?? session.user.email?.split('@')[0] ?? 'Player',
-      image: session.user.user_metadata?.avatar_url ?? null,
+      id:    u.id,
+      email: u.email,
+      name:  u.name ?? u.email?.split('@')[0] ?? 'Player',
+      image: u.image ?? null,
     },
   };
 }
@@ -66,22 +67,16 @@ function Root() {
   const [showFriends, setShowFriends] = useState(false);
 
   const refreshSession = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const normalized = normalizeSession(session);
+    const { data } = await authClient.getSession();
+    const normalized = normalizeSession(data);
     setSessionData(normalized);
     return normalized;
   }, []);
 
-  // Initial session load
+  // Initial session load — Better Auth uses cookie-based sessions so a single
+  // fetch on mount is sufficient. After OAuth redirects the browser navigates
+  // back with the session cookie already set.
   useEffect(() => { refreshSession(); }, []);
-
-  // Keep session in sync with Supabase auth state changes (OAuth redirects, etc.)
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSessionData(normalizeSession(session));
-    });
-    return () => subscription.unsubscribe();
-  }, []);
 
   // Still loading auth
   if (sessionData === undefined) {
@@ -98,7 +93,7 @@ function Root() {
   }
 
   const handleSignOut = () => {
-    supabase.auth.signOut().then(() => {
+    authClient.signOut().then(() => {
       setSessionData(null);
       setShowStore(false);
       setShowProfile(false);

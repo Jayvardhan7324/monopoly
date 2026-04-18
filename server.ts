@@ -43,8 +43,7 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   const missingCritical: string[] = [];
   if (!process.env.DATABASE_URL)              missingCritical.push('DATABASE_URL');
-  if (!process.env.SUPABASE_URL)              missingCritical.push('SUPABASE_URL');
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) missingCritical.push('SUPABASE_SERVICE_ROLE_KEY');
+  if (!process.env.BETTER_AUTH_SECRET)        missingCritical.push('BETTER_AUTH_SECRET');
   if (missingCritical.length) {
     console.error('[FATAL] Missing required env vars:', missingCritical.join(', '));
     process.exit(1);
@@ -74,9 +73,10 @@ async function startServer() {
     }
   });
 
-  // Supabase + DB — only loaded when DATABASE_URL is configured
+  // Better Auth + DB — only loaded when DATABASE_URL is configured
   const hasDB = !!process.env.DATABASE_URL;
-  let supabaseAdmin: any = null;
+  let auth: any = null;
+  let fromNodeHeaders: any = null;
   let db: any = null;
   let schema: any = null;
   let eq: any = null;
@@ -88,12 +88,6 @@ async function startServer() {
 
   if (hasDB) {
     try {
-      const { createClient } = await import("@supabase/supabase-js");
-      supabaseAdmin = createClient(
-        process.env.SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        { auth: { autoRefreshToken: false, persistSession: false } }
-      );
       db = (await import("./db/index")).db;
       schema = await import("./db/schema");
       const drizzle = await import("drizzle-orm");
@@ -103,9 +97,15 @@ async function startServer() {
       sql = drizzle.sql;
       inArray = drizzle.inArray;
       ilike = drizzle.ilike;
-      log("Supabase + DB loaded");
+      auth = (await import("./lib/auth")).auth;
+      const nodeHelpers = await import("better-auth/node");
+      fromNodeHeaders = nodeHelpers.fromNodeHeaders;
+      // Better Auth handler MUST be mounted before express.json() —
+      // toNodeHandler consumes the raw request body itself.
+      app.all(/^\/api\/auth\/.*/, nodeHelpers.toNodeHandler(auth));
+      log("Better Auth + DB loaded");
     } catch (e: any) {
-      console.error("Failed to load supabase/db — running without auth:", e?.message);
+      console.error("Failed to load better-auth/db — running without auth:", e?.message);
     }
   } else {
     console.warn("DATABASE_URL not set — auth and store routes disabled");
@@ -1115,14 +1115,14 @@ async function startServer() {
   // ─── Store API (only when DB is available) ───────────────────────────────────
   if (hasDB && db) {
 
-  // Helper: get authed user from request (reads Bearer token set by authFetch)
+  // Helper: get authed user from request via Better Auth session cookie.
   async function getSessionUser(req: any) {
-    const authHeader = req.headers['authorization'] ?? '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (!token) return null;
-    const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-    if (error || !user) return null;
-    return user;
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      return session?.user ?? null;
+    } catch {
+      return null;
+    }
   }
 
   app.get('/api/store/items', async (_req, res) => {
@@ -1276,6 +1276,111 @@ async function startServer() {
     }
   });
 
+  // ─── Admin: DB health probe ───────────────────────────────────────────────────
+  // Exercises connect / read / write (insert+delete) / transaction rollback
+  // and reports row counts for every known table so admins can verify the
+  // Dokploy Postgres service is wired correctly.
+  app.post('/api/admin/db-test', requireAdmin, async (_req, res) => {
+    const checks: Array<{ name: string; ok: boolean; ms: number; detail?: string }> = [];
+    const time = async (name: string, fn: () => Promise<string | void>) => {
+      const t0 = Date.now();
+      try {
+        const detail = (await fn()) || undefined;
+        checks.push({ name, ok: true, ms: Date.now() - t0, detail });
+      } catch (err: any) {
+        checks.push({ name, ok: false, ms: Date.now() - t0, detail: err?.message ?? String(err) });
+      }
+    };
+
+    let dbVersion = '';
+    await time('connect', async () => {
+      const r = await db.execute(sql`select version() as v`);
+      dbVersion = String(r?.rows?.[0]?.v ?? '').slice(0, 80);
+      return dbVersion;
+    });
+
+    await time('read: user table', async () => {
+      const rows = await db.select().from(schema.profiles).limit(1);
+      return `${rows.length} row(s) sampled`;
+    });
+
+    await time('write: insert+delete bug_report', async () => {
+      const probeId = `probe_${randomUUID()}`;
+      await db.insert(schema.bugReport).values({
+        id: probeId,
+        title: '__db_probe__',
+        description: 'db-test probe row; safe to delete',
+        status: 'resolved',
+        consentGiven: false,
+      });
+      const [row] = await db.select().from(schema.bugReport).where(eq(schema.bugReport.id, probeId));
+      if (!row) throw new Error('insert succeeded but row not readable');
+      await db.delete(schema.bugReport).where(eq(schema.bugReport.id, probeId));
+      const [gone] = await db.select().from(schema.bugReport).where(eq(schema.bugReport.id, probeId));
+      if (gone) throw new Error('delete did not remove probe row');
+      return 'roundtrip OK';
+    });
+
+    await time('transaction: rollback', async () => {
+      try {
+        await db.transaction(async (tx: any) => {
+          await tx.insert(schema.bugReport).values({
+            id: `probe_tx_${randomUUID()}`,
+            title: '__db_probe_tx__',
+            description: 'should roll back',
+            status: 'open',
+            consentGiven: false,
+          });
+          throw new Error('__rollback__');
+        });
+      } catch (e: any) {
+        if (e?.message !== '__rollback__') throw e;
+      }
+      const rows = await db.select().from(schema.bugReport).where(eq(schema.bugReport.title, '__db_probe_tx__'));
+      if (rows.length) throw new Error('rollback did not discard row');
+      return 'atomicity verified';
+    });
+
+    const tableCounts: Record<string, number | string> = {};
+    const tables: Array<[string, any]> = [
+      ['user', schema.user],
+      ['session', schema.session],
+      ['account', schema.account],
+      ['verification', schema.verification],
+      ['store_item', schema.storeItem],
+      ['purchase', schema.purchase],
+      ['user_stats', schema.profilesStats],
+      ['bug_report', schema.bugReport],
+      ['friendships', schema.friendships],
+      ['game_history', schema.gameHistory],
+      ['trade_history', schema.tradeHistory],
+      ['audit_log', schema.auditLog],
+      ['admin_board', schema.adminBoard],
+      ['achievements', schema.achievements],
+      ['user_achievements', schema.userAchievements],
+    ];
+    await time('row counts (all tables)', async () => {
+      for (const [name, tbl] of tables) {
+        try {
+          const r = await db.execute(sql`select count(*)::int as n from ${tbl}`);
+          tableCounts[name] = r?.rows?.[0]?.n ?? 0;
+        } catch (e: any) {
+          tableCounts[name] = `ERROR: ${e?.message ?? 'failed'}`;
+        }
+      }
+      return `${tables.length} tables probed`;
+    });
+
+    const ok = checks.every(c => c.ok);
+    res.status(ok ? 200 : 500).json({
+      ok,
+      dbUrlHost: (() => { try { return new URL(process.env.DATABASE_URL!).host; } catch { return 'unknown'; } })(),
+      dbVersion,
+      checks,
+      tableCounts,
+    });
+  });
+
   app.get('/api/admin/analytics', requireAdmin, async (_req, res) => {
     try {
       const users = await db.select().from(schema.profiles);
@@ -1384,17 +1489,8 @@ async function startServer() {
       const users = await db.select().from(schema.profiles).where(eq(schema.profiles.id, userId));
       if (!users.length) return res.status(404).json({ error: 'User not found' });
       const u = users[0];
-      // Auto-backfill OAuth profile image into DB on first visit if missing
-      if (!u.image && supabaseAdmin) {
-        try {
-          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
-          const avatarUrl = authUser?.user?.user_metadata?.avatar_url;
-          if (avatarUrl && typeof avatarUrl === 'string' && avatarUrl.startsWith('https://') && avatarUrl.length <= 500) {
-            await db.update(schema.profiles).set({ image: avatarUrl }).where(eq(schema.profiles.id, userId));
-            u.image = avatarUrl;
-          }
-        } catch {}
-      }
+      // Better Auth stores the OAuth avatar on user.image directly at sign-in,
+      // so no separate backfill step is needed.
       const statsList = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, userId));
       const stats = statsList[0] ?? { gamesPlayed: 0, gamesWon: 0, totalEarnings: 0, propertiesBought: 0 };
       const friendRows = schema.friendships
@@ -1490,13 +1586,8 @@ async function startServer() {
     }
     try {
       await db.update(schema.profiles).set(updates).where(eq(schema.profiles.id, sessionUser.id));
-      // Sync user_metadata so session stays accurate on refresh
-      const metaUpdate: Record<string, any> = {};
-      if (updates.name)  metaUpdate.name       = updates.name;
-      if (updates.image) metaUpdate.avatar_url = updates.image;
-      if (Object.keys(metaUpdate).length) {
-        await supabaseAdmin.auth.admin.updateUserById(sessionUser.id, { user_metadata: metaUpdate });
-      }
+      // Better Auth reads name/image from the user row on every session fetch,
+      // so the next /get-session call will reflect the update automatically.
       res.json({ success: true });
     } catch {
       res.status(500).json({ error: 'Failed to update profile' });

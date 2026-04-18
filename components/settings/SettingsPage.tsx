@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, UserCog, Ban, ExternalLink, Sparkles, Mail } from 'lucide-react';
-import { supabase } from '../../lib/auth-client';
+import { authClient } from '../../lib/auth-client';
 
 interface Props {
   sessionData: { user: { id: string; name: string; email: string; image?: string } };
@@ -37,10 +37,11 @@ const SettingsPage: React.FC<Props> = ({ sessionData, onClose, onOpenProfile }) 
   const [identities, setIdentities] = useState<Identity[]>([]);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      const raw = (data?.user?.identities ?? []) as any[];
-      setIdentities(raw.map(i => ({ provider: i.provider ?? 'email' })));
-    });
+    // Better Auth: list linked social accounts + credential account if present.
+    authClient.listAccounts().then(({ data }) => {
+      const raw = (data ?? []) as any[];
+      setIdentities(raw.map(a => ({ provider: a.providerId ?? a.provider ?? 'email' })));
+    }).catch(() => setIdentities([]));
   }, []);
 
   return (

@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import {
   LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag,
   Ban, Shield, Coins, Edit2, X, Check, Package, BarChart3, TrendingUp,
-  UserCheck, UserX, Crown, Minus, RefreshCw, Flag, AlertCircle,
+  UserCheck, UserX, Crown, Minus, RefreshCw, Flag, AlertCircle, Database,
 } from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
@@ -53,6 +53,35 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   // Bug reports tab
   const [bugReports, setBugReports] = useState<any[]>([]);
   const [bugsLoading, setBugsLoading] = useState(false);
+
+  // DB health probe
+  const [dbTest, setDbTest] = useState<null | {
+    ok: boolean;
+    dbUrlHost?: string;
+    dbVersion?: string;
+    checks: Array<{ name: string; ok: boolean; ms: number; detail?: string }>;
+    tableCounts?: Record<string, number | string>;
+    error?: string;
+  }>(null);
+  const [dbTestLoading, setDbTestLoading] = useState(false);
+
+  const runDbTest = async () => {
+    setDbTestLoading(true);
+    setDbTest(null);
+    try {
+      const res = await fetch('/api/admin/db-test', { method: 'POST', headers });
+      const data = await res.json().catch(() => null);
+      if (!data) { setDbTest({ ok: false, checks: [], error: `HTTP ${res.status}` }); return; }
+      setDbTest(data);
+      if (data.ok) toast.success('Database healthy');
+      else toast.error('Database checks failed — see details');
+    } catch (e: any) {
+      setDbTest({ ok: false, checks: [], error: e?.message ?? 'Network error' });
+      toast.error('Failed to reach /api/admin/db-test');
+    } finally {
+      setDbTestLoading(false);
+    }
+  };
 
   // Store tab
   const [storeItems, setStoreItems] = useState<StoreItemRow[]>([]);
@@ -330,6 +359,66 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                 </CardContent>
               </Card>
             )}
+
+            {/* ── DB health probe ── */}
+            <Card className="mt-6">
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Database className="h-4 w-4" />
+                      <CardTitle>Database Health</CardTitle>
+                    </div>
+                    <CardDescription>
+                      Runs connect → read → write → transaction rollback → row counts against the configured <code>DATABASE_URL</code>.
+                    </CardDescription>
+                  </div>
+                  <Button size="sm" onClick={runDbTest} disabled={dbTestLoading}>
+                    <RefreshCw className={`h-4 w-4 mr-2 ${dbTestLoading ? 'animate-spin' : ''}`} />
+                    {dbTestLoading ? 'Testing…' : 'Run DB Test'}
+                  </Button>
+                </div>
+              </CardHeader>
+              {dbTest && (
+                <CardContent className="space-y-3">
+                  <div className="flex items-center gap-3 flex-wrap text-sm">
+                    <Badge variant={dbTest.ok ? 'default' : 'destructive'}>
+                      {dbTest.ok ? 'All checks passed' : 'Failures detected'}
+                    </Badge>
+                    {dbTest.dbUrlHost && <span className="text-muted-foreground">host: <code>{dbTest.dbUrlHost}</code></span>}
+                    {dbTest.dbVersion && <span className="text-muted-foreground truncate max-w-[40ch]" title={dbTest.dbVersion}>{dbTest.dbVersion}</span>}
+                  </div>
+                  {dbTest.error && <div className="text-sm text-destructive">Error: {dbTest.error}</div>}
+                  <div className="divide-y rounded-md border">
+                    {dbTest.checks.map((c, i) => (
+                      <div key={i} className="flex items-start gap-3 p-3 text-sm">
+                        {c.ok
+                          ? <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                          : <X className="h-4 w-4 text-destructive shrink-0 mt-0.5" />}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-mono text-xs font-semibold">{c.name}</div>
+                          {c.detail && <div className="text-muted-foreground break-words">{c.detail}</div>}
+                        </div>
+                        <span className="text-muted-foreground tabular-nums shrink-0">{c.ms}ms</span>
+                      </div>
+                    ))}
+                  </div>
+                  {dbTest.tableCounts && Object.keys(dbTest.tableCounts).length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-muted-foreground mb-2">Table row counts</div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 text-xs font-mono">
+                        {Object.entries(dbTest.tableCounts).map(([name, count]) => (
+                          <div key={name} className="flex justify-between gap-2 px-2 py-1 rounded bg-muted/40">
+                            <span className="truncate">{name}</span>
+                            <span className="tabular-nums text-muted-foreground">{String(count)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              )}
+            </Card>
           </TabsContent>
 
           {/* ── Analytics ── */}

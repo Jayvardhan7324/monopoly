@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/auth-client';
+import { authClient } from '../../lib/auth-client';
 import { motion, AnimatePresence } from 'motion/react';
 import { Mail, Lock, User, Chrome, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../ui/button';
@@ -27,10 +27,10 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
     setLoading('email');
     try {
       if (tab === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { name } } });
+        const { error } = await authClient.signUp.email({ email, password, name });
         if (error) { setError(error.message ?? 'Sign up failed'); return; }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await authClient.signIn.email({ email, password });
         if (error) { setError(error.message ?? 'Sign in failed'); return; }
       }
       await onSuccess();
@@ -45,7 +45,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
     clearError();
     setLoading('google');
     try {
-      await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+      await authClient.signIn.social({ provider: 'google', callbackURL: window.location.origin });
     } catch (err: any) {
       setError(err?.message ?? 'Google sign in failed');
     } finally {
@@ -57,7 +57,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
     clearError();
     setLoading('apple');
     try {
-      await supabase.auth.signInWithOAuth({ provider: 'apple', options: { redirectTo: window.location.origin } });
+      await authClient.signIn.social({ provider: 'apple', callbackURL: window.location.origin });
     } catch (err: any) {
       setError(err?.message ?? 'Apple sign in failed');
     } finally {
