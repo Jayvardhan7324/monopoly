@@ -3,7 +3,7 @@ import { GameState, TileType, ColorGroup, Player, Tile } from '../types';
 import { Dice } from './Dice';
 import {
   Dices, ArrowRight, CheckCircle, MapPin, Trophy, Landmark,
-  Handshake, Coins, X, TrendingUp, Gavel, Hammer, Bot,
+  Handshake, Coins, X, TrendingUp, Gavel, Hammer, Bot, AlertTriangle,
 } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { playSound } from '../services/audioService';
@@ -338,20 +338,24 @@ export const Controls: React.FC<ControlsProps> = ({
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: 0.05 }}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={onEndTurn}
-                          aria-label={gameState.phase === 'TURN_END' ? 'End turn' : 'Skip action'}
+                          whileHover={currentPlayer.money < 0 ? undefined : { scale: 1.05 }}
+                          whileTap={currentPlayer.money < 0 ? undefined : { scale: 0.95 }}
+                          onClick={currentPlayer.money < 0 ? undefined : onEndTurn}
+                          disabled={currentPlayer.money < 0}
+                          aria-label={currentPlayer.money < 0 ? 'Settle debt first' : gameState.phase === 'TURN_END' ? 'End turn' : 'Skip action'}
+                          title={currentPlayer.money < 0 ? 'Mortgage, sell houses, trade, or declare bankruptcy to continue.' : undefined}
                           className={`px-5 py-3 text-white rounded-xl font-black text-sm border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
-                            gameState.phase === 'TURN_END'
+                            currentPlayer.money < 0
+                              ? 'bg-gradient-to-br from-rose-900/60 via-rose-950/70 to-slate-900 opacity-60 cursor-not-allowed'
+                              : gameState.phase === 'TURN_END'
                               ? 'bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 shadow-[0_0_30px_rgba(99,102,241,0.4)]'
                               : 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900 hover:from-slate-600 hover:via-slate-700 hover:to-slate-800 shadow-lg'
                           }`}
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
-                            {gameState.phase === 'TURN_END' ? <CheckCircle size={18} /> : <ArrowRight size={18} />}
-                            {gameState.phase === 'TURN_END' ? 'END TURN' : 'SKIP'}
+                            {currentPlayer.money < 0 ? <AlertTriangle size={18} /> : gameState.phase === 'TURN_END' ? <CheckCircle size={18} /> : <ArrowRight size={18} />}
+                            {currentPlayer.money < 0 ? 'IN DEBT' : gameState.phase === 'TURN_END' ? 'END TURN' : 'SKIP'}
                           </span>
                         </motion.button>
                       )}

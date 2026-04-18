@@ -1417,6 +1417,25 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── END_TURN ─────────────────────────────────────────────────────────────
     case 'END_TURN': {
+      // Block humans from ending turn with negative money — they must resolve
+      // the debt by trading, mortgaging, selling houses, or declaring bankrupt.
+      // Bots still auto-bankrupt here (they can't be left hanging on a broken turn).
+      const currentPlayerForTurn = state.players[state.currentPlayerIndex];
+      if (
+        currentPlayerForTurn &&
+        !currentPlayerForTurn.isBot &&
+        !currentPlayerForTurn.isBankrupt &&
+        currentPlayerForTurn.money < 0
+      ) {
+        return {
+          ...state,
+          logs: addLog(
+            state.logs,
+            `${currentPlayerForTurn.name} is in debt — mortgage, sell houses, trade, or declare bankruptcy to continue.`
+          ),
+        };
+      }
+
       // Mark any player with negative money as bankrupt (assets to bank)
       let processedPlayers = [...state.players];
       let processedTiles = [...state.tiles];

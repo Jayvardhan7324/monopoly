@@ -120,15 +120,26 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
           );
         if (cornerName === 'go to prison')
           return (
-            <div className="flex flex-col h-full w-full relative bg-gradient-to-br from-[#252331] to-[#1e1b2e] overflow-hidden">
-              <span className="absolute top-1.5 left-1.5 text-[8px] text-slate-400 font-bold tracking-wider uppercase">Go to</span>
-              <div className="absolute top-0 left-0 w-[60%] h-[75%] bg-slate-400/15 border-b border-r border-slate-500/30 flex shadow-inner">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="flex-1 border-r border-slate-500/30 bg-white/5" />
-                ))}
+            <div className="flex flex-col items-center justify-center h-full w-full relative overflow-hidden bg-gradient-to-br from-[#3a1420] via-[#2a1020] to-[#1a0a18]">
+              {/* hazard stripes top + bottom */}
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-[repeating-linear-gradient(45deg,#f59e0b,#f59e0b_3px,#1a0a18_3px,#1a0a18_6px)] opacity-80" />
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[repeating-linear-gradient(45deg,#f59e0b,#f59e0b_3px,#1a0a18_3px,#1a0a18_6px)] opacity-80" />
+              {/* red glow pulse */}
+              <div className="absolute inset-0 bg-rose-500/5 pointer-events-none" />
+              <span className="text-[8px] text-amber-300 font-black uppercase tracking-[0.25em] leading-none drop-shadow-[0_0_3px_rgba(245,158,11,0.6)] mb-0.5">Go to</span>
+              <div className="relative flex items-center justify-center">
+                <Lock
+                  size={22}
+                  className="text-rose-400 drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]"
+                  strokeWidth={2.5}
+                  fill="currentColor"
+                  fillOpacity={0.15}
+                />
               </div>
-              <ArrowRight size={22} className="absolute bottom-2 right-2 text-amber-300/90 drop-shadow-md z-10" strokeWidth={2.5} />
-              <span className="absolute bottom-1.5 left-1.5 text-[10px] text-white font-black z-10 leading-none tracking-tight">Prison</span>
+              <span className="mt-0.5 text-[13px] text-rose-300 font-black uppercase tracking-tight leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.7)]">Jail</span>
+              <div className="mt-0.5 bg-rose-500/20 px-1 py-[1px] rounded-[4px] border border-rose-500/40 leading-none">
+                <span className="text-[7px] font-mono text-rose-300 font-bold uppercase tracking-wider">Busted!</span>
+              </div>
             </div>
           );
         return null;
