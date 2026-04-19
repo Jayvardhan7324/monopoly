@@ -21,7 +21,8 @@
 ## Key Directories
 ```
 components/         React UI components
-  admin/            Admin dashboard (BoardBuilder, Dashboard, AdminLogin)
+  admin/            Admin dashboard (BoardBuilder, Dashboard, AdminLogin) — Ads tab manages creatives
+  ads/              AdSlot — renders admin-controlled ads by placement key
   auth/             LoginPage (Better Auth: Google / Apple / email+password)
   store/            StorePage (coin purchases)
   profile/          ProfileModal
@@ -32,6 +33,7 @@ services/           Client-side logic
   geminiService.ts  Calls /api/ai-advice proxy (never calls Gemini directly)
   socketService.ts  Socket.io client wrapper
   audioService.ts   Sound effects
+  adsService.ts     Fetches /api/ads (60s cache), pickWeighted, impression/click tracking
 db/
   index.ts          Drizzle client (node-postgres pool)
   schema.ts         Better Auth core + app tables (see DB Schema section below)
@@ -70,6 +72,9 @@ cashly_assets/      Static images + sounds served at /sounds
 | GET | `/api/admin/users` | x-admin-token | list all users |
 | PATCH | `/api/admin/users/:id` | x-admin-token | update role/ban/coins |
 | GET/POST/PATCH/DELETE | `/api/admin/store/items*` | x-admin-token | store item management |
+| GET | `/api/ads` | none | enabled ads grouped by placement (60s client cache) |
+| POST | `/api/ads/:id/track` | none | impression/click counter (best-effort) |
+| GET/POST/PATCH/DELETE | `/api/admin/ads*` | x-admin-token | ad CRUD |
 | ALL | `/api/auth/*` | handled by Better Auth | sign-in / sign-up / OAuth / sign-out / session |
 | GET | `/api/profile/:userId` | none | profile + stats |
 | POST | `/api/profile/stats` | session cookie | increment game stats |
@@ -152,6 +157,7 @@ Better Auth core tables:
 - `bugReport` — id (gen_random_uuid default), title, description, imageUrl, consentGiven, status, ip, userAgent, createdAt
 - `friendships` — id, requesterId, addresseeId, status
 - `adminBoard` — id, name, boardSize, tiles (jsonb), isActive, createdAt, updatedAt (persistent board templates)
+- `ad` — id, name, placement (lobby_top|lobby_bottom|lobby_sidebar|game_*|global_*|store_top|profile_top), imageUrl, linkUrl, htmlSnippet, altText, weight, enabled, impressions, clicks, startsAt, endsAt
 - `gameHistory` — id, roomId, hostUserId, winnerUserId, players, finalNetWorth, startedAt, endedAt, durationMinutes, turnsPlayed
 - `tradeHistory` — id, gameId, roomId, fromUserId, toUserId, offered, requested, accepted, createdAt
 - `auditLog` — id, adminUserId, action, targetType, targetId, before, after, ipAddress, createdAt
