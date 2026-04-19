@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
 import { playSound } from './services/audioService';
+import AdSlot from './components/ads/AdSlot';
 import {
   INITIAL_TILES,
   PLAYER_COLORS,
@@ -2147,6 +2148,13 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         ))}
                       </div>
                     </motion.div>
+                  </div>
+
+                  {/* Ad slot — admin-controlled */}
+                  <div className="w-full px-4 sm:px-6 mt-4">
+                    <div className="max-w-5xl mx-auto">
+                      <AdSlot placement="lobby_bottom" className="min-h-[1px]" />
+                    </div>
                   </div>
 
                   {/* Footer */}

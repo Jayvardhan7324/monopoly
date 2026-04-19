@@ -225,6 +225,33 @@ export const adminBoard = pgTable("admin_board", {
   index("admin_board_active_idx").on(t.isActive),
 ]);
 
+// ── Ads ───────────────────────────────────────────────────────────────────────
+// Lightweight ad records the admin panel can manage. Each row is one creative
+// pinned to a placement slot (header, footer, lobby_top, lobby_side, etc.).
+// Either render `imageUrl` (clickable through `linkUrl`) or, for ad networks,
+// drop in a raw `htmlSnippet` (e.g. an AdSense block). Empty placements just
+// render nothing on the client.
+export const ad = pgTable("ad", {
+  id:          text("id").primaryKey().$defaultFn(() => randomUUID()),
+  name:        text("name").notNull(),
+  placement:   text("placement").notNull(),
+  imageUrl:    text("image_url"),
+  linkUrl:     text("link_url"),
+  htmlSnippet: text("html_snippet"),
+  altText:     text("alt_text"),
+  weight:      integer("weight").notNull().default(1),
+  enabled:     boolean("enabled").notNull().default(true),
+  impressions: integer("impressions").notNull().default(0),
+  clicks:      integer("clicks").notNull().default(0),
+  startsAt:    timestamp("starts_at"),
+  endsAt:      timestamp("ends_at"),
+  createdAt:   timestamp("created_at").notNull().defaultNow(),
+  updatedAt:   timestamp("updated_at").notNull().defaultNow(),
+}, (t) => [
+  index("ad_placement_idx").on(t.placement),
+  index("ad_enabled_idx").on(t.enabled),
+]);
+
 // ── Back-compat alias ─────────────────────────────────────────────────────────
 // Some older call sites still reference `profiles`. Keep the export name so we
 // can migrate imports one file at a time.

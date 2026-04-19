@@ -10,9 +10,39 @@ import {
   LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag,
   Ban, Shield, Coins, Edit2, X, Check, Package, BarChart3, TrendingUp,
   UserCheck, UserX, Crown, Minus, RefreshCw, Flag, AlertCircle, Database,
+  Megaphone, Eye, MousePointerClick, Image as ImageIcon, Code2, Power, ExternalLink,
 } from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
+
+interface AdRow {
+  id: string;
+  name: string;
+  placement: string;
+  imageUrl: string | null;
+  linkUrl: string | null;
+  htmlSnippet: string | null;
+  altText: string | null;
+  weight: number;
+  enabled: boolean;
+  impressions: number;
+  clicks: number;
+  startsAt: string | null;
+  endsAt: string | null;
+  createdAt: string;
+}
+
+const PLACEMENT_LABELS: Record<string, string> = {
+  lobby_top: 'Lobby — Top Banner',
+  lobby_bottom: 'Lobby — Above Footer',
+  lobby_sidebar: 'Lobby — Sidebar',
+  game_sidebar: 'In-Game — Sidebar',
+  game_footer: 'In-Game — Footer Bar',
+  global_header: 'Global Header',
+  global_footer: 'Global Footer',
+  store_top: 'Store — Top of Page',
+  profile_top: 'Profile — Top of Page',
+};
 
 interface UserRow {
   id: string; name: string; email: string; role: string | null;
@@ -53,6 +83,20 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   // Bug reports tab
   const [bugReports, setBugReports] = useState<any[]>([]);
   const [bugsLoading, setBugsLoading] = useState(false);
+
+  // Ads tab
+  const [ads, setAds] = useState<AdRow[]>([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [adPlacements, setAdPlacements] = useState<string[]>([]);
+  const [adFilter, setAdFilter] = useState<string>('all');
+  const [showAdForm, setShowAdForm] = useState(false);
+  const [editingAd, setEditingAd] = useState<AdRow | null>(null);
+  const blankAdForm = {
+    name: '', placement: 'lobby_bottom', imageUrl: '', linkUrl: '',
+    htmlSnippet: '', altText: '', weight: 1, enabled: true,
+    startsAt: '', endsAt: '',
+  };
+  const [adForm, setAdForm] = useState(blankAdForm);
 
   // DB health probe
   const [dbTest, setDbTest] = useState<null | {
@@ -215,11 +259,101 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
     } catch { toast.error('Failed to update status'); }
   };
 
+  const fetchAds = async () => {
+    setAdsLoading(true);
+    try {
+      const res = await fetch('/api/admin/ads', { headers });
+      if (!res.ok) { toast.error('Failed to load ads'); return; }
+      const data = await res.json();
+      setAds(data.ads ?? []);
+      setAdPlacements(data.placements ?? Object.keys(PLACEMENT_LABELS));
+    } catch { toast.error('Failed to load ads'); }
+    finally { setAdsLoading(false); }
+  };
+
+  const openAdForm = (ad: AdRow | null) => {
+    setEditingAd(ad);
+    if (ad) {
+      setAdForm({
+        name: ad.name,
+        placement: ad.placement,
+        imageUrl: ad.imageUrl ?? '',
+        linkUrl: ad.linkUrl ?? '',
+        htmlSnippet: ad.htmlSnippet ?? '',
+        altText: ad.altText ?? '',
+        weight: ad.weight,
+        enabled: ad.enabled,
+        startsAt: ad.startsAt ? ad.startsAt.slice(0, 16) : '',
+        endsAt: ad.endsAt ? ad.endsAt.slice(0, 16) : '',
+      });
+    } else {
+      setAdForm(blankAdForm);
+    }
+    setShowAdForm(true);
+  };
+
+  const saveAd = async () => {
+    if (!adForm.name.trim()) { toast.error('Name required'); return; }
+    if (!adForm.placement) { toast.error('Placement required'); return; }
+    if (!adForm.imageUrl.trim() && !adForm.htmlSnippet.trim()) {
+      toast.error('Provide either an image URL or HTML snippet');
+      return;
+    }
+    const body: Record<string, any> = {
+      name: adForm.name,
+      placement: adForm.placement,
+      imageUrl: adForm.imageUrl || null,
+      linkUrl: adForm.linkUrl || null,
+      htmlSnippet: adForm.htmlSnippet || null,
+      altText: adForm.altText || null,
+      weight: Number(adForm.weight) || 1,
+      enabled: adForm.enabled,
+      startsAt: adForm.startsAt || null,
+      endsAt: adForm.endsAt || null,
+    };
+    try {
+      const res = editingAd
+        ? await fetch(`/api/admin/ads/${editingAd.id}`, { method: 'PATCH', headers, body: JSON.stringify(body) })
+        : await fetch('/api/admin/ads', { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Failed to save ad');
+        return;
+      }
+      toast.success(editingAd ? 'Ad updated' : 'Ad created');
+      setShowAdForm(false);
+      setEditingAd(null);
+      fetchAds();
+    } catch { toast.error('Failed to save ad'); }
+  };
+
+  const toggleAdEnabled = async (ad: AdRow) => {
+    try {
+      const res = await fetch(`/api/admin/ads/${ad.id}`, {
+        method: 'PATCH', headers, body: JSON.stringify({ enabled: !ad.enabled }),
+      });
+      if (!res.ok) { toast.error('Failed to toggle'); return; }
+      toast.success(!ad.enabled ? 'Ad enabled' : 'Ad paused');
+      fetchAds();
+    } catch { toast.error('Failed to toggle'); }
+  };
+
+  const deleteAd = async (id: string) => {
+    if (!confirm('Delete this ad permanently?')) return;
+    try {
+      const res = await fetch(`/api/admin/ads/${id}`, { method: 'DELETE', headers });
+      if (!res.ok) { toast.error('Failed to delete'); return; }
+      toast.success('Ad deleted');
+      fetchAds();
+    } catch { toast.error('Failed to delete'); }
+  };
+
   useEffect(() => {
     if (tab === 'users') fetchUsers();
     if (tab === 'store') fetchStoreItems();
     if (tab === 'analytics') fetchAnalytics();
     if (tab === 'bugs') fetchBugReports();
+    if (tab === 'ads') fetchAds();
   }, [tab]);
 
   const pushBoard = async (id: string) => {
@@ -255,17 +389,22 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card sticky top-0 z-10">
+      <header className="border-b border-border bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 sticky top-0 z-20 backdrop-blur supports-[backdrop-filter]:bg-card/80">
         <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <LayoutGrid className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-lg">Cashly Admin</span>
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-md bg-gradient-to-br from-indigo-500 to-fuchsia-500 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+              <LayoutGrid className="h-4 w-4 text-white" />
+            </div>
+            <div className="flex flex-col leading-tight">
+              <span className="font-bold text-base bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">Cashly Admin</span>
+              <span className="text-[10px] text-muted-foreground font-mono tracking-wide">control panel</span>
+            </div>
             {activeBoard && (
               <>
-                <Separator orientation="vertical" className="h-5 mx-1" />
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Radio className="h-3 w-3 text-green-500 animate-pulse" />
-                  <span>{activeBoard.name} active</span>
+                <Separator orientation="vertical" className="h-6 mx-2" />
+                <div className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300">
+                  <Radio className="h-3 w-3 animate-pulse" />
+                  <span className="font-medium">{activeBoard.name}</span>
                 </div>
               </>
             )}
@@ -304,34 +443,54 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="ads">
+              <Megaphone className="h-3.5 w-3.5 mr-1.5" />Ads
+              {ads.filter(a => a.enabled).length > 0 && (
+                <Badge variant="secondary" className="ml-1.5 h-4 min-w-4 px-1 text-[10px]">
+                  {ads.filter(a => a.enabled).length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
 
           {/* ── Overview ── */}
           <TabsContent value="overview">
             <div className="grid gap-4 md:grid-cols-3 mb-6">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Active Board</CardDescription>
+              <Card className="relative overflow-hidden border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent">
+                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-500/10 blur-2xl" />
+                <CardHeader className="pb-2 relative">
+                  <div className="flex items-center justify-between">
+                    <CardDescription>Active Board</CardDescription>
+                    <Globe className="h-4 w-4 text-emerald-400" />
+                  </div>
                   <CardTitle className="text-xl">{activeBoard ? activeBoard.name : 'Classic (default)'}</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="relative">
                   <Badge variant={activeBoard ? 'default' : 'secondary'}>
                     {activeBoard ? `${activeBoard.tiles.length} tiles` : 'Built-in'}
                   </Badge>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardDescription>Saved Boards</CardDescription>
-                  <CardTitle className="text-xl">{boards.length}</CardTitle>
+              <Card className="relative overflow-hidden border-indigo-500/20 bg-gradient-to-br from-indigo-500/5 to-transparent">
+                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-indigo-500/10 blur-2xl" />
+                <CardHeader className="pb-2 relative">
+                  <div className="flex items-center justify-between">
+                    <CardDescription>Saved Boards</CardDescription>
+                    <LayoutGrid className="h-4 w-4 text-indigo-400" />
+                  </div>
+                  <CardTitle className="text-3xl font-black">{boards.length}</CardTitle>
                 </CardHeader>
-                <CardContent><span className="text-sm text-muted-foreground">Custom configurations</span></CardContent>
+                <CardContent className="relative"><span className="text-sm text-muted-foreground">Custom configurations</span></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardDescription>Quick Actions</CardDescription></CardHeader>
-                <CardContent className="flex flex-col gap-2">
+              <Card className="relative overflow-hidden border-fuchsia-500/20 bg-gradient-to-br from-fuchsia-500/5 to-transparent">
+                <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-fuchsia-500/10 blur-2xl" />
+                <CardHeader className="pb-2 relative"><CardDescription>Quick Actions</CardDescription></CardHeader>
+                <CardContent className="flex flex-col gap-2 relative">
                   <Button size="sm" onClick={() => { setEditingBoard(null); setTab('builder'); }}>
                     <Plus className="h-4 w-4 mr-2" />New Board
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setTab('ads')}>
+                    <Megaphone className="h-4 w-4 mr-2" />Manage Ads
                   </Button>
                   {boards.length > 0 && !activeBoard && (
                     <Button size="sm" variant="outline" onClick={() => pushBoard(boards[0].id)}>
@@ -900,6 +1059,246 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* ── Ads ── */}
+          <TabsContent value="ads">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <div>
+                <h2 className="text-xl font-semibold flex items-center gap-2">
+                  <Megaphone className="h-5 w-5 text-fuchsia-400" /> Ad Management
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Control creatives shown across the app. Pause, schedule, and track impressions per slot.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={fetchAds} disabled={adsLoading}>
+                  <RefreshCw className={`h-4 w-4 mr-1.5 ${adsLoading ? 'animate-spin' : ''}`} />Refresh
+                </Button>
+                <Button size="sm" onClick={() => openAdForm(null)}>
+                  <Plus className="h-4 w-4 mr-1.5" />New Ad
+                </Button>
+              </div>
+            </div>
+
+            {/* Stats strip */}
+            <div className="grid gap-3 md:grid-cols-4 mb-5">
+              {[
+                { label: 'Total Ads', value: ads.length, icon: <Megaphone className="h-4 w-4" />, color: 'text-fuchsia-400 border-fuchsia-500/20 from-fuchsia-500/5' },
+                { label: 'Active', value: ads.filter(a => a.enabled).length, icon: <Power className="h-4 w-4" />, color: 'text-emerald-400 border-emerald-500/20 from-emerald-500/5' },
+                { label: 'Impressions', value: ads.reduce((s, a) => s + (a.impressions || 0), 0).toLocaleString(), icon: <Eye className="h-4 w-4" />, color: 'text-indigo-400 border-indigo-500/20 from-indigo-500/5' },
+                { label: 'Clicks', value: ads.reduce((s, a) => s + (a.clicks || 0), 0).toLocaleString(), icon: <MousePointerClick className="h-4 w-4" />, color: 'text-amber-400 border-amber-500/20 from-amber-500/5' },
+              ].map((s, i) => (
+                <Card key={i} className={`bg-gradient-to-br to-transparent ${s.color}`}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardDescription>{s.label}</CardDescription>
+                      <span className={s.color.split(' ')[0]}>{s.icon}</span>
+                    </div>
+                    <CardTitle className="text-2xl font-black tabular-nums">{s.value}</CardTitle>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+
+            {/* Placement filter chips */}
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              <button
+                onClick={() => setAdFilter('all')}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${adFilter === 'all' ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-muted'}`}
+              >
+                All ({ads.length})
+              </button>
+              {(adPlacements.length ? adPlacements : Object.keys(PLACEMENT_LABELS)).map(p => {
+                const count = ads.filter(a => a.placement === p).length;
+                return (
+                  <button
+                    key={p}
+                    onClick={() => setAdFilter(p)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${adFilter === p ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-muted'}`}
+                  >
+                    {PLACEMENT_LABELS[p] || p} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Ad form */}
+            {showAdForm && (
+              <Card className="mb-5 border-fuchsia-500/30 bg-fuchsia-500/5">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      {editingAd ? <><Edit2 className="h-4 w-4" /> Editing: {editingAd.name}</> : <><Plus className="h-4 w-4" /> New Ad</>}
+                    </CardTitle>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowAdForm(false); setEditingAd(null); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Name (internal)</label>
+                      <Input value={adForm.name} onChange={e => setAdForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Summer promo" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Placement</label>
+                      <select
+                        value={adForm.placement}
+                        onChange={e => setAdForm(f => ({ ...f, placement: e.target.value }))}
+                        className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg"
+                      >
+                        {(adPlacements.length ? adPlacements : Object.keys(PLACEMENT_LABELS)).map(p => (
+                          <option key={p} value={p}>{PLACEMENT_LABELS[p] || p}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium flex items-center gap-1.5">
+                        <ImageIcon className="h-3 w-3" /> Image URL
+                      </label>
+                      <Input value={adForm.imageUrl} onChange={e => setAdForm(f => ({ ...f, imageUrl: e.target.value }))} placeholder="https://… (PNG/JPG/SVG/GIF)" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Click-through URL</label>
+                      <Input value={adForm.linkUrl} onChange={e => setAdForm(f => ({ ...f, linkUrl: e.target.value }))} placeholder="https://…" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Alt text</label>
+                      <Input value={adForm.altText} onChange={e => setAdForm(f => ({ ...f, altText: e.target.value }))} placeholder="Accessibility text" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium flex items-center gap-1.5">
+                        <Code2 className="h-3 w-3" /> HTML snippet (overrides image — for ad networks like AdSense)
+                      </label>
+                      <textarea
+                        value={adForm.htmlSnippet}
+                        onChange={e => setAdForm(f => ({ ...f, htmlSnippet: e.target.value }))}
+                        placeholder="<script>… or <ins class=&quot;adsbygoogle&quot; …>"
+                        rows={3}
+                        className="w-full px-3 py-2 text-xs font-mono bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring resize-y"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Weight (rotation)</label>
+                      <Input type="number" min={0} value={adForm.weight} onChange={e => setAdForm(f => ({ ...f, weight: Number(e.target.value) }))} />
+                    </div>
+                    <div className="flex items-end">
+                      <button
+                        onClick={() => setAdForm(f => ({ ...f, enabled: !f.enabled }))}
+                        className={`px-3 py-2 text-sm rounded-lg border font-medium transition-colors w-full ${adForm.enabled ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' : 'bg-slate-500/10 border-slate-500/40 text-slate-400'}`}
+                      >
+                        <Power className="h-3.5 w-3.5 inline mr-1.5" />
+                        {adForm.enabled ? 'Enabled' : 'Paused'}
+                      </button>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Starts at (optional)</label>
+                      <Input type="datetime-local" value={adForm.startsAt} onChange={e => setAdForm(f => ({ ...f, startsAt: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block font-medium">Ends at (optional)</label>
+                      <Input type="datetime-local" value={adForm.endsAt} onChange={e => setAdForm(f => ({ ...f, endsAt: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  {/* Live preview */}
+                  {(adForm.imageUrl || adForm.htmlSnippet) && (
+                    <div className="mb-3 rounded-lg border border-dashed border-border p-3 bg-background/40">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2 font-semibold">Live preview</p>
+                      {adForm.imageUrl && !adForm.htmlSnippet && (
+                        <img src={adForm.imageUrl} alt={adForm.altText} className="max-h-32 rounded" />
+                      )}
+                      {adForm.htmlSnippet && (
+                        <div className="text-xs text-muted-foreground italic">HTML snippet preview disabled in admin (renders live on the site).</div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={saveAd}><Check className="h-4 w-4 mr-1" />Save Ad</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setShowAdForm(false); setEditingAd(null); }}>
+                      <X className="h-4 w-4 mr-1" />Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {adsLoading ? (
+              <Card><CardContent className="py-12 text-center text-muted-foreground">Loading ads…</CardContent></Card>
+            ) : ads.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center text-muted-foreground">
+                  <Megaphone className="h-10 w-10 mx-auto mb-2 opacity-40" />
+                  <p>No ads yet — create one to start placing creatives across the app.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {ads
+                  .filter(a => adFilter === 'all' || a.placement === adFilter)
+                  .map(ad => {
+                    const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(1) : '0.0';
+                    return (
+                      <Card key={ad.id} className={`group transition-all ${ad.enabled ? 'border-border hover:border-fuchsia-500/40' : 'opacity-60 border-dashed'}`}>
+                        <CardContent className="p-4">
+                          <div className="flex gap-3">
+                            <div className="shrink-0 h-20 w-28 rounded-md border border-border bg-muted/30 overflow-hidden flex items-center justify-center">
+                              {ad.imageUrl ? (
+                                <img src={ad.imageUrl} alt={ad.altText || ad.name} className="h-full w-full object-cover" />
+                              ) : ad.htmlSnippet ? (
+                                <Code2 className="h-6 w-6 text-muted-foreground" />
+                              ) : (
+                                <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <p className="font-semibold text-sm truncate">{ad.name}</p>
+                                <Badge variant={ad.enabled ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                                  {ad.enabled ? 'LIVE' : 'PAUSED'}
+                                </Badge>
+                              </div>
+                              <Badge variant="outline" className="text-[10px] mb-2">
+                                {PLACEMENT_LABELS[ad.placement] || ad.placement}
+                              </Badge>
+                              <div className="grid grid-cols-3 gap-1 text-[11px] mb-2">
+                                <div className="flex items-center gap-1">
+                                  <Eye className="h-3 w-3 text-indigo-400" />
+                                  <span className="font-mono tabular-nums">{ad.impressions.toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <MousePointerClick className="h-3 w-3 text-amber-400" />
+                                  <span className="font-mono tabular-nums">{ad.clicks.toLocaleString()}</span>
+                                </div>
+                                <div className="text-muted-foreground font-mono">CTR {ctr}%</div>
+                              </div>
+                              {ad.linkUrl && (
+                                <a href={ad.linkUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-400 hover:underline truncate flex items-center gap-1">
+                                  <ExternalLink className="h-2.5 w-2.5" />
+                                  <span className="truncate">{ad.linkUrl}</span>
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-1.5 mt-3 pt-3 border-t border-border">
+                            <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => toggleAdEnabled(ad)}>
+                              <Power className="h-3 w-3 mr-1" />{ad.enabled ? 'Pause' : 'Resume'}
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs flex-1" onClick={() => openAdForm(ad)}>
+                              <Edit2 className="h-3 w-3 mr-1" />Edit
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => deleteAd(ad.id)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
               </div>
             )}
           </TabsContent>

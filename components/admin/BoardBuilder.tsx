@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Save, X, Pencil, LayoutGrid, List, GripVertical } from 'lucide-react';
+import { Save, X, Pencil, LayoutGrid, List, GripVertical, RotateCcw, Search, Sparkles, Coins as CoinsIcon } from 'lucide-react';
+import { toast } from 'sonner';
 import CellEditor from './CellEditor';
 import type { CustomBoard, CustomTile } from './types';
 import { Tile } from '../Tile';
@@ -165,6 +166,8 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
   const [editingTile, setEditingTile] = useState<CustomTile | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [view, setView] = useState<'grid' | 'list'>('grid');
+  const [search, setSearch] = useState('');
+  const [highlightType, setHighlightType] = useState<TileType | 'all'>('all');
 
   // Drag state for list view
   const listDragPos = useRef<number | null>(null);
@@ -220,32 +223,89 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
 
   const totalTiles = 4 * (boardSize - 1);
 
-  // Group tiles by side for list view
+  const handleResetTiles = () => {
+    if (!confirm('Reset all tiles to defaults? Custom edits will be lost.')) return;
+    setTiles(generateDefaultTiles(boardSize));
+    toast.success('Tiles reset to defaults');
+  };
+
+  const handleRandomizePrices = () => {
+    setTiles(prev => prev.map(t => {
+      if (t.type !== TileType.PROPERTY) return t;
+      const base = 60 + Math.floor(Math.random() * 340);
+      return {
+        ...t,
+        price: base,
+        houseCost: Math.max(50, Math.floor(base * 0.5)),
+        rent: [
+          Math.floor(base * 0.05), Math.floor(base * 0.25), Math.floor(base * 0.75),
+          Math.floor(base * 2.25), Math.floor(base * 4.0), Math.floor(base * 5.0),
+        ],
+      };
+    }));
+    toast.success('Property prices randomized');
+  };
+
+  // Tile-type breakdown for the stats panel
+  const typeCounts = tiles.reduce<Record<string, number>>((acc, t) => {
+    acc[t.type] = (acc[t.type] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Group tiles by side for list view, with optional search/type filtering
+  const matchesFilter = (t: CustomTile) => {
+    if (highlightType !== 'all' && t.type !== highlightType) return false;
+    if (search && !t.name.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  };
   const sides = [
-    { label: 'Top',    tiles: tiles.filter(t => t.position <= boardSize - 1) },
-    { label: 'Right',  tiles: tiles.filter(t => t.position >= boardSize && t.position <= 2 * boardSize - 3) },
-    { label: 'Bottom', tiles: tiles.filter(t => t.position >= 2 * boardSize - 2 && t.position <= 3 * boardSize - 3) },
-    { label: 'Left',   tiles: tiles.filter(t => t.position >= 3 * boardSize - 2) },
+    { label: 'Top',    tiles: tiles.filter(t => t.position <= boardSize - 1).filter(matchesFilter) },
+    { label: 'Right',  tiles: tiles.filter(t => t.position >= boardSize && t.position <= 2 * boardSize - 3).filter(matchesFilter) },
+    { label: 'Bottom', tiles: tiles.filter(t => t.position >= 2 * boardSize - 2 && t.position <= 3 * boardSize - 3).filter(matchesFilter) },
+    { label: 'Left',   tiles: tiles.filter(t => t.position >= 3 * boardSize - 2).filter(matchesFilter) },
   ];
+
+  const TYPE_COLOR: Record<string, string> = {
+    [TileType.PROPERTY]:        'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    [TileType.RAILROAD]:        'bg-slate-500/15 text-slate-300 border-slate-500/30',
+    [TileType.UTILITY]:         'bg-teal-500/15 text-teal-300 border-teal-500/30',
+    [TileType.CHANCE]:          'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    [TileType.COMMUNITY_CHEST]: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
+    [TileType.TAX]:             'bg-rose-500/15 text-rose-300 border-rose-500/30',
+    [TileType.CORNER]:          'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+  };
 
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold">
-            {initialBoard ? `Editing: ${initialBoard.name}` : 'New Board'}
-          </h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Click any tile to edit · Drag tiles to swap positions
-          </p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+            <LayoutGrid className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">
+              {initialBoard ? `Editing: ${initialBoard.name}` : 'New Board'}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Click any tile to edit · Drag tiles to swap positions
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" size="sm" onClick={handleResetTiles}>
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleRandomizePrices}>
+            <Sparkles className="h-4 w-4 mr-2" />
+            Randomize Prices
+          </Button>
           <Button variant="outline" onClick={onCancel}>
             <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} className="bg-gradient-to-r from-emerald-500 to-indigo-500 hover:opacity-90 text-white border-0">
             <Save className="h-4 w-4 mr-2" />
             Save Board
           </Button>
@@ -303,6 +363,48 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
               </div>
             </CardContent>
           </Card>
+
+          {/* Tile-type breakdown */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <CoinsIcon className="h-4 w-4 text-amber-400" />
+                Tile Composition
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-1.5">
+                {Object.entries(typeCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([type, count]) => {
+                    const pct = (count / tiles.length) * 100;
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setHighlightType(prev => prev === type ? 'all' : type as TileType)}
+                        className={`w-full text-left p-2 rounded-md border transition-all ${highlightType === type ? TYPE_COLOR[type] : 'border-border hover:border-primary/40'}`}
+                      >
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium capitalize">{type.replace('_', ' ').toLowerCase()}</span>
+                          <span className="font-mono tabular-nums">{count}</span>
+                        </div>
+                        <div className="h-1 bg-muted rounded-full overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-emerald-500 to-indigo-500" style={{ width: `${pct}%` }} />
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+              {highlightType !== 'all' && (
+                <button
+                  onClick={() => setHighlightType('all')}
+                  className="mt-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full text-center"
+                >
+                  Clear filter
+                </button>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* ── Right: visual board + list ── */}
@@ -345,6 +447,22 @@ const BoardBuilder: React.FC<Props> = ({ initialBoard, onSave, onCancel }) => {
               </div>
             ) : (
               <ScrollArea className="h-[520px] pr-3">
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Search tiles by name…"
+                      className="pl-8 h-8 text-xs"
+                    />
+                  </div>
+                  {(search || highlightType !== 'all') && (
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSearch(''); setHighlightType('all'); }}>
+                      Clear
+                    </Button>
+                  )}
+                </div>
                 <div className="space-y-4">
                   {sides.map(side => (
                     <div key={side.label}>

@@ -1477,6 +1477,126 @@ async function startServer() {
     }
   });
 
+  // ─── Ads ──────────────────────────────────────────────────────────────────
+  const AD_PLACEMENTS = new Set([
+    'lobby_top', 'lobby_bottom', 'lobby_sidebar',
+    'game_sidebar', 'game_footer',
+    'global_header', 'global_footer',
+    'store_top', 'profile_top',
+  ]);
+
+  // Public — only enabled + within window. Grouped by placement for cheap lookup.
+  app.get('/api/ads', async (_req, res) => {
+    try {
+      const rows = await db.select().from(schema.ad);
+      const now = Date.now();
+      const visible = rows.filter(r => {
+        if (!r.enabled) return false;
+        if (r.startsAt && new Date(r.startsAt).getTime() > now) return false;
+        if (r.endsAt && new Date(r.endsAt).getTime() < now) return false;
+        return true;
+      });
+      const grouped: Record<string, any[]> = {};
+      for (const r of visible) {
+        (grouped[r.placement] ||= []).push({
+          id: r.id, name: r.name, placement: r.placement,
+          imageUrl: r.imageUrl, linkUrl: r.linkUrl,
+          htmlSnippet: r.htmlSnippet, altText: r.altText,
+          weight: r.weight,
+        });
+      }
+      res.json({ ads: grouped });
+    } catch {
+      res.status(500).json({ ads: {} });
+    }
+  });
+
+  // Track impression / click — best-effort, errors swallowed.
+  app.post('/api/ads/:id/track', async (req, res) => {
+    const kind = req.body?.kind === 'click' ? 'clicks' : 'impressions';
+    try {
+      const col = kind === 'clicks' ? schema.ad.clicks : schema.ad.impressions;
+      await db.update(schema.ad).set({ [kind]: sql`${col} + 1` } as any).where(eq(schema.ad.id, req.params.id));
+    } catch { /* best-effort */ }
+    res.json({ ok: true });
+  });
+
+  app.get('/api/admin/ads', requireAdmin, async (_req, res) => {
+    try {
+      const ads = await db.select().from(schema.ad);
+      res.json({ ads, placements: Array.from(AD_PLACEMENTS) });
+    } catch {
+      res.status(500).json({ error: 'Failed to load ads' });
+    }
+  });
+
+  function sanitizeAdBody(body: any) {
+    const out: Record<string, any> = {};
+    if (body.name !== undefined) out.name = String(body.name).slice(0, 120);
+    if (body.placement !== undefined) {
+      if (!AD_PLACEMENTS.has(String(body.placement))) return { error: 'Invalid placement' };
+      out.placement = String(body.placement);
+    }
+    if (body.imageUrl !== undefined) out.imageUrl = body.imageUrl ? String(body.imageUrl).slice(0, 1000) : null;
+    if (body.linkUrl !== undefined) out.linkUrl = body.linkUrl ? String(body.linkUrl).slice(0, 1000) : null;
+    if (body.htmlSnippet !== undefined) out.htmlSnippet = body.htmlSnippet ? String(body.htmlSnippet).slice(0, 4000) : null;
+    if (body.altText !== undefined) out.altText = body.altText ? String(body.altText).slice(0, 200) : null;
+    if (body.weight !== undefined) {
+      const w = Number(body.weight);
+      if (!isFinite(w) || w < 0) return { error: 'Invalid weight' };
+      out.weight = Math.floor(w);
+    }
+    if (body.enabled !== undefined) out.enabled = Boolean(body.enabled);
+    if (body.startsAt !== undefined) out.startsAt = body.startsAt ? new Date(body.startsAt) : null;
+    if (body.endsAt !== undefined) out.endsAt = body.endsAt ? new Date(body.endsAt) : null;
+    return { updates: out };
+  }
+
+  app.post('/api/admin/ads', requireAdmin, async (req, res) => {
+    const { name, placement } = req.body ?? {};
+    if (!name || !placement) return res.status(400).json({ error: 'name and placement required' });
+    const result = sanitizeAdBody(req.body ?? {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    try {
+      const ad = {
+        id: randomUUID(),
+        ...result.updates,
+        weight: result.updates.weight ?? 1,
+        enabled: result.updates.enabled ?? true,
+        impressions: 0,
+        clicks: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      await db.insert(schema.ad).values(ad as any);
+      res.json({ success: true, ad });
+    } catch {
+      res.status(500).json({ error: 'Failed to create ad' });
+    }
+  });
+
+  app.patch('/api/admin/ads/:id', requireAdmin, async (req, res) => {
+    const result = sanitizeAdBody(req.body ?? {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    if (Object.keys(result.updates).length === 0) return res.status(400).json({ error: 'No valid fields' });
+    result.updates.updatedAt = new Date();
+    try {
+      await db.update(schema.ad).set(result.updates).where(eq(schema.ad.id, req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to update ad' });
+    }
+  });
+
+  app.delete('/api/admin/ads/:id', requireAdmin, async (req, res) => {
+    try {
+      await db.delete(schema.ad).where(eq(schema.ad.id, req.params.id));
+      res.json({ success: true });
+    } catch {
+      res.status(500).json({ error: 'Failed to delete ad' });
+    }
+  });
+
   // ─── Profile ──────────────────────────────────────────────────────────────
 
   app.get('/api/profile/:userId', async (req, res) => {
