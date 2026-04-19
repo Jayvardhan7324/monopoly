@@ -3,7 +3,7 @@
 ## Stack
 - **Frontend**: React + Vite + TypeScript + Tailwind CSS + shadcn/ui + framer-motion
 - **Backend**: Express + Socket.io (single `server.ts`, no separate src/ dir)
-- **Auth**: Better Auth (cookie sessions, email+password + Google + Apple) mounted at `/api/auth/*`
+- **Auth**: Better Auth (cookie sessions, email+password with email verification + Google + Apple + Discord) mounted at `/api/auth/*`
 - **DB**: PostgreSQL via Drizzle ORM (`db/index.ts`, `db/schema.ts`) — Dokploy-hosted in prod, local Docker Postgres in dev
 - **AI**: Google Gemini 2.0 Flash — server-side proxy only at `/api/ai-advice`
 - **Deployment**: Dokploy — Postgres as a managed database service, app as a Node/nixpacks application service
@@ -99,6 +99,13 @@ GOOGLE_CLIENT_SECRET
 APPLE_CLIENT_ID
 APPLE_CLIENT_SECRET
 APPLE_APP_BUNDLE_ID
+DISCORD_CLIENT_ID
+DISCORD_CLIENT_SECRET
+
+# Email verification (Resend HTTP API — no extra deps)
+RESEND_API_KEY              # if unset, verify links log to console (dev)
+EMAIL_FROM                  # default "Cashly <onboarding@resend.dev>"
+REQUIRE_EMAIL_VERIFICATION  # "true" blocks sign-in until verified
 
 # Admin panel — all three must be set or admin is disabled
 ADMIN_TOKEN          # Bearer token for x-admin-token header

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { authClient } from '../../lib/auth-client';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Lock, User, Chrome, ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Lock, User, Chrome, ArrowRight, Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 
 interface Props {
@@ -18,8 +18,9 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [verifySent, setVerifySent] = useState<string | null>(null);
 
-  const clearError = () => setError(null);
+  const clearError = () => { setError(null); setVerifySent(null); };
 
   const handleEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,9 +30,20 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
       if (tab === 'signup') {
         const { error } = await authClient.signUp.email({ email, password, name });
         if (error) { setError(error.message ?? 'Sign up failed'); return; }
+        setVerifySent(email);
+        // If email verification is required, the session won't be created — stop here.
+        const { data: session } = await authClient.getSession();
+        if (!session) return;
       } else {
         const { error } = await authClient.signIn.email({ email, password });
-        if (error) { setError(error.message ?? 'Sign in failed'); return; }
+        if (error) {
+          if (/verif/i.test(error.message ?? '')) {
+            setError('Please verify your email before signing in. Check your inbox.');
+          } else {
+            setError(error.message ?? 'Sign in failed');
+          }
+          return;
+        }
       }
       await onSuccess();
     } catch (err: any) {
@@ -60,6 +72,18 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
       await authClient.signIn.social({ provider: 'apple', callbackURL: window.location.origin });
     } catch (err: any) {
       setError(err?.message ?? 'Apple sign in failed');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleDiscord = async () => {
+    clearError();
+    setLoading('discord');
+    try {
+      await authClient.signIn.social({ provider: 'discord', callbackURL: window.location.origin });
+    } catch (err: any) {
+      setError(err?.message ?? 'Discord sign in failed');
     } finally {
       setLoading(null);
     }
@@ -132,6 +156,19 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
                 </svg>
               )}
               Continue with Apple
+            </button>
+
+            <button
+              onClick={handleDiscord}
+              disabled={!!loading}
+              className="flex items-center justify-center gap-3 w-full py-2.5 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700 hover:border-slate-500 text-sm font-medium text-white transition-all disabled:opacity-50 active:scale-[0.98]"
+            >
+              {loading === 'discord' ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="#5865F2">
+                  <path d="M20.317 4.369A19.79 19.79 0 0016.558 3a14.6 14.6 0 00-.642 1.317 18.27 18.27 0 00-5.487 0A12.6 12.6 0 009.785 3a19.74 19.74 0 00-3.76 1.369C2.155 10.108 1.21 15.7 1.683 21.214a19.9 19.9 0 005.993 3.03 14.5 14.5 0 001.279-2.077c-.7-.262-1.37-.586-2.005-.967.168-.122.333-.25.49-.38a14.18 14.18 0 0012.12 0c.158.13.323.258.49.38-.636.382-1.308.706-2.008.968a14.4 14.4 0 001.28 2.076 19.86 19.86 0 005.997-3.03c.5-6.387-.838-11.926-3.522-16.845zM8.02 17.86c-1.183 0-2.157-1.085-2.157-2.42 0-1.336.955-2.42 2.157-2.42 1.21 0 2.176 1.094 2.157 2.42 0 1.335-.955 2.42-2.157 2.42zm7.974 0c-1.183 0-2.157-1.085-2.157-2.42 0-1.336.955-2.42 2.157-2.42 1.21 0 2.176 1.094 2.157 2.42 0 1.335-.946 2.42-2.157 2.42z"/>
+                </svg>
+              )}
+              Continue with Discord
             </button>
           </div>
 
@@ -208,6 +245,17 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
               >
                 {error}
               </motion.p>
+            )}
+
+            {verifySent && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-start gap-2 text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2"
+              >
+                <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>Check <span className="font-semibold">{verifySent}</span> for a verification link to activate your account.</span>
+              </motion.div>
             )}
 
             <Button
