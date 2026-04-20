@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import './index.css';
 
-// Lazy-load heavy page/panel components — only fetched when the modal actually opens
+// Lazy-load heavy page/panel components — only fetched when the page actually opens
 const AdminPage   = lazy(() => import('./components/admin/AdminPage'));
 const LoginPage   = lazy(() => import('./components/auth/LoginPage'));
 const StorePage   = lazy(() => import('./components/store/StorePage'));
@@ -58,13 +58,42 @@ function normalizeSession(data: any) {
   };
 }
 
+type Page = 'store' | 'profile' | 'settings' | null;
+
+function pageFromPath(path: string): Page {
+  if (path.startsWith('/store')) return 'store';
+  if (path.startsWith('/profile')) return 'profile';
+  if (path.startsWith('/settings')) return 'settings';
+  return null;
+}
+
 function Root() {
   const [sessionData, setSessionData] = useState<any>(undefined); // undefined = loading
   const [showLogin, setShowLogin] = useState(false);
-  const [showStore, setShowStore] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showFriends, setShowFriends] = useState(false);
+  const [page, setPage] = useState<Page>(() => pageFromPath(window.location.pathname));
+
+  // URL-driven routing for full pages. Push history entries so the browser
+  // back button returns to the previous screen (including the in-game board).
+  useEffect(() => {
+    const onPop = () => setPage(pageFromPath(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const navigate = useCallback((target: Page) => {
+    const path = target ? `/${target}` : '/';
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setPage(target);
+  }, []);
+
+  const goBack = useCallback(() => {
+    // Prefer real browser back (preserves in-game URL + scroll), fall back to home
+    if (window.history.length > 1) window.history.back();
+    else navigate(null);
+  }, [navigate]);
 
   const refreshSession = useCallback(async () => {
     const { data } = await authClient.getSession();
@@ -77,6 +106,14 @@ function Root() {
   // fetch on mount is sufficient. After OAuth redirects the browser navigates
   // back with the session cookie already set.
   useEffect(() => { refreshSession(); }, []);
+
+  // If user hits /profile or /settings without a session, bounce to home and open login
+  useEffect(() => {
+    if (sessionData === null && (page === 'profile' || page === 'settings')) {
+      navigate(null);
+      setShowLogin(true);
+    }
+  }, [sessionData, page, navigate]);
 
   // Still loading auth
   if (sessionData === undefined) {
@@ -95,11 +132,9 @@ function Root() {
   const handleSignOut = () => {
     authClient.signOut().then(() => {
       setSessionData(null);
-      setShowStore(false);
-      setShowProfile(false);
-      setShowSettings(false);
       setShowFriends(false);
       setShowLogin(false);
+      navigate(null);
     });
   };
 
@@ -114,17 +149,58 @@ function Root() {
   const loginOpen = showLogin;
   const loginCanDismiss = true;
 
+  // App stays mounted beneath so in-game state (sockets, reducer, timers)
+  // survives navigation to these pages. Pages render as a full-viewport
+  // overlay with a solid background — visually a real page, functionally
+  // a sibling layer that preserves the game session.
   return (
     <>
       <App
         sessionUser={sessionData?.user ?? null}
-        onOpenStore={() => setShowStore(true)}
-        onOpenProfile={() => setShowProfile(true)}
-        onOpenSettings={() => setShowSettings(true)}
+        onOpenStore={() => navigate('store')}
+        onOpenProfile={() => navigate('profile')}
+        onOpenSettings={() => navigate('settings')}
         onOpenLogin={() => setShowLogin(true)}
         onOpenFriends={() => setShowFriends(true)}
         onSignOut={handleSignOut}
       />
+
+      {/* ── Store page (URL: /store) ───────────────────────────── */}
+      {page === 'store' && (
+        <div className="fixed inset-0 z-40 bg-slate-950 overflow-hidden flex flex-col">
+          <Suspense fallback={<PageSpinner />}>
+            <StorePage onBack={goBack} userId={sessionData?.user?.id} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* ── Profile page (URL: /profile) ───────────────────────── */}
+      {page === 'profile' && sessionData && (
+        <div className="fixed inset-0 z-40 bg-slate-950 overflow-hidden flex flex-col">
+          <Suspense fallback={<PageSpinner />}>
+            <ProfilePage
+              sessionData={sessionData}
+              onClose={goBack}
+              onSignOut={handleSignOut}
+              onOpenFriends={() => setShowFriends(true)}
+              onProfileUpdated={handleProfileUpdated}
+            />
+          </Suspense>
+        </div>
+      )}
+
+      {/* ── Settings page (URL: /settings) ─────────────────────── */}
+      {page === 'settings' && sessionData && (
+        <div className="fixed inset-0 z-40 bg-[#13131a] overflow-hidden flex flex-col">
+          <Suspense fallback={<PageSpinner />}>
+            <SettingsPage
+              sessionData={sessionData}
+              onClose={goBack}
+              onOpenProfile={() => navigate('profile')}
+            />
+          </Suspense>
+        </div>
+      )}
 
       {/* ── Login modal ─────────────────────────────────────────── */}
       <AnimatePresence>
@@ -153,96 +229,6 @@ function Root() {
                 }} />
               </Suspense>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Store modal ─────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showStore && (
-          <motion.div
-            key="store-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center"
-            onClick={e => { if (e.target === e.currentTarget) setShowStore(false); }}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative w-full max-w-5xl h-[90vh] bg-slate-950 rounded-t-2xl sm:rounded-2xl border border-slate-800 overflow-hidden flex flex-col"
-            >
-              <Suspense fallback={<PageSpinner />}>
-                <StorePage onBack={() => setShowStore(false)} userId={sessionData?.user?.id} />
-              </Suspense>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Profile page ────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showProfile && sessionData && (
-          <motion.div
-            key="profile-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center"
-            onClick={e => { if (e.target === e.currentTarget) setShowProfile(false); }}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative w-full max-w-2xl h-[90vh] bg-slate-950 rounded-t-2xl sm:rounded-2xl border border-slate-800 overflow-hidden flex flex-col"
-            >
-              <Suspense fallback={<PageSpinner />}>
-                <ProfilePage
-                  sessionData={sessionData}
-                  onClose={() => setShowProfile(false)}
-                  onSignOut={handleSignOut}
-                  onOpenFriends={() => { setShowProfile(false); setShowFriends(true); }}
-                  onProfileUpdated={handleProfileUpdated}
-                />
-              </Suspense>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      {/* ── Settings page ──────────────────────────────────────── */}
-      <AnimatePresence>
-        {showSettings && sessionData && (
-          <motion.div
-            key="settings-backdrop"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm flex items-end sm:items-center justify-center"
-            onClick={e => { if (e.target === e.currentTarget) setShowSettings(false); }}
-          >
-            <motion.div
-              initial={{ y: 60, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 60, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              className="relative w-full max-w-2xl h-[90vh] bg-[#13131a] rounded-t-2xl sm:rounded-2xl border border-white/5 overflow-hidden flex flex-col"
-            >
-              <Suspense fallback={<PageSpinner />}>
-                <SettingsPage
-                  sessionData={sessionData}
-                  onClose={() => setShowSettings(false)}
-                  onOpenProfile={() => { setShowSettings(false); setShowProfile(true); }}
-                />
-              </Suspense>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
