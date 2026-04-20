@@ -89,7 +89,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
               <span className="text-xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)]">Start</span>
               <ArrowRight size={22} className="text-lime-500 drop-shadow-md mt-0.5" />
-              <div className="mt-0.5 bg-lime-500/20 px-1 py-[1px] rounded-[4px] border border-lime-500/40 leading-none">
+              <div className="mt-0.5 bg-lime-500/20 px-1 py-0 rounded-[4px] border border-lime-500/40 leading-none">
                 <span className="text-[7px] font-mono text-lime-400 font-bold">+${GAME_CONSTANTS.GO_BONUS}</span>
               </div>
             </div>
@@ -112,7 +112,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               <TreePalm size={32} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
               <span className="text-[9px] text-slate-200 mt-0.5 font-bold">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <div className="mt-0.5 bg-emerald-500/20 px-1 py-[1px] rounded-[4px] border border-emerald-500/40 leading-none">
+                <div className="mt-0.5 bg-emerald-500/20 px-1 py-0 rounded-[4px] border border-emerald-500/40 leading-none">
                   <span className="text-[7px] font-mono text-emerald-400 font-bold">${taxPool}</span>
                 </div>
               )}
@@ -137,7 +137,7 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
                 />
               </div>
               <span className="mt-0.5 text-[13px] text-rose-300 font-black uppercase tracking-tight leading-none drop-shadow-[0_0_6px_rgba(244,63,94,0.7)]">Jail</span>
-              <div className="mt-0.5 bg-rose-500/20 px-1 py-[1px] rounded-[4px] border border-rose-500/40 leading-none">
+              <div className="mt-0.5 bg-rose-500/20 px-1 py-0 rounded-[4px] border border-rose-500/40 leading-none">
                 <span className="text-[7px] font-mono text-rose-300 font-bold uppercase tracking-wider">Busted!</span>
               </div>
             </div>
