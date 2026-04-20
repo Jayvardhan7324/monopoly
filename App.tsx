@@ -2080,9 +2080,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           const stats = [
                             { value: String(activeRooms.length), label: 'Live rooms', accent: 'text-indigo-400' },
                             { value: String(playersOnline), label: 'Players in game', accent: 'text-emerald-400' },
-                            sessionUser
-                              ? { value: String(sessionUser.coins ?? 0), label: 'Your coins', accent: 'text-amber-400' }
-                              : { value: 'Free', label: 'Forever', accent: 'text-fuchsia-400' },
+                            { value: 'Free', label: 'Forever', accent: 'text-fuchsia-400' },
                           ];
                           return (
                             <div className="grid grid-cols-3 gap-2.5">
