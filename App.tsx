@@ -1926,14 +1926,32 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   className="flex-1 flex flex-col relative z-10 w-full"
                 >
                   {/* Hero / join form — narrow centered column */}
-                  <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6">
-                    <div className="w-full max-w-sm flex flex-col items-center gap-4">
-                      <div className="flex flex-col items-center gap-1">
-                        <Dices size={48} className="text-white drop-shadow-lg mb-1" />
-                        <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center">
-                          CASHLY<span className="text-indigo-500">.IO</span>
+                  <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6 relative">
+                    {/* Hero glow */}
+                    <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[640px] h-[420px] bg-gradient-to-b from-indigo-600/25 via-violet-600/10 to-transparent blur-3xl rounded-full" />
+                    <div className="w-full max-w-sm flex flex-col items-center gap-4 relative">
+                      <div className="flex flex-col items-center gap-1.5">
+                        <motion.div
+                          animate={{ y: [0, -6, 0], rotate: [0, 6, 0, -6, 0] }}
+                          transition={{ repeat: Infinity, duration: 4.5, ease: 'easeInOut' }}
+                          className="relative"
+                        >
+                          <div className="absolute inset-0 blur-2xl bg-indigo-500/40 rounded-full scale-125" />
+                          <Dices size={56} className="relative text-white drop-shadow-[0_4px_18px_rgba(99,102,241,0.55)]" />
+                        </motion.div>
+                        <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center leading-none">
+                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">CASHLY</span>
+                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">.IO</span>
                         </h1>
-                        <p className="text-slate-400 text-base text-center">Rule the economy</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
+                          </span>
+                          <p className="text-slate-400 text-sm font-medium tracking-wide">
+                            Rule the economy · <span className="text-emerald-400 font-bold">{activeRooms.length}</span> live game{activeRooms.length === 1 ? '' : 's'}
+                          </p>
+                        </div>
                       </div>
 
                       <div className="w-full space-y-3 mt-1">
@@ -2048,7 +2066,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         </div>
                       </div>
 
-                      {/* Stats row */}
+                      {/* Stats row — live data */}
                       <motion.div
                         className="w-full pt-1"
                         initial={{ opacity: 0, y: 16 }}
@@ -2056,26 +2074,61 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         viewport={{ once: true, margin: '-30px' }}
                         transition={{ duration: 0.45, delay: 0.1 }}
                       >
-                        <div className="grid grid-cols-3 gap-2.5">
-                          {[
-                            { value: '8', label: 'Max players' },
-                            { value: '10K+', label: 'Games' },
-                            { value: 'Free', label: 'Always' },
-                          ].map((stat, i) => (
-                            <motion.div
-                              key={i}
-                              initial={{ opacity: 0, scale: 0.85 }}
-                              whileInView={{ opacity: 1, scale: 1 }}
-                              viewport={{ once: true }}
-                              transition={{ duration: 0.35, delay: 0.15 + i * 0.08 }}
-                              className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center"
-                            >
-                              <div className="text-lg font-black text-white">{stat.value}</div>
-                              <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
-                            </motion.div>
-                          ))}
-                        </div>
+                        {(() => {
+                          const playersOnline = activeRooms.reduce((s, r) => s + (r.playerCount || 0), 0);
+                          const stats = [
+                            { value: String(activeRooms.length), label: 'Live rooms', accent: 'text-indigo-400' },
+                            { value: String(playersOnline), label: 'Players in game', accent: 'text-emerald-400' },
+                            sessionUser
+                              ? { value: String(sessionUser.coins ?? 0), label: 'Your coins', accent: 'text-amber-400' }
+                              : { value: 'Free', label: 'Forever', accent: 'text-fuchsia-400' },
+                          ];
+                          return (
+                            <div className="grid grid-cols-3 gap-2.5">
+                              {stats.map((stat, i) => (
+                                <motion.div
+                                  key={i}
+                                  initial={{ opacity: 0, scale: 0.85 }}
+                                  whileInView={{ opacity: 1, scale: 1 }}
+                                  viewport={{ once: true }}
+                                  transition={{ duration: 0.35, delay: 0.15 + i * 0.08 }}
+                                  className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center hover:border-slate-700 transition-colors"
+                                >
+                                  <div className={`text-lg font-black ${stat.accent}`}>{stat.value}</div>
+                                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
+                                </motion.div>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </motion.div>
+
+                      {/* Trending room — quick join (only if a public room exists) */}
+                      {(() => {
+                        const top = activeRooms.find(r => !r.isPrivate && r.playerCount < r.maxPlayers);
+                        if (!top) return null;
+                        return (
+                          <motion.button
+                            onClick={() => { setJoinRoomId(top.roomId); joinRoom(top.roomId); }}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.4, delay: 0.25 }}
+                            className="w-full text-left bg-gradient-to-r from-[#1a1a22] to-[#1d1a28] hover:from-[#1f1f29] hover:to-[#231e34] border border-indigo-500/20 hover:border-indigo-500/50 rounded-xl px-3.5 py-2.5 flex items-center gap-3 transition-all group active:scale-[0.99]"
+                          >
+                            <div className="shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border border-indigo-500/30 flex items-center justify-center">
+                              <Zap size={15} className="text-indigo-300" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Trending</p>
+                                <span className="text-[9px] font-mono text-slate-500 bg-slate-800/60 px-1.5 rounded">{top.roomId}</span>
+                              </div>
+                              <p className="text-xs font-bold text-white truncate mt-0.5">{top.hostName}'s room · {top.playerCount}/{top.maxPlayers} players</p>
+                            </div>
+                            <ChevronRight size={16} className="text-slate-500 group-hover:text-indigo-300 group-hover:translate-x-0.5 transition-all shrink-0" />
+                          </motion.button>
+                        );
+                      })()}
                     </div>
                   </div>
 
