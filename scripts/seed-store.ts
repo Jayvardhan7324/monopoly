@@ -223,6 +223,58 @@ const BOARD_SEEDS = [
   { slug: "medieval-kingdom",  name: "Medieval Kingdom",  tiles: MEDIEVAL },
 ];
 
+// ── SVG thumbnail generator ───────────────────────────────────────────────────
+
+/**
+ * Builds a 256×256 SVG thumbnail with a gradient background and a large
+ * emoji glyph in the center. Returned as a data URI so it embeds directly
+ * into `store_item.asset_url` with no external hosting required.
+ */
+function svgThumb(glyph: string, c1: string, c2: string): string {
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">` +
+    `<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0%" stop-color="${c1}"/><stop offset="100%" stop-color="${c2}"/>` +
+    `</linearGradient></defs>` +
+    `<rect width="256" height="256" rx="28" fill="url(#g)"/>` +
+    `<text x="128" y="178" text-anchor="middle" font-size="140" font-family="'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif">${glyph}</text>` +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Mini 3×3 grid preview for a board skin. Uses a palette that evokes the
+ * board's theme so each skin is visually distinct in the store.
+ */
+function svgBoardThumb(accent: string, bg1: string, bg2: string): string {
+  const cells = [
+    "#92400e", "#7dd3fc", "#f472b6",
+    "#fb923c", accent,   "#ef4444",
+    "#eab308", "#22c55e", "#3b82f6",
+  ];
+  const size = 72;
+  const gap = 8;
+  const offset = (256 - (size * 3 + gap * 2)) / 2;
+  const rects = cells
+    .map((fill, i) => {
+      const r = Math.floor(i / 3);
+      const c = i % 3;
+      const x = offset + c * (size + gap);
+      const y = offset + r * (size + gap);
+      return `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="10" fill="${fill}"/>`;
+    })
+    .join("");
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">` +
+    `<defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1">` +
+    `<stop offset="0%" stop-color="${bg1}"/><stop offset="100%" stop-color="${bg2}"/>` +
+    `</linearGradient></defs>` +
+    `<rect width="256" height="256" rx="28" fill="url(#b)"/>` +
+    rects +
+    `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 // ── Store item catalog ────────────────────────────────────────────────────────
 
 interface ItemSeed {
@@ -236,19 +288,19 @@ interface ItemSeed {
 
 const STANDALONE_ITEMS: ItemSeed[] = [
   // Tokens
-  { id: "token-rocket",  name: "Rocket Token",  description: "Blast off in style.",             type: "token",       priceCoins: 250, assetUrl: null },
-  { id: "token-crown",   name: "Crown Token",   description: "Rule the board.",                 type: "token",       priceCoins: 400, assetUrl: null },
-  { id: "token-skull",   name: "Skull Token",   description: "Cursed gold hits different.",     type: "token",       priceCoins: 350, assetUrl: null },
-  { id: "token-dragon",  name: "Dragon Token",  description: "Hoard properties like a dragon.", type: "token",       priceCoins: 600, assetUrl: null },
+  { id: "token-rocket",  name: "Rocket Token",  description: "Blast off in style.",                    type: "token",       priceCoins: 250, assetUrl: svgThumb("🚀", "#f97316", "#b91c1c") },
+  { id: "token-crown",   name: "Crown Token",   description: "Rule the board.",                        type: "token",       priceCoins: 400, assetUrl: svgThumb("👑", "#facc15", "#b45309") },
+  { id: "token-skull",   name: "Skull Token",   description: "Cursed gold hits different.",            type: "token",       priceCoins: 350, assetUrl: svgThumb("💀", "#64748b", "#1e293b") },
+  { id: "token-dragon",  name: "Dragon Token",  description: "Hoard properties like a dragon.",        type: "token",       priceCoins: 600, assetUrl: svgThumb("🐉", "#10b981", "#064e3b") },
   // Profile pics
-  { id: "pic-fox",       name: "Sly Fox",       description: "For the cunning negotiator.",     type: "profile_pic", priceCoins: 150, assetUrl: null },
-  { id: "pic-robot",     name: "Tycoon Bot",    description: "All calculated, no emotion.",     type: "profile_pic", priceCoins: 200, assetUrl: null },
-  { id: "pic-wizard",    name: "Coin Wizard",   description: "Magic markup on rents.",          type: "profile_pic", priceCoins: 300, assetUrl: null },
+  { id: "pic-fox",       name: "Sly Fox",       description: "For the cunning negotiator.",            type: "profile_pic", priceCoins: 150, assetUrl: svgThumb("🦊", "#fb923c", "#9a3412") },
+  { id: "pic-robot",     name: "Tycoon Bot",    description: "All calculated, no emotion.",            type: "profile_pic", priceCoins: 200, assetUrl: svgThumb("🤖", "#38bdf8", "#1e3a8a") },
+  { id: "pic-wizard",    name: "Coin Wizard",   description: "Magic markup on rents.",                 type: "profile_pic", priceCoins: 300, assetUrl: svgThumb("🧙", "#a855f7", "#4c1d95") },
   // Avatar frames
-  { id: "avatar-gold",   name: "Gold Frame",    description: "Glittering border for your avatar.", type: "avatar",   priceCoins: 500, assetUrl: null },
-  { id: "avatar-neon",   name: "Neon Frame",    description: "Pulses in your opponent's nightmares.", type: "avatar", priceCoins: 500, assetUrl: null },
+  { id: "avatar-gold",   name: "Gold Frame",    description: "Glittering border for your avatar.",     type: "avatar",      priceCoins: 500, assetUrl: svgThumb("✨", "#fbbf24", "#78350f") },
+  { id: "avatar-neon",   name: "Neon Frame",    description: "Pulses in your opponent's nightmares.",  type: "avatar",      priceCoins: 500, assetUrl: svgThumb("💫", "#22d3ee", "#6d28d9") },
   // Misc
-  { id: "misc-confetti", name: "Confetti Burst",description: "Explosive win animation.",        type: "misc",        priceCoins: 800, assetUrl: null },
+  { id: "misc-confetti", name: "Confetti Burst", description: "Explosive win animation.",              type: "misc",        priceCoins: 800, assetUrl: svgThumb("🎉", "#ec4899", "#7e22ce") },
 ];
 
 // ── Runner ────────────────────────────────────────────────────────────────────
@@ -311,27 +363,35 @@ async function main() {
 
   console.log("Seeding boards…");
   const boardItems: ItemSeed[] = [];
-  const boardPrices: Record<string, number> = {
-    "tropical-paradise": 700,
-    "neon-metropolis":   900,
-    "medieval-kingdom":  750,
-  };
-  const boardBlurbs: Record<string, string> = {
-    "tropical-paradise": "Trade coconuts for high-roller beachfront.",
-    "neon-metropolis":   "Cyberpunk streets, circuit-board rents.",
-    "medieval-kingdom":  "Bid on fiefdoms from peasant lane to the royal spire.",
+  const boardMeta: Record<string, { price: number; blurb: string; thumb: string }> = {
+    "tropical-paradise": {
+      price: 700,
+      blurb: "Trade coconuts for high-roller beachfront.",
+      thumb: svgBoardThumb("#14b8a6", "#0ea5e9", "#0f766e"),
+    },
+    "neon-metropolis": {
+      price: 900,
+      blurb: "Cyberpunk streets, circuit-board rents.",
+      thumb: svgBoardThumb("#22d3ee", "#6d28d9", "#0f172a"),
+    },
+    "medieval-kingdom": {
+      price: 750,
+      blurb: "Bid on fiefdoms from peasant lane to the royal spire.",
+      thumb: svgBoardThumb("#a16207", "#57534e", "#1c1917"),
+    },
   };
 
   for (const b of BOARD_SEEDS) {
     const boardId = await upsertBoard(b.slug, b.name, b.tiles);
+    const meta = boardMeta[b.slug];
     console.log(`  ✓ ${b.name} (${boardId})`);
     boardItems.push({
       id: `board-skin-${b.slug}`,
       name: `${b.name} Board`,
-      description: boardBlurbs[b.slug],
+      description: meta.blurb,
       type: "board_skin",
-      priceCoins: boardPrices[b.slug],
-      assetUrl: boardId, // admin board row id — client uses this to load the board
+      priceCoins: meta.price,
+      assetUrl: meta.thumb,
     });
   }
 
