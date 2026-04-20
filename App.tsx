@@ -1598,6 +1598,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               </div>
           )}
 
+          {/* Header glow — sits behind the top nav */}
+          <div className="pointer-events-none absolute top-[-220px] left-1/2 -translate-x-1/2 w-[820px] h-[460px] bg-gradient-to-b from-indigo-600/40 via-violet-600/18 to-transparent blur-3xl rounded-full z-0" />
+
           {/* Top Navigation Bar */}
           <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
             <button
@@ -1925,8 +1928,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                   className="flex-1 flex flex-col relative z-10 w-full"
                 >
-                  {/* Hero glow — pushed above the nav so it crowns the page */}
-                  <div className="pointer-events-none absolute top-[-180px] left-1/2 -translate-x-1/2 w-[760px] h-[480px] bg-gradient-to-b from-indigo-600/35 via-violet-600/15 to-transparent blur-3xl rounded-full z-0" />
                   {/* Hero / join form — narrow centered column */}
                   <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6 relative">
                     <div className="w-full max-w-sm flex flex-col items-center gap-4 relative">
