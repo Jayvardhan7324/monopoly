@@ -1925,10 +1925,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
                   className="flex-1 flex flex-col relative z-10 w-full"
                 >
+                  {/* Hero glow — pushed above the nav so it crowns the page */}
+                  <div className="pointer-events-none absolute top-[-180px] left-1/2 -translate-x-1/2 w-[760px] h-[480px] bg-gradient-to-b from-indigo-600/35 via-violet-600/15 to-transparent blur-3xl rounded-full z-0" />
                   {/* Hero / join form — narrow centered column */}
                   <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6 relative">
-                    {/* Hero glow */}
-                    <div className="pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 w-[640px] h-[420px] bg-gradient-to-b from-indigo-600/25 via-violet-600/10 to-transparent blur-3xl rounded-full" />
                     <div className="w-full max-w-sm flex flex-col items-center gap-4 relative">
                       <div className="flex flex-col items-center gap-1.5">
                         <motion.div
@@ -1939,9 +1939,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           <div className="absolute inset-0 blur-2xl bg-indigo-500/40 rounded-full scale-125" />
                           <Dices size={56} className="relative text-white drop-shadow-[0_4px_18px_rgba(99,102,241,0.55)]" />
                         </motion.div>
-                        <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-center leading-none">
-                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">CASHLY</span>
-                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent">.IO</span>
+                        <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
+                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">CASHLY</span>
+                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block pr-1">.IO</span>
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="relative flex h-1.5 w-1.5">

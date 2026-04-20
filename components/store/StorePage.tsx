@@ -166,25 +166,49 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
             <span className="font-black text-base tracking-tight">Store</span>
           </div>
           {/* Coin balance */}
-          <div className="ml-auto flex items-center gap-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full px-3 py-1.5">
-            <Coins className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-sm font-black text-amber-300 tabular-nums">{coins.toLocaleString()}</span>
-            <span className="text-[10px] text-amber-500/70 font-bold">coins</span>
-          </div>
+          <motion.div
+            whileHover={{ scale: 1.04 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+            className="ml-auto flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 via-amber-400/15 to-yellow-500/20 border border-amber-400/30 rounded-full px-3 py-1.5 shadow-[0_0_18px_rgba(251,191,36,0.18)]"
+          >
+            <Coins className="h-3.5 w-3.5 text-amber-300 drop-shadow-[0_0_4px_rgba(251,191,36,0.6)]" />
+            <span className="text-sm font-black text-amber-200 tabular-nums">{coins.toLocaleString()}</span>
+            <span className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">coins</span>
+          </motion.div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 flex-1 overflow-auto w-full space-y-6">
         {/* Hero */}
-        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-indigo-900/40 via-slate-900/60 to-slate-950 border border-indigo-500/15 p-5">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(99,102,241,0.15),_transparent_60%)]" />
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="h-4 w-4 text-indigo-400" />
-              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400">Cashly Store</span>
+        <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-indigo-900/50 via-violet-900/30 to-slate-950 border border-indigo-500/20 p-5 sm:p-6">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(168,85,247,0.22),_transparent_60%)]" />
+          <div className="absolute -top-8 -right-8 w-40 h-40 bg-indigo-500/10 blur-3xl rounded-full" />
+          <div className="relative z-10 flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <motion.div
+                  animate={{ rotate: [0, 18, -10, 0] }}
+                  transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
+                >
+                  <Sparkles className="h-4 w-4 text-indigo-300 drop-shadow-[0_0_6px_rgba(99,102,241,0.6)]" />
+                </motion.div>
+                <span className="text-[10px] font-black uppercase tracking-[0.22em] text-indigo-300">Cashly Store</span>
+              </div>
+              <h2 className="text-2xl font-black tracking-tight mb-1 bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent">Customize Your Empire</h2>
+              <p className="text-slate-400 text-xs sm:text-sm">Unlock avatars, board skins, and tokens with your coins.</p>
             </div>
-            <h2 className="text-xl font-black tracking-tight mb-0.5">Customize Your Empire</h2>
-            <p className="text-slate-400 text-xs">Unlock avatars, board skins, and tokens with your coins.</p>
+            {!loading && items.length > 0 && (
+              <div className="flex gap-2 shrink-0">
+                <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-center min-w-[68px]">
+                  <div className="text-lg font-black text-indigo-300 tabular-nums leading-none">{inventory.size}</div>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-1">Owned</div>
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-center min-w-[68px]">
+                  <div className="text-lg font-black text-white tabular-nums leading-none">{items.length}</div>
+                  <div className="text-[9px] font-bold text-slate-500 uppercase tracking-wider mt-1">Total</div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -234,18 +258,23 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
         <div className="flex gap-2 flex-wrap">
           {types.map(t => {
             const icon = t === 'all' ? <Grid3X3 size={11} /> : (TYPE_ICONS as Record<string, React.ReactNode>)[t] ?? null;
+            const count = t === 'all' ? items.length : items.filter(i => i.type === t).length;
+            const isActive = filterType === t;
             return (
               <button
                 key={t}
                 onClick={() => setFilterType(t)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all ${
-                  filterType === t
-                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/20'
-                    : 'bg-white/5 border-white/8 text-slate-400 hover:border-white/15 hover:text-white'
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all active:scale-95 ${
+                  isActive
+                    ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
+                    : 'bg-white/5 border-white/8 text-slate-400 hover:border-white/15 hover:text-white hover:bg-white/10'
                 }`}
               >
                 {icon}
                 {t === 'all' ? 'All Items' : (TYPE_LABELS[t] ?? t)}
+                <span className={`ml-0.5 text-[10px] tabular-nums px-1.5 py-px rounded-full ${
+                  isActive ? 'bg-white/20 text-white' : 'bg-white/8 text-slate-500'
+                }`}>{count}</span>
               </button>
             );
           })}
@@ -277,10 +306,11 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: i * 0.02, type: 'spring', stiffness: 400, damping: 30 }}
+                    whileHover={{ y: -4 }}
                     className={`relative flex flex-col rounded-xl border overflow-hidden transition-all group ${
                       owned
-                        ? 'border-indigo-500/40 bg-indigo-500/5'
-                        : 'border-white/8 bg-white/3 hover:border-white/15 hover:bg-white/5'
+                        ? 'border-indigo-500/40 bg-indigo-500/5 shadow-md shadow-indigo-500/10'
+                        : 'border-white/8 bg-white/3 hover:border-indigo-500/40 hover:bg-white/5 hover:shadow-lg hover:shadow-indigo-500/10'
                     }`}
                   >
                     {/* Asset preview */}
