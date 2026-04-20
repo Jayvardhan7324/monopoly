@@ -48,9 +48,9 @@ async function startServer() {
     console.error('[FATAL] Missing required env vars:', missingCritical.join(', '));
     process.exit(1);
   }
-  if (!process.env.ADMIN_TOKEN)    console.warn('[WARN] ADMIN_TOKEN not set — admin endpoints are unprotected');
-  if (!process.env.ADMIN_USERNAME) console.warn('[WARN] ADMIN_USERNAME not set — admin login disabled');
-  if (!process.env.ADMIN_PASSWORD) console.warn('[WARN] ADMIN_PASSWORD not set — admin login disabled');
+  if (!process.env.ADMIN_TOKEN || !process.env.ADMIN_USERNAME || !process.env.ADMIN_PASSWORD) {
+    console.warn('[WARN] Admin panel disabled — required configuration missing');
+  }
   if (isProd && !process.env.ALLOWED_ORIGINS) {
     console.warn('[WARN] ALLOWED_ORIGINS not set in production — Socket.io will accept connections from any origin');
   }
@@ -1010,14 +1010,30 @@ async function startServer() {
           // (rolling, buying, building, selling, mortgaging, ending turn, etc.) may
           // only be submitted by whoever is currently on the clock. Off-turn actions
           // like trades, auction bids, and kick votes are unrestricted here.
+          const playerRow = room.players.find((p: any) => p.id === socket.id);
+          const socketKey = playerRow?.originalId || socket.id;
+          const senderGamePlayerId = room.socketToGamePlayerId?.[socketKey];
           if (OWN_TURN_ONLY_ACTIONS.has(data.type) && room.state?.players) {
-            const playerRow = room.players.find((p: any) => p.id === socket.id);
-            const socketKey = playerRow?.originalId || socket.id;
-            const senderGamePlayerId = room.socketToGamePlayerId?.[socketKey];
             const currentPlayerId = room.state.players?.[room.state.currentPlayerIndex]?.id;
             if (senderGamePlayerId === undefined || senderGamePlayerId !== currentPlayerId) {
               socket.emit("action_error", { error: "Not your turn" });
               return;
+            }
+          }
+          // Identity guard: off-turn actions that name a player in their payload
+          // (PROPOSE_TRADE.proposerId, PLACE_BID.bidderId, DECLARE_BANKRUPT.playerId,
+          // VOTE_KICK.voterId, etc.) must match the sender. Prevents one client from
+          // submitting actions on behalf of another. Host actions (sender is the host
+          // socket) bypass this since the host legitimately submits bot actions.
+          const isHostSocket = room.host === socket.id;
+          if (!isHostSocket && data?.payload && typeof data.payload === 'object' && senderGamePlayerId !== undefined) {
+            const identityFields = ['proposerId', 'bidderId', 'voterId', 'playerId'];
+            for (const field of identityFields) {
+              const claimed = (data.payload as any)[field];
+              if (claimed !== undefined && claimed !== null && String(claimed) !== String(senderGamePlayerId)) {
+                socket.emit("action_error", { error: `Cannot submit '${data.type}' on behalf of another player` });
+                return;
+              }
             }
           }
           io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
@@ -1032,6 +1048,33 @@ async function startServer() {
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id) {
+          // Detect a freshly-accepted trade (lastTradeLog.ts changed since last sync) and persist
+          const prevTradeTs = room.state?.lastTradeLog?.ts;
+          const newTradeLog = data.state?.lastTradeLog;
+          if (
+            db && schema?.tradeHistory &&
+            newTradeLog?.result === 'accepted' &&
+            typeof newTradeLog.ts === 'number' &&
+            newTradeLog.ts !== prevTradeTs
+          ) {
+            // Best-effort fire-and-forget — never block the game loop
+            db.insert(schema.tradeHistory).values({
+              roomId,
+              fromName: String(newTradeLog.proposerName ?? ''),
+              toName: String(newTradeLog.targetName ?? ''),
+              offered: {
+                cash: Number(newTradeLog.offerCash ?? 0),
+                properties: Array.isArray(newTradeLog.offerPropertyNames) ? newTradeLog.offerPropertyNames : [],
+              },
+              requested: {
+                cash: Number(newTradeLog.requestCash ?? 0),
+                property: String(newTradeLog.targetPropertyName ?? ''),
+              },
+              accepted: true,
+            }).catch((err: any) => {
+              if (process.env.NODE_ENV !== 'production') log('tradeHistory insert failed:', err?.message);
+            });
+          }
           room.state = data.state; // store full state for reconnects
           // Trim logs to last 50 entries before broadcasting — keeps payload small
           const broadcastState = Array.isArray(data.state.logs) && data.state.logs.length > 50

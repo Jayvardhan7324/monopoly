@@ -519,6 +519,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (tile.type === TileType.CHANCE || tile.type === TileType.COMMUNITY_CHEST) {
         const deck = tile.type === TileType.CHANCE ? CHANCE_CARDS : COMMUNITY_CHEST_CARDS;
         const card = drawCard(deck);
+        const cardSource = tile.type === TileType.CHANCE ? 'Surprise' : 'Treasure';
         let updatedPlayers = [...state.players];
 
         if (card.type === 'JAIL') {
@@ -528,7 +529,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             inJail: true,
             jailTurns: 0,
           };
-          logs = addLog(logs, `${player.name} drew: "${card.description}" — Sent to Jail!`);
+          logs = addLog(logs, `🎴 ${player.name} drew a ${cardSource} card: "${card.description}" — Sent to Jail!`);
           return withSound(
             { ...state, players: updatedPlayers, logs, phase: 'TURN_END', lastDiceRollDoubles: false, doublesCount: 0 },
             'pay'
@@ -546,7 +547,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             position: targetPos,
             money: updatedPlayers[state.currentPlayerIndex].money + goBonus,
           };
-          logs = addLog(logs, `${player.name} drew: "${card.description}"`);
+          const destName = state.tiles[targetPos]?.name ?? `tile ${targetPos}`;
+          const goSuffix = goBonus > 0 ? ` (+$${goBonus} GO bonus)` : '';
+          logs = addLog(logs, `🎴 ${player.name} drew a ${cardSource} card: "${card.description}" — moved to ${destName}${goSuffix}.`);
           return withSound({ ...state, players: updatedPlayers, logs, phase: 'RESOLVING' }, 'land');
         }
 
@@ -554,11 +557,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           // GL-11: Proper "Get Out of Jail Free" — add to the player's held count. Consumed
           // later via USE_JAIL_CARD (player choice) or auto-applied on forced jail exit.
           const currentCards = updatedPlayers[state.currentPlayerIndex].jailFreeCards ?? 0;
+          const newCount = currentCards + 1;
           updatedPlayers[state.currentPlayerIndex] = {
             ...updatedPlayers[state.currentPlayerIndex],
-            jailFreeCards: currentCards + 1,
+            jailFreeCards: newCount,
           };
-          logs = addLog(logs, `${player.name} drew: "${card.description}"`);
+          logs = addLog(logs, `🎴 ${player.name} drew a ${cardSource} card: "${card.description}" (now holds ${newCount}).`);
           return withSound({ ...state, players: updatedPlayers, logs, phase: 'TURN_END' }, 'buy');
         }
 
@@ -571,6 +575,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             // Collect from / pay each other player
             const activePlayers = updatedPlayers.filter(p => !p.isBankrupt && p.id !== player.id);
             const perPlayerAmount = card.value; // negative = pay out, positive = collect
+            const otherNames = activePlayers.map(p => p.name).join(', ');
             updatedPlayers = updatedPlayers.map(p => {
               if (p.id === player.id) {
                 return { ...p, money: p.money + perPlayerAmount * activePlayers.length };
@@ -582,6 +587,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             });
             // BUG-6 FIX: Check bankruptcy for victims who went negative from per-player card
             let tempState = { ...state, players: updatedPlayers };
+            const newlyBankrupt: string[] = [];
             for (const victim of updatedPlayers) {
               if (victim.id !== player.id && !victim.isBankrupt && victim.money < 0) {
                 const { players: bp, tiles: bt, logs: bl } = declareBankruptcy(
@@ -589,21 +595,27 @@ const coreReducer = (state: GameState, action: Action): GameState => {
                   victim.id
                 );
                 tempState = { ...tempState, players: bp, tiles: bt, logs: bl };
+                newlyBankrupt.push(victim.name);
               }
             }
             updatedPlayers = tempState.players;
+            const totalDelta = perPlayerAmount * activePlayers.length;
+            const direction = perPlayerAmount > 0 ? `collected $${perPlayerAmount} from each of ${otherNames || 'no one'} (+$${totalDelta} total)` : `paid $${Math.abs(perPlayerAmount)} to each of ${otherNames || 'no one'} (-$${Math.abs(totalDelta)} total)`;
+            const bankruptcyNote = newlyBankrupt.length > 0 ? ` — ${newlyBankrupt.join(', ')} went bankrupt!` : '';
             logs = addLog(
               tempState.logs,
-              `${player.name} drew: "${card.description}" (${perPlayerAmount > 0 ? '+' : ''}$${perPlayerAmount} per player)`
+              `🎴 ${player.name} drew a ${cardSource} card: "${card.description}" — ${direction}${bankruptcyNote}`
             );
           } else {
+            const newBalance = updatedPlayers[state.currentPlayerIndex].money + card.value;
             updatedPlayers[state.currentPlayerIndex] = {
               ...updatedPlayers[state.currentPlayerIndex],
-              money: updatedPlayers[state.currentPlayerIndex].money + card.value,
+              money: newBalance,
             };
+            const sign = card.value >= 0 ? '+' : '-';
             logs = addLog(
               logs,
-              `${player.name} drew: "${card.description}" (${card.value >= 0 ? '+' : ''}$${card.value})`
+              `🎴 ${player.name} drew a ${cardSource} card: "${card.description}" (${sign}$${Math.abs(card.value)}, balance $${newBalance}).`
             );
           }
 
@@ -1165,6 +1177,20 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       // BUG-3: Reject negative cash values — would grant money instead of costing it
       if ((offerCash ?? 0) < 0 || (requestCash ?? 0) < 0) return state;
+      // BUG-N3: Reject non-finite or non-integer cash to block overflow / NaN exploits
+      if (!Number.isFinite(offerCash) || !Number.isInteger(offerCash) ||
+          !Number.isFinite(requestCash) || !Number.isInteger(requestCash)) {
+        return state;
+      }
+      // Sanity cap: cash legs cannot exceed each side's current balance
+      // (proposer is rechecked below, but request side must be feasible too).
+      if (offerCash > proposer.money) return state;
+      if (requestCash > targetPlayer.money) {
+        return withSound(
+          { ...state, logs: addLog(state.logs, `Cannot request more cash than ${targetPlayer.name} has.`) },
+          'error'
+        );
+      }
 
       // BUG-12: Proposer must own all properties they are offering
       const offerContainsUnowned = offerPropertyIds.some(id => state.tiles[id]?.ownerId !== proposerId);
@@ -1191,7 +1217,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const requestParts: string[] = [];
       if (requestCash > 0) requestParts.push(`$${requestCash}`);
       if (targetTile) requestParts.push(targetTile.name);
-      const tradeDesc = `${proposer.name} offered [${offerParts.join(' + ') || 'nothing'}] to ${targetPlayer.name} for [${requestParts.join(' + ') || 'nothing'}].`;
+      const tradeDesc = `🤝 ${proposer.name} offered ${targetPlayer.name} a trade — gives [${offerParts.join(' + ') || 'nothing'}], wants [${requestParts.join(' + ') || 'nothing'}].`;
 
       // If target is human, store as pending
       if (!targetPlayer.isBot) {
@@ -1345,16 +1371,20 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const accRequestParts: string[] = [];
       if (requestCash > 0) accRequestParts.push(`$${requestCash}`);
       if (targetPropName) accRequestParts.push(targetPropName);
-      const acceptMsg = `Trade done! ${proposer.name} gave [${accOfferParts.join(' + ') || 'nothing'}], got [${accRequestParts.join(' + ') || 'nothing'}].`;
+      const acceptMsg = `🤝 Trade DONE — ${proposer.name} ↔ ${target.name}: ${proposer.name} gave [${accOfferParts.join(' + ') || 'nothing'}], received [${accRequestParts.join(' + ') || 'nothing'}].`;
 
       const acceptLog: TradeLog = {
         proposerName: proposer.name,
         targetName: target.name,
+        proposerId: String(proposer.id),
+        targetId: String(target.id),
         result: 'accepted',
         offerCash,
         requestCash,
         offerPropertyCount: offerPropertyIds.length,
+        offerPropertyNames: offeredPropNames as string[],
         targetPropertyName: targetPropName,
+        ts: Date.now(),
       };
       return withSound(
         {
@@ -1389,7 +1419,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           ...state,
           pendingTrade: null,
           lastTradeLog: declineLog,
-          logs: addLog(state.logs, `Trade declined by ${target.name}.`),
+          logs: addLog(state.logs, `🤝 ${target.name} DECLINED the trade from ${proposerForDecline?.name ?? 'a player'}.`),
         },
         'trade_decline'
       );
@@ -1410,7 +1440,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         targetPropertyName: state.pendingTrade.targetPropertyId !== null ? (state.tiles[state.pendingTrade.targetPropertyId]?.name ?? '') : '',
       };
       return withSound(
-        { ...state, pendingTrade: null, lastTradeLog: cancelLog, logs: addLog(state.logs, `${proposerName} cancelled their trade offer.`) },
+        { ...state, pendingTrade: null, lastTradeLog: cancelLog, logs: addLog(state.logs, `🤝 ${proposerName} CANCELLED their trade offer to ${targetForCancel?.name ?? 'their target'}.`) },
         'trade_decline'
       );
     }

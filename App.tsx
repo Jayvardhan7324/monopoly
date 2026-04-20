@@ -2661,11 +2661,25 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   <span>No activity yet</span>
                 </div>
               ) : (
-                [...gameState.logs].reverse().map((log, i) => (
-                  <div key={i} className={`text-[10px] leading-relaxed px-2 py-1 rounded-lg ${i === 0 ? 'text-indigo-200 bg-indigo-950/50 border border-indigo-900/40' : 'text-slate-400'}`}>
-                    {log}
-                  </div>
-                ))
+                [...gameState.logs].map((log, i) => {
+                  // Category detection via prefix/keyword match for color + accent
+                  const isNewest = i === 0;
+                  let accent = 'border-slate-800 bg-slate-900/40 text-slate-300';
+                  if (log.startsWith('🎴')) accent = 'border-amber-700/60 bg-amber-950/30 text-amber-100';
+                  else if (log.startsWith('🤝')) accent = 'border-fuchsia-700/60 bg-fuchsia-950/30 text-fuchsia-100';
+                  else if (/bankrupt|eliminat/i.test(log)) accent = 'border-rose-700/60 bg-rose-950/30 text-rose-100';
+                  else if (/auction|bid/i.test(log)) accent = 'border-cyan-700/60 bg-cyan-950/30 text-cyan-100';
+                  else if (/built|upgrade|house|hotel/i.test(log)) accent = 'border-emerald-700/60 bg-emerald-950/30 text-emerald-100';
+                  else if (/jail|fine/i.test(log)) accent = 'border-orange-700/60 bg-orange-950/30 text-orange-100';
+                  else if (/bought|sold|mortgage/i.test(log)) accent = 'border-blue-700/60 bg-blue-950/30 text-blue-100';
+                  else if (/rent|paid|received/i.test(log)) accent = 'border-yellow-700/60 bg-yellow-950/30 text-yellow-100';
+                  const newestRing = isNewest ? 'ring-1 ring-indigo-500/50 shadow-[0_0_8px_rgba(99,102,241,0.25)]' : '';
+                  return (
+                    <div key={i} className={`text-xs leading-snug px-2 py-1.5 rounded-md border-l-2 ${accent} ${newestRing}`}>
+                      {log}
+                    </div>
+                  );
+                })
               )}
             </div>
           ) : (

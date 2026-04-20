@@ -136,6 +136,11 @@ export interface TradeLog {
   requestCash: number;
   offerPropertyCount: number;
   targetPropertyName: string;
+  // Extended fields for richer history persistence (optional for back-compat)
+  proposerId?: string;
+  targetId?: string;
+  offerPropertyNames?: string[];
+  ts?: number; // ms epoch — server uses to detect fresh accepted trades for DB persist
 }
 
 export interface GameState {
