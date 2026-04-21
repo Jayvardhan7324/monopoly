@@ -2,14 +2,14 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 
-// Enable TLS to Postgres in production unless the connection string already specifies sslmode,
-// or PGSSL=disable is set (internal dokploy network). `rejectUnauthorized: false` accepts
-// self-signed certs common on managed providers; set PGSSL_STRICT=1 to enforce CA validation.
+// TLS is opt-in: Dokploy's internal network does not offer SSL, and node-postgres
+// errors out with "server does not support SSL" if we try. Enable only when the
+// URL sets sslmode=require/verify-*, or PGSSL=require is set explicitly.
+// Set PGSSL_STRICT=1 to enforce CA validation; otherwise self-signed certs are accepted.
 const url = process.env.DATABASE_URL || "";
-const urlHasSslmode = /[?&]sslmode=/i.test(url);
-const sslDisabled = process.env.PGSSL === "disable";
-const isProd = process.env.NODE_ENV === "production";
-const ssl = !sslDisabled && !urlHasSslmode && isProd
+const urlWantsSsl = /[?&]sslmode=(require|verify-ca|verify-full)/i.test(url);
+const envWantsSsl = process.env.PGSSL === "require";
+const ssl = (urlWantsSsl || envWantsSsl)
   ? { rejectUnauthorized: process.env.PGSSL_STRICT === "1" }
   : undefined;
 
