@@ -58,19 +58,32 @@ async function startServer() {
   const app = express();
   // SEC-04: Trust first proxy hop so req.ip reflects real client IP (used for rate limiting)
   app.set('trust proxy', 1);
+  app.disable('x-powered-by');
   const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
   const httpServer = createHttpServer(app);
   // SEC-01: Restrict CORS to known origins; fall back to wildcard only in dev
   const allowedOrigins = process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(',')
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
     : null;
+  const originAllowlistActive = !!allowedOrigins && !(allowedOrigins.length === 1 && allowedOrigins[0] === '*');
   const io = new Server(httpServer, {
     cors: {
       origin: allowedOrigins
-        ? (allowedOrigins.length === 1 && allowedOrigins[0] === '*' ? '*' : allowedOrigins)
+        ? (originAllowlistActive ? allowedOrigins : '*')
         : true,
-      methods: ["GET", "POST"]
-    }
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+    // SEC: Cap per-frame payload (default 1MB) — sync_state already enforces 512KB at the handler level.
+    maxHttpBufferSize: 600 * 1024,
+    // SEC: Reject handshakes from origins outside ALLOWED_ORIGINS in production. Non-browser
+    // clients (no Origin header) are still allowed so server-to-server health checks work.
+    allowRequest: (req, cb) => {
+      if (!originAllowlistActive) return cb(null, true);
+      const origin = (req.headers.origin as string) || '';
+      if (!origin) return cb(null, true);
+      return cb(null, allowedOrigins!.includes(origin));
+    },
   });
 
   // Better Auth + DB — only loaded when DATABASE_URL is configured
@@ -115,16 +128,48 @@ async function startServer() {
   app.use(compression());
 
   // ── Security headers ────────────────────────────────────────────────────────
+  // Build a CSP that covers this app's surface: React bundle (self), inline styles (Tailwind
+  // CSS-in-JS + shadcn animate plugins), socket.io over ws/wss, images from self/https/data,
+  // Google/Apple/Discord OAuth popups, and nothing else. Ad HTML snippets are rendered inside
+  // a sandboxed iframe in AdSlot, so we don't need to allow 'unsafe-inline' scripts globally.
+  const cspConnect = ["'self'", 'ws:', 'wss:', 'https:'];
+  const cspDirectives = [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "img-src 'self' https: data: blob:",
+    "font-src 'self' data: https:",
+    "style-src 'self' 'unsafe-inline'",
+    "script-src 'self'" + (isProd ? "" : " 'unsafe-eval'"),
+    "script-src-attr 'none'",
+    `connect-src ${cspConnect.join(' ')}`,
+    "media-src 'self' https: data:",
+    "frame-src 'self' https:",
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    ...(isProd ? ["upgrade-insecure-requests"] : []),
+  ].join('; ');
+
   app.use((_req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), interest-cohort=()');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-site');
+    res.setHeader('Content-Security-Policy', cspDirectives);
+    if (isProd) {
+      res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+    }
     next();
   });
 
-  app.use(express.json());
+  // SEC: Cap JSON body size. Admin board saves can be a few hundred KB (tiles jsonb), so 256KB
+  // is the generous upper bound. Anything larger is almost certainly abuse.
+  app.use(express.json({ limit: '256kb' }));
 
   // Serve audio assets from cashly_assets/sounds at /sounds
   const pathModule = await import("path");
@@ -821,6 +866,11 @@ async function startServer() {
       if (roomId) {
         const room = rooms.get(roomId);
         if (room && room.host === socket.id) {
+          // SEC: Cap start_game payload — same 512KB ceiling used by sync_state.
+          try {
+            const raw = JSON.stringify(data?.initialState ?? null);
+            if (!raw || raw.length > 512 * 1024) return;
+          } catch { return; }
           room.state = data.initialState;
           // B6 FIX: Build socket→gamePlayerId map at game-start using name matching (names are unique at this point)
           if (data.initialState?.players && Array.isArray(data.initialState.players)) {
@@ -841,42 +891,47 @@ async function startServer() {
 
     socket.on("kick_player", (data) => {
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
-      if (roomId) {
-        const room = rooms.get(roomId);
-        if (room && room.host === socket.id && !room.state) {
-          const playerIndex = room.players.findIndex(p => p.id === data.playerId);
-          if (playerIndex !== -1) {
-            const kickedPlayer = room.players[playerIndex];
-            room.players.splice(playerIndex, 1);
-            io.sockets.sockets.get(kickedPlayer.id)?.leave(roomId);
-            io.to(kickedPlayer.id).emit("kicked");
-            io.to(roomId).emit("room_updated", { players: room.players });
-
-            // Broadcast updated room list
-            scheduleRoomsListBroadcast();
-          }
-        }
-      }
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room || room.host !== socket.id || room.state) return;
+      // SEC: Validate playerId shape before searching the room (prevents prototype/regex abuse).
+      const pid = data?.playerId;
+      if (typeof pid !== 'string' || pid.length > 64 || !/^[A-Za-z0-9_-]+$/.test(pid)) return;
+      if (pid === socket.id) return; // host can't kick themselves
+      const playerIndex = room.players.findIndex(p => p.id === pid);
+      if (playerIndex === -1) return;
+      const kickedPlayer = room.players[playerIndex];
+      room.players.splice(playerIndex, 1);
+      io.sockets.sockets.get(kickedPlayer.id)?.leave(roomId);
+      io.to(kickedPlayer.id).emit("kicked");
+      io.to(roomId).emit("room_updated", { players: room.players });
+      scheduleRoomsListBroadcast();
     });
 
     socket.on("update_settings", (data) => {
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
-      if (roomId) {
-        const room = rooms.get(roomId);
-        if (room && room.host === socket.id && !room.state) {
-          // Update room-level settings
-          if (data.settings?.isPrivate !== undefined) {
-            room.isPrivate = data.settings.isPrivate;
-          }
-          if (data.settings?.maxPlayers !== undefined) {
-            room.maxPlayers = data.settings.maxPlayers;
-          }
-          socket.to(roomId).emit("settings_updated", data.settings);
-
-          // Broadcast updated room list (privacy might have changed)
-          scheduleRoomsListBroadcast();
+      if (!roomId) return;
+      const room = rooms.get(roomId);
+      if (!room || room.host !== socket.id || room.state) return;
+      const s = data?.settings;
+      if (!s || typeof s !== 'object') return;
+      // SEC: Whitelist + bound-check every field. Build a clean settings object for broadcast
+      // so clients can't smuggle extra keys.
+      const clean: { isPrivate?: boolean; maxPlayers?: number } = {};
+      if (typeof s.isPrivate === 'boolean') {
+        room.isPrivate = s.isPrivate;
+        clean.isPrivate = s.isPrivate;
+      }
+      if (Number.isInteger(s.maxPlayers) && s.maxPlayers >= 2 && s.maxPlayers <= 8) {
+        // Can't shrink below current player count
+        if (s.maxPlayers >= room.players.length) {
+          room.maxPlayers = s.maxPlayers;
+          clean.maxPlayers = s.maxPlayers;
         }
       }
+      if (Object.keys(clean).length === 0) return;
+      socket.to(roomId).emit("settings_updated", clean);
+      scheduleRoomsListBroadcast();
     });
 
     // BUG-14 FIX: Simple per-socket rate limiter
@@ -934,22 +989,56 @@ async function startServer() {
       scheduleRoomsListBroadcast();
     });
 
+    // SEC: Per-socket chat history for flood + duplicate-spam detection (beyond the 10/sec generic limiter).
+    const chatHistory: { t: number; msg: string }[] = [];
+    const CHAT_WINDOW_MS = 10_000;
+    const CHAT_MAX_PER_WINDOW = 6;
+    const CHAT_MAX_UNBROKEN_RUN = 30; // no single token longer than this (anti-wall-of-text)
+
     socket.on("send_chat", (data) => {
       if (isRateLimited('chat')) return;
       // NET-07: Reject oversized or malformed chat messages
-      if (typeof data?.text !== 'string' || data.text.length > 500) return;
+      if (typeof data?.text !== 'string' || data.text.length === 0 || data.text.length > 500) return;
       const roomId = Array.from(socket.rooms).find(r => r !== socket.id);
-      if (roomId) {
-        // BUG-19: Look up sender name server-side to prevent client impersonation
-        const room = rooms.get(roomId);
-        if (!room) return;
-        const chatPlayer = room.players.find((p: any) => p.id === socket.id);
-        if (!chatPlayer) return;
-        // SEC-4: Strip control characters and HTML-escape before broadcast.
-        const safeText = escapeHtml(data.text.replace(/[\u0000-\u001F\u007F]/g, '').trim());
-        if (!safeText) return;
-        io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: safeText, time: data.time });
-      }
+      if (!roomId) return;
+      // BUG-19: Look up sender name server-side to prevent client impersonation
+      const room = rooms.get(roomId);
+      if (!room) return;
+      const chatPlayer = room.players.find((p: any) => p.id === socket.id);
+      if (!chatPlayer) return;
+
+      // SEC: Strip control chars + zero-width + bidi override + non-character ranges that can
+      // be used to spoof names ("𝗮𝗱𝗺𝗶𝗻"-style homoglyphs are left alone; rendering spoofs are not).
+      const cleaned = data.text
+        .replace(/[\u0000-\u001F\u007F]/g, '')      // C0/DEL control chars
+        .replace(/[\u200B-\u200F\u202A-\u202E\u2066-\u2069\uFEFF]/g, '') // zero-width + bidi overrides
+        .trim();
+      if (!cleaned) return;
+
+      // SEC: Break unbroken runs (letters/digits/punct with no whitespace) that exceed the cap
+      // so they can't escape CSS word-break and overflow the chat panel.
+      const broken = cleaned.replace(
+        new RegExp(`(\\S{${CHAT_MAX_UNBROKEN_RUN}})(?=\\S)`, 'g'),
+        '$1 '
+      );
+
+      // SEC: Sliding-window flood guard — stricter than the 10/sec generic limiter.
+      const now = Date.now();
+      while (chatHistory.length && now - chatHistory[0].t > CHAT_WINDOW_MS) chatHistory.shift();
+      if (chatHistory.length >= CHAT_MAX_PER_WINDOW) return;
+
+      // SEC: Reject 3+ identical messages in a row (copy-paste spam).
+      const last = chatHistory[chatHistory.length - 1];
+      const prior = chatHistory[chatHistory.length - 2];
+      if (last?.msg === broken && prior?.msg === broken) return;
+
+      chatHistory.push({ t: now, msg: broken });
+
+      // SEC-4: HTML-escape before broadcast.
+      const safeText = escapeHtml(broken);
+      if (!safeText) return;
+      // SEC: Use server clock, not client-supplied time, so clients can't backdate or spoof ordering.
+      io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: safeText, time: now });
     });
 
     // SEC-05 / CQ-8: Allowlist lives in services/actionPolicy.ts — shared with App.tsx host gate.
