@@ -20,13 +20,14 @@ export default defineConfig(({ mode }) => {
       build: {
         rollupOptions: {
           output: {
-            manualChunks: {
-              'react-vendor': ['react', 'react-dom'],
-              'motion': ['motion/react'],
-              'ui': ['@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-select', '@radix-ui/react-scroll-area', '@radix-ui/react-separator', '@radix-ui/react-avatar', '@radix-ui/react-dialog'],
-              'lucide': ['lucide-react'],
-              'socket': ['socket.io-client'],
-              'auth': ['better-auth/react', 'better-auth/client/plugins'],
+            manualChunks(id) {
+              if (!id.includes('node_modules')) return;
+              if (/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) return 'react-vendor';
+              if (/[\\/]node_modules[\\/]motion[\\/]/.test(id)) return 'motion';
+              if (/[\\/]node_modules[\\/]@radix-ui[\\/]/.test(id)) return 'ui';
+              if (/[\\/]node_modules[\\/]lucide-react[\\/]/.test(id)) return 'lucide';
+              if (/[\\/]node_modules[\\/]socket\.io-client[\\/]/.test(id)) return 'socket';
+              if (/[\\/]node_modules[\\/]better-auth[\\/]/.test(id)) return 'auth';
             },
           },
         },
