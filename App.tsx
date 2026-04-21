@@ -2015,7 +2015,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                             <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                           </span>
                           <p className="text-slate-400 text-sm font-medium tracking-wide">
-                            Rule the economy · <span className="text-emerald-400 font-bold">{activeRooms.length}</span> live game{activeRooms.length === 1 ? '' : 's'}
+                            Rule the economy
                           </p>
                         </div>
                       </div>
