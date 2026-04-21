@@ -164,8 +164,7 @@ export const playSound = (effect: SoundEffectType) => {
   switch (effect) {
     // Real MP3 assets
     case 'roll':
-      // Use bundled kenney dice OGG (cashly_assets/sounds may not exist in all envs)
-      playMp3('/assets/images/kenney_boardgame-pack/Bonus/dieThrow1.ogg', 0.75);
+      playMp3('/assets/images/kenney_boardgame-pack/Bonus/dieShuffle1.ogg', 0.75);
       break;
     case 'trade_accept':
       playSynth('trade');

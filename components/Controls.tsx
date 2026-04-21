@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { GameState, TileType, ColorGroup, Player, Tile } from '../types';
 import { Dice } from './Dice';
 import {
@@ -45,17 +45,20 @@ export const Controls: React.FC<ControlsProps> = ({
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
   const isHumanTurn = currentPlayer?.id === myPlayerId;
 
-  // Dice rolling animation state
+  // Dice rolling animation — trigger whenever dice values change (covers
+  // regular rolls, jail roll success, and failed jail rolls that skip MOVING).
   const [isRollingAnim, setIsRollingAnim] = useState(false);
+  const prevDiceRef = useRef<[number, number]>([gameState.dice[0], gameState.dice[1]]);
   useEffect(() => {
-    if (gameState.phase === 'MOVING') {
+    const [pd0, pd1] = prevDiceRef.current;
+    const [d0, d1] = gameState.dice;
+    if (d0 !== pd0 || d1 !== pd1) {
+      prevDiceRef.current = [d0, d1];
       setIsRollingAnim(true);
       const timer = setTimeout(() => setIsRollingAnim(false), 500);
       return () => clearTimeout(timer);
-    } else {
-      setIsRollingAnim(false);
     }
-  }, [gameState.phase]);
+  }, [gameState.dice[0], gameState.dice[1]]);
 
   const canUpgrade = useMemo(() => {
     if (!currentPlayer || !currentTile || currentTile.ownerId !== currentPlayer.id || currentTile.type !== TileType.PROPERTY) return false;

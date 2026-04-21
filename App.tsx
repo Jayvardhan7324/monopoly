@@ -891,6 +891,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   };
 
   const leaveRoom = () => {
+    recordLeaveLoss();
     // NET-05: Tell server we're intentionally leaving so slot is freed immediately
     const socket = getSocket();
     if (socket) socket.emit("leave_room");
@@ -931,6 +932,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   useEffect(() => {
     const handlePopState = () => {
       if (isOnlineRef.current) {
+        recordLeaveLoss();
         resetSocket();
         setIsOnline(false); setRoomId(null); setSessionPlayerId(null);
         setIsHost(false); setLobbyPlayers([]); setGameStarted(false);
@@ -996,6 +998,66 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       authFetch('/api/profile/win-coin', { method: 'POST' }).catch(() => {});
     }
   }, [gameState.winnerId, myPlayerId, gameStarted, sessionUser]);
+
+  // ── Profile stats tracking ────────────────────────────────────────────────
+  // Fires at most 2 requests per game: once on start, once on end/leave/bankruptcy.
+  const statsStartedRef = useRef(false);
+  const statsEndedRef = useRef(false);
+  const postStats = (payload: Record<string, number>, useBeacon = false) => {
+    if (useBeacon && 'fetch' in window) {
+      try {
+        fetch('/api/profile/stats', {
+          method: 'POST',
+          credentials: 'include',
+          keepalive: true,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      } catch {}
+    } else {
+      authFetch('/api/profile/stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    }
+  };
+
+  // gamesPlayed: increment once when a game begins for a non-spectator user
+  useEffect(() => {
+    if (!gameStarted) {
+      statsStartedRef.current = false;
+      statsEndedRef.current = false;
+      return;
+    }
+    if (sessionUser && !isSpectator && !statsStartedRef.current) {
+      statsStartedRef.current = true;
+      postStats({ gamesPlayed: 1 });
+    }
+  }, [gameStarted, sessionUser, isSpectator]);
+
+  // gamesWon / gamesLost / bankruptcies: increment once when this player's game ends
+  const myPlayer = gameState.players.find(p => p.id === myPlayerId);
+  const myBankrupt = !!myPlayer?.isBankrupt;
+  useEffect(() => {
+    if (!gameStarted || !sessionUser || isSpectator || statsEndedRef.current) return;
+    const gameOver = gameState.winnerId !== null;
+    if (!gameOver && !myBankrupt) return;
+    statsEndedRef.current = true;
+    const payload: Record<string, number> = { totalTurns: gameState.turnCount ?? 0 };
+    if (gameOver && gameState.winnerId === myPlayerId) payload.gamesWon = 1;
+    else payload.gamesLost = 1;
+    if (myBankrupt) payload.bankruptcies = 1;
+    postStats(payload);
+  }, [gameState.winnerId, myBankrupt, gameStarted, sessionUser, isSpectator, myPlayerId, gameState.turnCount]);
+
+  // Record a loss if the user leaves an in-progress game (called from leave handlers)
+  const recordLeaveLoss = () => {
+    if (!gameStarted || statsEndedRef.current || !sessionUser || isSpectator) return;
+    if (gameState.winnerId !== null) return; // game already ended — end-effect handles it
+    statsEndedRef.current = true;
+    postStats({ gamesLost: 1, totalTurns: gameState.turnCount ?? 0 }, true);
+  };
 
   const fetchRooms = async () => {
     try {
