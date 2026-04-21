@@ -2083,10 +2083,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           const stats = [
                             { value: String(activeRooms.length), label: 'Live rooms', accent: 'text-indigo-400' },
                             { value: String(playersOnline), label: 'Players in game', accent: 'text-emerald-400' },
-                            { value: 'Free', label: 'Forever', accent: 'text-fuchsia-400' },
                           ];
                           return (
-                            <div className="grid grid-cols-3 gap-2.5">
+                            <div className="grid grid-cols-2 gap-2.5">
                               {stats.map((stat, i) => (
                                 <motion.div
                                   key={i}
