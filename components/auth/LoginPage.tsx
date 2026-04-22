@@ -104,7 +104,7 @@ const LoginPage: React.FC<Props> = ({ onSuccess }) => {
       >
         {/* Logo / title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-black text-white tracking-tight">Cashly<span className="text-indigo-400">.io</span></h1>
+          <h1 className="text-3xl font-black text-white tracking-tight">Cashly<span className="text-indigo-400 text-xs align-top ml-0.5">.io</span></h1>
           <p className="text-slate-400 mt-1 text-sm">The multiplayer property game</p>
         </div>
 
