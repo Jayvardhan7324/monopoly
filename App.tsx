@@ -1953,7 +1953,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                               <div className="flex items-center gap-2 mb-2">
                                 <span className="text-sm font-bold text-white truncate">{room.hostName}</span>
                                 {room.isPrivate && <Lock size={11} className="text-slate-500 shrink-0" />}
-                                <span className="text-[9px] font-mono text-slate-600 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">{room.roomId}</span>
+                                <span style={{ fontFamily: "'Outfit', sans-serif" }} className="text-[9px] text-slate-600 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700">{room.roomId}</span>
                               </div>
                               {/* U5: Player slot dots */}
                               <div className="flex items-center gap-1.5">
@@ -2007,7 +2007,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         </motion.div>
                         <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
                           <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">CASHLY</span>
-                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block pr-1">.IO</span>
+                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block pr-1 text-3xl sm:text-4xl align-top relative top-1 sm:top-1.5">.IO</span>
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="relative flex h-1.5 w-1.5">
@@ -2061,7 +2061,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                               <div className="flex-1 min-w-0">
                                 <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Game in progress</p>
                                 <p className="text-xs text-slate-300 font-mono mt-0.5">
-                                  Room: <span className="font-black text-white">{savedSession.roomId}</span>
+                                  Room: <span style={{ fontFamily: "'Outfit', sans-serif" }} className="font-black text-white">{savedSession.roomId}</span>
                                   {savedSession.playerName && <span className="text-slate-500"> · {savedSession.playerName}</span>}
                                 </p>
                                 <p className="text-[9px] text-amber-400 font-bold mt-0.5">{minsLeft} min left to rejoin</p>
@@ -2116,7 +2116,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                             onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
                             placeholder="ROOM CODE"
                             maxLength={6}
-                            className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-mono font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em] text-sm"
+                            style={{ fontFamily: "'Outfit', sans-serif" }}
+                            className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em] text-sm"
                           />
                           <button
                             onClick={() => joinRoom()}
@@ -2184,7 +2185,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest">Trending</p>
-                                <span className="text-[9px] font-mono text-slate-500 bg-slate-800/60 px-1.5 rounded">{top.roomId}</span>
+                                <span style={{ fontFamily: "'Outfit', sans-serif" }} className="text-[9px] text-slate-500 bg-slate-800/60 px-1.5 rounded">{top.roomId}</span>
                               </div>
                               <p className="text-xs font-bold text-white truncate mt-0.5">{top.hostName}'s room · {top.playerCount}/{top.maxPlayers} players</p>
                             </div>
