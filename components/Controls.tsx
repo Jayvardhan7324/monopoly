@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { GameState, TileType, ColorGroup, Player, Tile } from '../types';
 import { Dice } from './Dice';
 import {
@@ -44,6 +44,19 @@ export const Controls: React.FC<ControlsProps> = ({
   const currentPlayer = gameState.players[gameState.currentPlayerIndex];
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
   const isHumanTurn = currentPlayer?.id === myPlayerId;
+
+  const showConfetti = localStorage.getItem('pref_confetti') !== 'false';
+  const showGoldFrame = localStorage.getItem('pref_goldFrame') !== 'false';
+  const [confettiPieces] = useState(() =>
+    Array.from({ length: 28 }, (_, i) => ({
+      id: i,
+      x: Math.random() * 100,
+      delay: Math.random() * 1.2,
+      dur: 1.8 + Math.random() * 1.4,
+      color: ['#f59e0b','#6366f1','#ec4899','#10b981','#f97316','#a855f7','#3b82f6'][i % 7],
+      size: 6 + Math.random() * 6,
+    }))
+  );
 
   // Dice rolling animation — trigger whenever dice values change (covers
   // regular rolls, jail roll success, and failed jail rolls that skip MOVING).
@@ -99,8 +112,17 @@ export const Controls: React.FC<ControlsProps> = ({
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ type: 'spring', stiffness: 200, damping: 20, delay: 0.2 }}
-              className="flex flex-col items-center gap-4 text-center"
+              className="flex flex-col items-center gap-4 text-center relative"
             >
+              {showConfetti && confettiPieces.map(p => (
+                <motion.div
+                  key={p.id}
+                  initial={{ y: -20, x: `${p.x}%`, opacity: 1, rotate: 0 }}
+                  animate={{ y: 220, opacity: 0, rotate: 360 * (p.id % 2 === 0 ? 1 : -1) }}
+                  transition={{ duration: p.dur, delay: p.delay, repeat: Infinity, ease: 'easeIn' }}
+                  style={{ position: 'absolute', top: 0, left: 0, width: p.size, height: p.size, borderRadius: 2, background: p.color, pointerEvents: 'none' }}
+                />
+              ))}
               <motion.div
                 animate={{ y: [0, -10, 0], rotate: [0, 5, -5, 0] }}
                 transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
@@ -127,7 +149,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: 0.3 + idx * 0.07, type: 'spring', stiffness: 300, damping: 25 }}
-                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${idx === 0 ? 'bg-amber-500/10 border border-amber-500/25' : 'bg-slate-800/50 border border-white/5'}`}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl ${idx === 0 ? (showGoldFrame ? 'bg-amber-500/15 border-2 border-amber-400/60 shadow-[0_0_12px_rgba(251,191,36,0.35)]' : 'bg-amber-500/10 border border-amber-500/25') : 'bg-slate-800/50 border border-white/5'}`}
                       >
                         <span className={`text-xs font-black w-5 ${idx === 0 ? 'text-amber-400' : 'text-slate-500'}`}>#{idx + 1}</span>
                         <Avatar avatarId={p.avatarId} color={p.color} isBankrupt={p.isBankrupt} className="w-5 h-5 shrink-0" />

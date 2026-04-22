@@ -2,7 +2,7 @@ import React from 'react';
 import { Tile as TileType, ColorGroup, TileType as ETileType, Player } from '../types';
 import { GAME_CONSTANTS } from '../constants';
 // BUG-08: Replaced `Palmtree` (removed in lucide-react v0.468) with `TreePalm`
-import { Plane, Zap, Droplets, TreePalm, ArrowRight, Package, Lock, Home, Building2 } from 'lucide-react';
+import { Plane, Zap, Droplets, TreePalm, ArrowRight, Package, Lock, Home, Building2, Receipt, Gem } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Avatar } from './Avatar';
 import { motion } from 'motion/react';
@@ -76,12 +76,14 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
             )}
           </div>
         );
-      case ETileType.TAX:
-        return (
-          <div className="bg-slate-700/80 w-[22px] h-[16px] flex items-center justify-center rounded-[3px] border border-slate-500/60 shadow-sm">
-            <span className="text-slate-200 font-black text-[8px] leading-none tracking-tight">×10</span>
-          </div>
+      case ETileType.TAX: {
+        const isLuxury = tile.name.toLowerCase().includes('luxury');
+        return isLuxury ? (
+          <Gem size={22} className="text-rose-300 drop-shadow-md" />
+        ) : (
+          <Receipt size={22} className="text-slate-200 drop-shadow-md" />
         );
+      }
       case ETileType.CORNER: {
         const cornerName = tile.name.toLowerCase();
         if (cornerName === 'start')

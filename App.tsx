@@ -776,19 +776,21 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         selectedAvatar,
         profileImage: session?.user?.image ?? undefined,
         customTiles: settings.boardMap !== 'Classic' && customBoard?.tiles
-          ? (customBoard.tiles as any[]).map((t: any) => ({
-              id: t.position ?? t.id,
-              name: t.name,
-              type: t.type,
-              price: t.price ?? 0,
-              rent: t.rent ?? [],
-              group: t.group,
-              ownerId: null,
-              buildingCount: 0,
-              isMortgaged: false,
-              houseCost: t.houseCost ?? 0,
-              countryCode: t.countryCode,
-            }))
+          ? (customBoard.tiles as any[])
+              .map((t: any) => ({
+                id: t.position ?? t.id,
+                name: t.name,
+                type: t.type,
+                price: t.price ?? 0,
+                rent: t.rent ?? [],
+                group: t.group,
+                ownerId: null,
+                buildingCount: 0,
+                isMortgaged: false,
+                houseCost: t.houseCost ?? 0,
+                countryCode: t.countryCode,
+              }))
+              .sort((a: any, b: any) => a.id - b.id)
           : undefined,
       },
     };

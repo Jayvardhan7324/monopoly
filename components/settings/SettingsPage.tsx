@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, UserCog, Ban, ExternalLink, Sparkles, Mail } from 'lucide-react';
+import { ArrowLeft, UserCog, Ban, ExternalLink, Sparkles, Mail, PartyPopper, Frame } from 'lucide-react';
 import { authClient } from '../../lib/auth-client';
 
 interface Props {
@@ -35,6 +35,11 @@ function ProviderIcon({ provider }: { provider: string }) {
 
 const SettingsPage: React.FC<Props> = ({ sessionData, onClose, onOpenProfile }) => {
   const [identities, setIdentities] = useState<Identity[]>([]);
+  const [confetti, setConfetti] = useState(() => localStorage.getItem('pref_confetti') !== 'false');
+  const [goldFrame, setGoldFrame] = useState(() => localStorage.getItem('pref_goldFrame') !== 'false');
+
+  const toggleConfetti = () => setConfetti(v => { const n = !v; localStorage.setItem('pref_confetti', String(n)); return n; });
+  const toggleGoldFrame = () => setGoldFrame(v => { const n = !v; localStorage.setItem('pref_goldFrame', String(n)); return n; });
 
   useEffect(() => {
     // Better Auth: list linked social accounts + credential account if present.
@@ -126,10 +131,48 @@ const SettingsPage: React.FC<Props> = ({ sessionData, onClose, onOpenProfile }) 
             )}
           </div>
 
-          {/* Coming soon */}
+          {/* Visual effects */}
+          <div className="bg-[#1a1a24] border border-white/5 rounded-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/5">
+              <p className="text-xs font-black text-slate-500 uppercase tracking-widest">Visual Effects</p>
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+              <div className="flex items-start gap-3">
+                <PartyPopper className="h-5 w-5 text-slate-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-white">Confetti burst</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Show confetti animation when someone wins</p>
+                </div>
+              </div>
+              <button
+                onClick={toggleConfetti}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${confetti ? 'bg-indigo-500' : 'bg-slate-700'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${confetti ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-start gap-3">
+                <Frame className="h-5 w-5 text-slate-500 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-sm font-bold text-white">Gold winner frame</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Highlight the winner with a gold frame on the end screen</p>
+                </div>
+              </div>
+              <button
+                onClick={toggleGoldFrame}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${goldFrame ? 'bg-indigo-500' : 'bg-slate-700'}`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${goldFrame ? 'translate-x-6' : 'translate-x-1'}`} />
+              </button>
+            </div>
+          </div>
+
           <div className="bg-[#1a1a24] border border-white/5 rounded-2xl px-6 py-5 flex items-center gap-3">
             <Sparkles className="h-4 w-4 text-slate-600 shrink-0" />
-            <p className="text-sm text-slate-600">Additional settings coming soon</p>
+            <p className="text-sm text-slate-600">More settings coming soon</p>
           </div>
         </div>
       </div>
