@@ -139,10 +139,13 @@ function Root() {
   };
 
   const handleProfileUpdated = (name: string, image?: string) => {
+    // Optimistic local update so UI (home avatar, header chip) reflects instantly
     setSessionData((prev: any) => prev ? {
       ...prev,
       user: { ...prev.user, name, ...(image ? { image } : {}) }
     } : prev);
+    // Also re-pull from server so any derived/cached session fields stay in sync
+    refreshSession().catch(() => {});
   };
 
   // Login is optional — modal only opens when explicitly triggered

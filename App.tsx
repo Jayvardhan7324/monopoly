@@ -2007,7 +2007,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         </motion.div>
                         <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
                           <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">CASHLY</span>
-                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block pr-1 text-3xl sm:text-4xl align-top relative top-1 sm:top-1.5">.IO</span>
+                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block text-lg sm:text-xl align-baseline ml-0.5 font-bold">.io</span>
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="relative flex h-1.5 w-1.5">
