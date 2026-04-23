@@ -37,6 +37,44 @@ import { initSocket, getSocket, resetSocket } from './services/socketService';
 import { authFetch } from './lib/auth-client';
 
 // ─────────────────────────────────────────────────────────────────────────────
+function HomeParticles() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    let raf: number;
+    const particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; hue: number }> = [];
+    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
+    resize();
+    window.addEventListener('resize', resize);
+    let frame = 0;
+    const tick = () => {
+      frame++;
+      if (frame % 3 === 0) {
+        const cx = canvas.width / 2;
+        const oy = canvas.height * 0.2;
+        particles.push({ x: cx + (Math.random() - 0.5) * 50, y: oy + (Math.random() - 0.5) * 24, vx: (Math.random() - 0.5) * 0.7, vy: -(0.5 + Math.random() * 0.9), life: 0, maxLife: 90 + Math.random() * 60, size: 0.8 + Math.random() * 2, hue: 240 + Math.random() * 80 });
+      }
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.life++; p.x += p.vx; p.y += p.vy; p.vx += (Math.random() - 0.5) * 0.04;
+        if (p.life >= p.maxLife) { particles.splice(i, 1); continue; }
+        const t = p.life / p.maxLife;
+        const alpha = (t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8) * 0.65;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue}, 80%, 72%, ${alpha})`; ctx.fill();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, []);
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }} />;
+}
+
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
 const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
 const generateBotLobbyName = (index: number) => BOT_ADJ[(index * 7 + 3) % BOT_ADJ.length] + BOT_NOUN[(index * 11 + 5) % BOT_NOUN.length];
@@ -1997,7 +2035,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                 >
                   {/* Hero / join form — narrow centered column */}
                   <div className="flex flex-col items-center w-full px-4 pt-10 sm:pt-14 pb-6 relative">
-                    <div className="w-full max-w-sm flex flex-col items-center gap-4 relative">
+                    <HomeParticles />
+                    <div className="w-full max-w-sm flex flex-col items-center gap-4 relative z-10">
                       <div className="flex flex-col items-center gap-1.5">
                         <motion.div
                           animate={{ y: [0, -6, 0], rotate: [0, 6, 0, -6, 0] }}
@@ -2008,7 +2047,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           <Dices size={56} className="relative text-white drop-shadow-[0_4px_18px_rgba(99,102,241,0.55)]" />
                         </motion.div>
                         <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
-                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">CASHLY</span>
+                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">cashly</span>
                           <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block text-xl sm:text-2xl align-baseline ml-1 font-black">.io</span>
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
@@ -2135,39 +2174,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                         </div>
                       </div>
 
-                      {/* Stats row — live data */}
-                      <motion.div
-                        className="w-full pt-1"
-                        initial={{ opacity: 0, y: 16 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true, margin: '-30px' }}
-                        transition={{ duration: 0.45, delay: 0.1 }}
-                      >
-                        {(() => {
-                          const playersOnline = activeRooms.reduce((s, r) => s + (r.playerCount || 0), 0);
-                          const stats = [
-                            { value: String(activeRooms.length), label: 'Live rooms', accent: 'text-indigo-400' },
-                            { value: String(playersOnline), label: 'Players in game', accent: 'text-emerald-400' },
-                          ];
-                          return (
-                            <div className="grid grid-cols-2 gap-2.5">
-                              {stats.map((stat, i) => (
-                                <motion.div
-                                  key={i}
-                                  initial={{ opacity: 0, scale: 0.85 }}
-                                  whileInView={{ opacity: 1, scale: 1 }}
-                                  viewport={{ once: true }}
-                                  transition={{ duration: 0.35, delay: 0.15 + i * 0.08 }}
-                                  className="bg-[#1a1a22] rounded-xl p-3 border border-slate-800/60 text-center hover:border-slate-700 transition-colors"
-                                >
-                                  <div className={`text-lg font-black ${stat.accent}`}>{stat.value}</div>
-                                  <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wide mt-0.5">{stat.label}</div>
-                                </motion.div>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </motion.div>
+                      <div className="w-full pt-1" />
 
                       {/* Trending room — quick join (only if a public room exists) */}
                       {(() => {
