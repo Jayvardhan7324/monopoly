@@ -45,34 +45,43 @@ function HomeParticles() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let raf: number;
-    const particles: Array<{ x: number; y: number; vx: number; vy: number; life: number; maxLife: number; size: number; hue: number }> = [];
+    type P = { x: number; y: number; vx: number; vy: number; size: number; alpha: number; speed: number };
+    const particles: P[] = [];
     const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
     resize();
     window.addEventListener('resize', resize);
-    let frame = 0;
+    const spawn = (): P => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -20,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: 0.4 + Math.random() * 1.1,
+      size: 0.6 + Math.random() * 2.2,
+      alpha: 0.15 + Math.random() * 0.55,
+      speed: 0.4 + Math.random() * 1.1,
+    });
+    for (let i = 0; i < 80; i++) {
+      const p = spawn();
+      p.y = Math.random() * canvas.height;
+      particles.push(p);
+    }
     const tick = () => {
-      frame++;
-      if (frame % 3 === 0) {
-        const cx = canvas.width / 2;
-        const oy = canvas.height * 0.2;
-        particles.push({ x: cx + (Math.random() - 0.5) * 50, y: oy + (Math.random() - 0.5) * 24, vx: (Math.random() - 0.5) * 0.7, vy: -(0.5 + Math.random() * 0.9), life: 0, maxLife: 90 + Math.random() * 60, size: 0.8 + Math.random() * 2, hue: 240 + Math.random() * 80 });
-      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let i = particles.length - 1; i >= 0; i--) {
-        const p = particles[i];
-        p.life++; p.x += p.vx; p.y += p.vy; p.vx += (Math.random() - 0.5) * 0.04;
-        if (p.life >= p.maxLife) { particles.splice(i, 1); continue; }
-        const t = p.life / p.maxLife;
-        const alpha = (t < 0.2 ? t / 0.2 : 1 - (t - 0.2) / 0.8) * 0.65;
+      if (particles.length < 120) particles.push(spawn());
+      for (const p of particles) {
+        p.x += p.vx; p.y += p.vy;
+        p.vx += (Math.random() - 0.5) * 0.02;
+        const topFade = Math.min(1, p.y / (canvas.height * 0.35));
+        const finalAlpha = p.alpha * topFade;
         ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `hsla(${p.hue}, 80%, 72%, ${alpha})`; ctx.fill();
+        ctx.fillStyle = `rgba(255,255,255,${finalAlpha})`; ctx.fill();
+        if (p.y > canvas.height + 10) { Object.assign(p, spawn()); }
       }
       raf = requestAnimationFrame(tick);
     };
     tick();
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
   }, []);
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }} />;
+  return <canvas ref={canvasRef} className="fixed inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }} />;
 }
 
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
@@ -1701,7 +1710,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           )}
 
           {/* Header glow — sits behind the top nav */}
-          <div className="pointer-events-none absolute top-[-220px] left-1/2 -translate-x-1/2 w-[820px] h-[460px] bg-gradient-to-b from-indigo-600/40 via-violet-600/18 to-transparent blur-3xl rounded-full z-0" />
+          <div className="pointer-events-none absolute top-[-180px] left-1/2 -translate-x-1/2 w-[960px] h-[520px] bg-gradient-to-b from-indigo-500/65 via-violet-500/28 to-transparent blur-3xl rounded-full z-0" />
 
           {/* Top Navigation Bar */}
           <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
@@ -2206,7 +2215,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   </div>
 
                   {/* Bottom section: Features + How To Play side by side */}
-                  <div className="w-full max-w-2xl mx-auto px-4 pb-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div className="w-full max-w-2xl mx-auto px-4 pt-10 pb-10 grid grid-cols-1 sm:grid-cols-2 gap-6">
                     {/* Features */}
                     <motion.div
                       initial={{ opacity: 0, x: -20 }}
