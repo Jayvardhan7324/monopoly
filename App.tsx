@@ -52,8 +52,10 @@ function HomeGlow() {
   const [s, setS] = useState<VisualSettings>(loadVisualSettings);
   useEffect(() => {
     const h = () => setS(loadVisualSettings());
+    const hs = (e: StorageEvent) => { if (e.key === 'cashly_visual_settings') h(); };
     window.addEventListener('cashly_visual_change', h);
-    return () => window.removeEventListener('cashly_visual_change', h);
+    window.addEventListener('storage', hs);
+    return () => { window.removeEventListener('cashly_visual_change', h); window.removeEventListener('storage', hs); };
   }, []);
   return (
     <div
@@ -68,8 +70,10 @@ function HomeParticles() {
   const sRef = useRef<VisualSettings>(loadVisualSettings());
   useEffect(() => {
     const h = () => { sRef.current = loadVisualSettings(); };
+    const hs = (e: StorageEvent) => { if (e.key === 'cashly_visual_settings') h(); };
     window.addEventListener('cashly_visual_change', h);
-    return () => window.removeEventListener('cashly_visual_change', h);
+    window.addEventListener('storage', hs);
+    return () => { window.removeEventListener('cashly_visual_change', h); window.removeEventListener('storage', hs); };
   }, []);
   useEffect(() => {
     const canvas = canvasRef.current;
