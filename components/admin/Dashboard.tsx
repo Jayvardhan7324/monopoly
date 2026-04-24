@@ -10,7 +10,7 @@ import {
   LayoutGrid, LogOut, Globe, Trash2, Upload, Plus, Radio, Users, ShoppingBag,
   Ban, Shield, Coins, Edit2, X, Check, Package, BarChart3, TrendingUp,
   UserCheck, UserX, Crown, Minus, RefreshCw, Flag, AlertCircle, Database,
-  Megaphone, Eye, MousePointerClick, Image as ImageIcon, Code2, Power, ExternalLink,
+  Megaphone, Eye, MousePointerClick, Image as ImageIcon, Code2, Power, ExternalLink, Sparkles,
 } from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
@@ -61,6 +61,22 @@ interface Analytics {
 
 const ITEM_TYPES = ['avatar', 'board_skin', 'token', 'profile_pic', 'misc'];
 
+// ── Visual settings ──────────────────────────────────────────────────────────
+const VISUAL_DEFAULTS = {
+  particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
+  particleOpacity: 0.7, particleFadeZone: 0.28,
+  glowOpacity: 0.65, glowWidth: 960, glowHeight: 520, glowY: -180,
+};
+type VisualSettings = typeof VISUAL_DEFAULTS;
+function loadVisual(): VisualSettings {
+  try { const r = localStorage.getItem('cashly_visual_settings'); return r ? { ...VISUAL_DEFAULTS, ...JSON.parse(r) } : VISUAL_DEFAULTS; }
+  catch { return VISUAL_DEFAULTS; }
+}
+function saveVisual(s: VisualSettings) {
+  localStorage.setItem('cashly_visual_settings', JSON.stringify(s));
+  window.dispatchEvent(new Event('cashly_visual_change'));
+}
+
 interface Props { token: string; onLogout: () => void; }
 
 const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
@@ -68,6 +84,16 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [activeBoard, setActiveBoard] = useState<CustomBoard | null>(null);
   const [editingBoard, setEditingBoard] = useState<CustomBoard | null>(null);
   const [tab, setTab] = useState('overview');
+
+  // Visual tab
+  const [visual, setVisual] = useState<VisualSettings>(loadVisual);
+  const updateVisual = (patch: Partial<VisualSettings>) => {
+    setVisual(prev => {
+      const next = { ...prev, ...patch };
+      saveVisual(next);
+      return next;
+    });
+  };
 
   // Users tab
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -450,6 +476,9 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                   {ads.filter(a => a.enabled).length}
                 </Badge>
               )}
+            </TabsTrigger>
+            <TabsTrigger value="visual">
+              <Sparkles className="h-3.5 w-3.5 mr-1.5" />Visual
             </TabsTrigger>
           </TabsList>
 
@@ -1301,6 +1330,76 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                   })}
               </div>
             )}
+          </TabsContent>
+
+          {/* ── Visual ── */}
+          <TabsContent value="visual">
+            <div className="max-w-xl space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Sparkles className="h-4 w-4 text-violet-400" />Particle Settings
+                  </CardTitle>
+                  <CardDescription>Control the falling particle effect on the home screen.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {[
+                    { key: 'particleCount' as const, label: 'Count', min: 10, max: 400, step: 5, fmt: (v: number) => `${v}` },
+                    { key: 'particleSpeed' as const, label: 'Speed', min: 0.1, max: 5, step: 0.1, fmt: (v: number) => `${v.toFixed(1)}x` },
+                    { key: 'particleSize' as const, label: 'Size', min: 0.2, max: 4, step: 0.1, fmt: (v: number) => `${v.toFixed(1)}x` },
+                    { key: 'particleOpacity' as const, label: 'Opacity', min: 0, max: 1, step: 0.01, fmt: (v: number) => `${Math.round(v * 100)}%` },
+                    { key: 'particleFadeZone' as const, label: 'Fade-out start (% of screen height)', min: 0.05, max: 0.9, step: 0.01, fmt: (v: number) => `${Math.round(v * 100)}%` },
+                  ].map(({ key, label, min, max, step, fmt }) => (
+                    <div key={key} className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="font-mono text-xs text-foreground">{fmt(visual[key] as number)}</span>
+                      </div>
+                      <input
+                        type="range" min={min} max={max} step={step}
+                        value={visual[key] as number}
+                        onChange={e => updateVisual({ [key]: parseFloat(e.target.value) })}
+                        className="w-full accent-violet-500"
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Sparkles className="h-4 w-4 text-indigo-400" />Glow Settings
+                  </CardTitle>
+                  <CardDescription>Control the top-of-screen light bloom on the home screen.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {[
+                    { key: 'glowOpacity' as const, label: 'Opacity', min: 0, max: 1, step: 0.01, fmt: (v: number) => `${Math.round(v * 100)}%` },
+                    { key: 'glowWidth' as const, label: 'Width (px)', min: 300, max: 2000, step: 10, fmt: (v: number) => `${v}px` },
+                    { key: 'glowHeight' as const, label: 'Height (px)', min: 100, max: 1200, step: 10, fmt: (v: number) => `${v}px` },
+                    { key: 'glowY' as const, label: 'Y offset (px, negative = up)', min: -600, max: 200, step: 5, fmt: (v: number) => `${v}px` },
+                  ].map(({ key, label, min, max, step, fmt }) => (
+                    <div key={key} className="space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="font-mono text-xs text-foreground">{fmt(visual[key] as number)}</span>
+                      </div>
+                      <input
+                        type="range" min={min} max={max} step={step}
+                        value={visual[key] as number}
+                        onChange={e => updateVisual({ [key]: parseFloat(e.target.value) })}
+                        className="w-full accent-indigo-500"
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              <Button variant="outline" onClick={() => { saveVisual(VISUAL_DEFAULTS); setVisual(VISUAL_DEFAULTS); }}>
+                Reset to Defaults
+              </Button>
+            </div>
           </TabsContent>
 
         </Tabs>

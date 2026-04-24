@@ -37,44 +37,77 @@ import { initSocket, getSocket, resetSocket } from './services/socketService';
 import { authFetch } from './lib/auth-client';
 
 // ─────────────────────────────────────────────────────────────────────────────
+const VISUAL_DEFAULTS = {
+  particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
+  particleOpacity: 0.7, particleFadeZone: 0.28,
+  glowOpacity: 0.65, glowWidth: 960, glowHeight: 520, glowY: -180,
+};
+type VisualSettings = typeof VISUAL_DEFAULTS;
+function loadVisualSettings(): VisualSettings {
+  try { const r = localStorage.getItem('cashly_visual_settings'); return r ? { ...VISUAL_DEFAULTS, ...JSON.parse(r) } : VISUAL_DEFAULTS; }
+  catch { return VISUAL_DEFAULTS; }
+}
+
+function HomeGlow() {
+  const [s, setS] = useState<VisualSettings>(loadVisualSettings);
+  useEffect(() => {
+    const h = () => setS(loadVisualSettings());
+    window.addEventListener('cashly_visual_change', h);
+    return () => window.removeEventListener('cashly_visual_change', h);
+  }, []);
+  return (
+    <div
+      className="pointer-events-none absolute left-1/2 -translate-x-1/2 bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full z-0"
+      style={{ top: `${s.glowY}px`, width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity }}
+    />
+  );
+}
+
 function HomeParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sRef = useRef<VisualSettings>(loadVisualSettings());
+  useEffect(() => {
+    const h = () => { sRef.current = loadVisualSettings(); };
+    window.addEventListener('cashly_visual_change', h);
+    return () => window.removeEventListener('cashly_visual_change', h);
+  }, []);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let raf: number;
-    type P = { x: number; y: number; vx: number; vy: number; size: number; alpha: number; speed: number };
+    type P = { x: number; y: number; vx: number; baseVy: number; baseSize: number; baseAlpha: number };
     const particles: P[] = [];
     const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
     resize();
     window.addEventListener('resize', resize);
     const spawn = (): P => ({
-      x: Math.random() * canvas.width,
-      y: Math.random() * -20,
+      x: Math.random() * canvas.width, y: Math.random() * -20,
       vx: (Math.random() - 0.5) * 0.4,
-      vy: 0.4 + Math.random() * 1.1,
-      size: 0.6 + Math.random() * 2.2,
-      alpha: 0.15 + Math.random() * 0.55,
-      speed: 0.4 + Math.random() * 1.1,
+      baseVy: 0.4 + Math.random() * 1.1,
+      baseSize: 0.6 + Math.random() * 2.2,
+      baseAlpha: 0.15 + Math.random() * 0.55,
     });
-    for (let i = 0; i < 80; i++) {
-      const p = spawn();
-      p.y = Math.random() * canvas.height;
-      particles.push(p);
-    }
+    for (let i = 0; i < 80; i++) { const p = spawn(); p.y = Math.random() * canvas.height; particles.push(p); }
     const tick = () => {
+      const s = sRef.current;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (particles.length < 120) particles.push(spawn());
-      for (const p of particles) {
-        p.x += p.vx; p.y += p.vy;
+      while (particles.length < s.particleCount) particles.push(spawn());
+      while (particles.length > s.particleCount) particles.pop();
+      const fadeStart = s.particleFadeZone * canvas.height;
+      const fadeEnd = fadeStart + canvas.height * 0.10;
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.baseVy * s.particleSpeed;
         p.vx += (Math.random() - 0.5) * 0.02;
-        const topFade = Math.min(1, p.y / (canvas.height * 0.35));
-        const finalAlpha = p.alpha * topFade;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${finalAlpha})`; ctx.fill();
-        if (p.y > canvas.height + 10) { Object.assign(p, spawn()); }
+        if (p.y > fadeEnd) { Object.assign(p, spawn()); continue; }
+        const topFade = Math.min(1, p.y / 30);
+        const bottomFade = p.y < fadeStart ? 1 : 1 - (p.y - fadeStart) / (fadeEnd - fadeStart);
+        const alpha = p.baseAlpha * s.particleOpacity * topFade * bottomFade;
+        if (alpha <= 0.005) continue;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.baseSize * s.particleSize, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
       }
       raf = requestAnimationFrame(tick);
     };
@@ -1710,7 +1743,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           )}
 
           {/* Header glow — sits behind the top nav */}
-          <div className="pointer-events-none absolute top-[-180px] left-1/2 -translate-x-1/2 w-[960px] h-[520px] bg-gradient-to-b from-indigo-500/65 via-violet-500/28 to-transparent blur-3xl rounded-full z-0" />
+          <HomeGlow />
 
           {/* Top Navigation Bar */}
           <nav className="w-full flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 z-20 relative shrink-0 pt-4">
