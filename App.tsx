@@ -2129,8 +2129,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           <Dices size={56} className="relative text-white drop-shadow-[0_4px_18px_rgba(99,102,241,0.55)]" />
                         </motion.div>
                         <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
-                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">cashly</span>
-                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block text-xl sm:text-2xl align-baseline ml-1 font-black">.io</span>
+                          <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">CASHLY</span>
+                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block text-xl sm:text-2xl align-baseline ml-1 font-black">.IO</span>
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="relative flex h-1.5 w-1.5">
@@ -2257,21 +2257,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       </div>
 
                       <div className="w-full pt-1" />
-
-                      {/* Economy rules teaser */}
-                      <div className="w-full flex flex-wrap justify-center gap-x-3 gap-y-1.5 px-2">
-                        {[
-                          { icon: '🏠', label: 'Buy properties' },
-                          { icon: '🏗️', label: 'Build & upgrade' },
-                          { icon: '💸', label: 'Charge rent' },
-                          { icon: '🤝', label: 'Trade deals' },
-                        ].map(({ icon, label }) => (
-                          <span key={label} className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
-                            <span className="text-[11px]">{icon}</span>
-                            {label}
-                          </span>
-                        ))}
-                      </div>
 
                       {/* Trending room — quick join (only if a public room exists) */}
                       {(() => {

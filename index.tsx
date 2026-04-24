@@ -120,16 +120,48 @@ function Root() {
     }
   }, [sessionData, page, navigate]);
 
-  // Still loading auth
+  // Still loading auth — show 404 immediately so user never sees home flash
   if (sessionData === undefined) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-            <span className="text-lg font-black text-white">C</span>
-          </div>
-          <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+    if (page === 'not-found') {
+      return (
+        <div className="fixed inset-0 z-40">
+          <Suspense fallback={<PageSpinner />}>
+            <NotFoundPage onGoHome={() => { window.history.pushState({}, '', '/'); setPage(null); }} />
+          </Suspense>
         </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-[#020617] flex items-center justify-center overflow-hidden relative">
+        {/* background glow */}
+        <div
+          className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-full"
+          style={{ width: 600, height: 340, background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.35) 0%, rgba(168,85,247,0.18) 50%, transparent 80%)', filter: 'blur(40px)' }}
+        />
+        <div className="flex flex-col items-center gap-5 relative z-10">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-3xl blur-2xl scale-150 opacity-60" style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)' }} />
+            <div className="relative w-16 h-16 rounded-3xl flex items-center justify-center shadow-2xl" style={{ background: 'linear-gradient(135deg,#6366f1,#a855f7)', boxShadow: '0 0 60px 10px rgba(99,102,241,0.5)' }}>
+              <span className="text-2xl font-black text-white" style={{ fontFamily: "'Space Grotesk',system-ui,sans-serif" }}>C</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-2xl font-black tracking-tight text-white" style={{ fontFamily: "'Space Grotesk',system-ui,sans-serif" }}>
+              CASHLY<span className="text-base font-black" style={{ background: 'linear-gradient(to right,#818cf8,#c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>.IO</span>
+            </span>
+            <span className="text-[11px] text-slate-500 font-medium tracking-widest uppercase">Loading…</span>
+          </div>
+          <div className="w-32 h-[2px] rounded-full overflow-hidden bg-slate-800">
+            <div className="h-full rounded-full animate-pulse" style={{ background: 'linear-gradient(to right,#6366f1,#a855f7)', width: '60%', animation: 'cashly-bar 1.4s ease-in-out infinite' }} />
+          </div>
+        </div>
+        <style>{`
+          @keyframes cashly-bar {
+            0%   { width: 0%;   margin-left: 0%; }
+            50%  { width: 70%;  margin-left: 15%; }
+            100% { width: 0%;   margin-left: 100%; }
+          }
+        `}</style>
       </div>
     );
   }
@@ -163,15 +195,17 @@ function Root() {
   // a sibling layer that preserves the game session.
   return (
     <>
-      <App
-        sessionUser={sessionData?.user ?? null}
-        onOpenStore={() => navigate('store')}
-        onOpenProfile={() => navigate('profile')}
-        onOpenSettings={() => navigate('settings')}
-        onOpenLogin={() => setShowLogin(true)}
-        onOpenFriends={() => setShowFriends(true)}
-        onSignOut={handleSignOut}
-      />
+      {page !== 'not-found' && (
+        <App
+          sessionUser={sessionData?.user ?? null}
+          onOpenStore={() => navigate('store')}
+          onOpenProfile={() => navigate('profile')}
+          onOpenSettings={() => navigate('settings')}
+          onOpenLogin={() => setShowLogin(true)}
+          onOpenFriends={() => setShowFriends(true)}
+          onSignOut={handleSignOut}
+        />
+      )}
 
       {/* ── Store page (URL: /store) ───────────────────────────── */}
       {page === 'store' && (
