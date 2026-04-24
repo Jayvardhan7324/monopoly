@@ -2239,8 +2239,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                             onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
                             placeholder="ROOM CODE"
                             maxLength={6}
-                            style={{ fontFamily: "'Outfit', sans-serif" }}
-                            className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.3em] text-sm"
+                            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                            className="flex-1 bg-[#1e1e24] border border-slate-700/50 rounded-xl px-4 py-3 text-center font-bold text-white focus:outline-none focus:border-indigo-500 uppercase tracking-[0.35em] text-sm"
                           />
                           <button
                             onClick={() => joinRoom()}
@@ -2257,6 +2257,21 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       </div>
 
                       <div className="w-full pt-1" />
+
+                      {/* Economy rules teaser */}
+                      <div className="w-full flex flex-wrap justify-center gap-x-3 gap-y-1.5 px-2">
+                        {[
+                          { icon: '🏠', label: 'Buy properties' },
+                          { icon: '🏗️', label: 'Build & upgrade' },
+                          { icon: '💸', label: 'Charge rent' },
+                          { icon: '🤝', label: 'Trade deals' },
+                        ].map(({ icon, label }) => (
+                          <span key={label} className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                            <span className="text-[11px]">{icon}</span>
+                            {label}
+                          </span>
+                        ))}
+                      </div>
 
                       {/* Trending room — quick join (only if a public room exists) */}
                       {(() => {
