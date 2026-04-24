@@ -57,8 +57,8 @@ function HomeGlow() {
   }, []);
   return (
     <div
-      className="pointer-events-none absolute left-1/2 -translate-x-1/2 bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full z-0"
-      style={{ top: `${s.glowY}px`, width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity }}
+      className="pointer-events-none fixed left-1/2 -translate-x-1/2 bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full"
+      style={{ top: `${s.glowY}px`, width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
     />
   );
 }
