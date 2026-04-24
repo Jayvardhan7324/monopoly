@@ -1,4 +1,5 @@
 import React, { useReducer, useEffect, useState, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { SetCompleteAnimation } from './components/SetCompleteAnimation';
 import { gameReducer, initialState } from './services/gameReducer';
 import { PLAYER_ALLOWED_ACTIONS } from './services/actionPolicy';
@@ -41,6 +42,7 @@ const VISUAL_DEFAULTS = {
   particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
   particleOpacity: 0.7, particleFadeZone: 0.28,
   glowOpacity: 0.65, glowWidth: 960, glowHeight: 520, glowY: -180,
+  particleShape: 'circle' as 'circle' | 'snowflake',
 };
 type VisualSettings = typeof VISUAL_DEFAULTS;
 function loadVisualSettings(): VisualSettings {
@@ -57,11 +59,12 @@ function HomeGlow() {
     window.addEventListener('storage', hs);
     return () => { window.removeEventListener('cashly_visual_change', h); window.removeEventListener('storage', hs); };
   }, []);
-  return (
+  return createPortal(
     <div
       className="pointer-events-none fixed left-1/2 -translate-x-1/2 bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full"
       style={{ top: `${s.glowY}px`, width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
-    />
+    />,
+    document.body
   );
 }
 
@@ -81,44 +84,77 @@ function HomeParticles() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     let raf: number;
-    type P = { x: number; y: number; vx: number; baseVy: number; baseSize: number; baseAlpha: number };
+    let cssW = 0, cssH = 0;
+    type P = { x: number; y: number; vx: number; baseVy: number; baseSize: number; baseAlpha: number; rot: number; rotV: number };
     const particles: P[] = [];
-    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; };
+    const resize = () => {
+      const dpr = window.devicePixelRatio || 1;
+      cssW = window.innerWidth; cssH = window.innerHeight;
+      canvas.width = cssW * dpr; canvas.height = cssH * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    };
     resize();
     window.addEventListener('resize', resize);
     const spawn = (): P => ({
-      x: Math.random() * canvas.width, y: Math.random() * -20,
+      x: Math.random() * cssW, y: Math.random() * -20,
       vx: (Math.random() - 0.5) * 0.4,
       baseVy: 0.4 + Math.random() * 1.1,
       baseSize: 0.6 + Math.random() * 2.2,
       baseAlpha: 0.15 + Math.random() * 0.55,
+      rot: Math.random() * Math.PI * 2,
+      rotV: (Math.random() - 0.5) * 0.04,
     });
-    for (let i = 0; i < 80; i++) { const p = spawn(); p.y = Math.random() * canvas.height; particles.push(p); }
+    for (let i = 0; i < 80; i++) { const p = spawn(); p.y = Math.random() * cssH; particles.push(p); }
+    const drawSnowflake = (x: number, y: number, r: number, rot: number, alpha: number) => {
+      ctx.save();
+      ctx.translate(x, y); ctx.rotate(rot);
+      ctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      ctx.lineWidth = Math.max(0.4, r * 0.18);
+      for (let j = 0; j < 6; j++) {
+        ctx.save(); ctx.rotate((Math.PI / 3) * j);
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(r, 0);
+        ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 0.68, -r * 0.28);
+        ctx.moveTo(r * 0.5, 0); ctx.lineTo(r * 0.68, r * 0.28);
+        ctx.stroke(); ctx.restore();
+      }
+      ctx.restore();
+    };
     const tick = () => {
       const s = sRef.current;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, cssW, cssH);
       while (particles.length < s.particleCount) particles.push(spawn());
       while (particles.length > s.particleCount) particles.pop();
-      const fadeStart = s.particleFadeZone * canvas.height;
-      const fadeEnd = fadeStart + canvas.height * 0.10;
+      const fadeStart = s.particleFadeZone * cssH;
+      const fadeEnd = fadeStart + cssH * 0.10;
       for (let i = particles.length - 1; i >= 0; i--) {
         const p = particles[i];
         p.x += p.vx; p.y += p.baseVy * s.particleSpeed;
         p.vx += (Math.random() - 0.5) * 0.02;
+        p.rot += p.rotV;
+        if (p.x < 0) p.x += cssW; if (p.x > cssW) p.x -= cssW;
         if (p.y > fadeEnd) { Object.assign(p, spawn()); continue; }
         const topFade = Math.min(1, p.y / 30);
         const bottomFade = p.y < fadeStart ? 1 : 1 - (p.y - fadeStart) / (fadeEnd - fadeStart);
         const alpha = p.baseAlpha * s.particleOpacity * topFade * bottomFade;
         if (alpha <= 0.005) continue;
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.baseSize * s.particleSize, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
+        const r = p.baseSize * s.particleSize;
+        if (s.particleShape === 'snowflake') {
+          drawSnowflake(p.x, p.y, r * 2.5, p.rot, alpha);
+        } else {
+          ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
+        }
       }
       raf = requestAnimationFrame(tick);
     };
     tick();
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
   }, []);
-  return <canvas ref={canvasRef} className="fixed inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }} />;
+  return createPortal(
+    <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 0 }} />,
+    document.body
+  );
 }
 
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];

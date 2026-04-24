@@ -66,6 +66,7 @@ const VISUAL_DEFAULTS = {
   particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
   particleOpacity: 0.7, particleFadeZone: 0.28,
   glowOpacity: 0.65, glowWidth: 960, glowHeight: 520, glowY: -180,
+  particleShape: 'circle' as 'circle' | 'snowflake',
 };
 type VisualSettings = typeof VISUAL_DEFAULTS;
 function loadVisual(): VisualSettings {
@@ -1343,6 +1344,20 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                   <CardDescription>Control the falling particle effect on the home screen.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-5">
+                  <div className="space-y-1.5">
+                    <span className="text-sm text-muted-foreground">Shape</span>
+                    <div className="flex gap-2 mt-1">
+                      {(['circle', 'snowflake'] as const).map(shape => (
+                        <button
+                          key={shape}
+                          onClick={() => updateVisual({ particleShape: shape })}
+                          className={`flex-1 py-1.5 rounded-md border text-sm capitalize transition-colors ${visual.particleShape === shape ? 'bg-violet-600 border-violet-500 text-white' : 'border-border text-muted-foreground hover:border-violet-500'}`}
+                        >
+                          {shape === 'circle' ? '● Circle' : '❄ Snowflake'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   {[
                     { key: 'particleCount' as const, label: 'Count', min: 10, max: 400, step: 5, fmt: (v: number) => `${v}` },
                     { key: 'particleSpeed' as const, label: 'Speed', min: 0.1, max: 5, step: 0.1, fmt: (v: number) => `${v.toFixed(1)}x` },
