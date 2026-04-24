@@ -13,7 +13,8 @@ const LoginPage   = lazy(() => import('./components/auth/LoginPage'));
 const StorePage   = lazy(() => import('./components/store/StorePage'));
 const ProfilePage = lazy(() => import('./components/profile/ProfilePage'));
 const SettingsPage = lazy(() => import('./components/settings/SettingsPage'));
-const FriendsPanel = lazy(() => import('./components/friends/FriendsPanel'));
+const FriendsPanel  = lazy(() => import('./components/friends/FriendsPanel'));
+const NotFoundPage  = lazy(() => import('./components/NotFoundPage'));
 
 const PageSpinner = () => (
   <div className="flex-1 flex items-center justify-center p-12">
@@ -58,13 +59,17 @@ function normalizeSession(data: any) {
   };
 }
 
-type Page = 'store' | 'profile' | 'settings' | null;
+type Page = 'store' | 'profile' | 'settings' | 'not-found' | null;
+
+const KNOWN_PATHS = ['/', '/store', '/profile', '/settings'];
 
 function pageFromPath(path: string): Page {
   if (path.startsWith('/store')) return 'store';
   if (path.startsWith('/profile')) return 'profile';
   if (path.startsWith('/settings')) return 'settings';
-  return null;
+  if (path === '/' || path.startsWith('/room/') || path.startsWith('/game/')) return null;
+  if (KNOWN_PATHS.some(p => path === p)) return null;
+  return 'not-found';
 }
 
 function Root() {
@@ -201,6 +206,15 @@ function Root() {
               onClose={goBack}
               onOpenProfile={() => navigate('profile')}
             />
+          </Suspense>
+        </div>
+      )}
+
+      {/* ── 404 page ────────────────────────────────────────────── */}
+      {page === 'not-found' && (
+        <div className="fixed inset-0 z-40">
+          <Suspense fallback={<PageSpinner />}>
+            <NotFoundPage onGoHome={() => navigate(null)} />
           </Suspense>
         </div>
       )}
