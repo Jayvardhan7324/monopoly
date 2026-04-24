@@ -61,8 +61,8 @@ function HomeGlow() {
   }, []);
   return createPortal(
     <div
-      className="pointer-events-none fixed left-1/2 -translate-x-1/2 bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full"
-      style={{ top: `${s.glowY}px`, width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
+      className="pointer-events-none bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full"
+      style={{ position: 'absolute', top: `${s.glowY}px`, left: '50%', transform: 'translateX(-50%)', width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
     />,
     document.body
   );
@@ -152,7 +152,7 @@ function HomeParticles() {
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
   }, []);
   return createPortal(
-    <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 0 }} />,
+    <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 0 }} />,
     document.body
   );
 }
