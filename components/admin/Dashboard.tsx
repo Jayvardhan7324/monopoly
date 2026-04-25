@@ -394,7 +394,12 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const deleteBoard = async (id: string) => {
     if (!confirm('Delete this board?')) return;
     try {
-      await fetch(`/api/admin/boards/${id}`, { method: 'DELETE', headers });
+      const res = await fetch(`/api/admin/boards/${id}`, { method: 'DELETE', headers });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Failed to delete board');
+        return;
+      }
       toast.success('Board deleted');
       fetchBoards();
     } catch { toast.error('Failed to delete board'); }

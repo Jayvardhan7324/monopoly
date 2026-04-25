@@ -174,14 +174,21 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const [viewingPlayerId, setViewingPlayerId] = useState<number | null>(null);
   const [settings, setSettings] = useState<GameSettings>(initialState.settings);
 
-  // Custom admin board (pushed from admin panel)
-  const [customBoard, setCustomBoard] = useState<any>(() => {
+  // Saved/admin board catalog
+  const [savedBoards, setSavedBoards] = useState<any[]>([]);
+  const [activeBoard, setActiveBoard] = useState<any>(() => {
     try { return JSON.parse(localStorage.getItem('adminActiveBoard') || 'null'); } catch { return null; }
   });
 
+  const selectedBoard = useMemo(() => {
+    if (settings.boardMap === 'Classic') return null;
+    return savedBoards.find((board: any) => board.name === settings.boardMap)
+      ?? (activeBoard?.name === settings.boardMap ? activeBoard : null);
+  }, [activeBoard, savedBoards, settings.boardMap]);
+
   const customBoardTiles = useMemo(() => {
-    if (settings.boardMap === 'Classic' || !customBoard?.tiles) return null;
-    return (customBoard.tiles as any[])
+    if (!selectedBoard?.tiles) return null;
+    return (selectedBoard.tiles as any[])
       .map((t: any) => ({
         id: t.position ?? t.id,
         name: t.name,
@@ -196,12 +203,18 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         countryCode: t.countryCode,
       }))
       .sort((a: any, b: any) => a.id - b.id);
-  }, [customBoard, settings.boardMap]);
+  }, [selectedBoard]);
 
   const lobbyPreviewState = useMemo(
     () => (!gameStarted && customBoardTiles ? { ...gameState, tiles: customBoardTiles } : gameState),
     [customBoardTiles, gameStarted, gameState]
   );
+
+  useEffect(() => {
+    if (settings.boardMap === 'Classic') return;
+    if (selectedBoard) return;
+    setSettings(prev => ({ ...prev, boardMap: 'Classic' }));
+  }, [selectedBoard, settings.boardMap]);
 
   // FEAT-04: Sound toggle
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -298,6 +311,20 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   // Tracks whether isOnline=true was set from a session restore (reload) vs new join
   const isSessionRestoreRef = useRef(false);
   const isRestoringSessionRef = useRef(false);
+
+  const fetchBoardCatalog = () => {
+    fetch('/api/boards')
+      .then(r => r.json())
+      .then(({ boards, activeBoard }) => {
+        setSavedBoards(Array.isArray(boards) ? boards : []);
+        setActiveBoard(activeBoard ?? null);
+        if (activeBoard) localStorage.setItem('adminActiveBoard', JSON.stringify(activeBoard));
+        else localStorage.removeItem('adminActiveBoard');
+      })
+      .catch(() => {
+        setSavedBoards([]);
+      });
+  };
 
   // B6: Reconnect after page refresh — works from any URL, not just /room/XXX paths
   useEffect(() => {
@@ -518,11 +545,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     socket.on("action_error", handleActionError);
     socket.on("rooms_list", (rooms: any[]) => setActiveRooms(rooms));
     socket.on("admin_board_pushed", ({ board }: { board: any }) => {
-      setCustomBoard(board);
-      localStorage.setItem('adminActiveBoard', JSON.stringify(board));
-      // Reset map selection so host must explicitly pick the new board
-        setSettings(s => ({ ...s, boardMap: s.boardMap === 'Classic' ? 'Classic' : board.name }));
-      });
+      setActiveBoard(board ?? null);
+      if (board) localStorage.setItem('adminActiveBoard', JSON.stringify(board));
+      else localStorage.removeItem('adminActiveBoard');
+      fetchBoardCatalog();
+    });
+    socket.on("boards_catalog_updated", fetchBoardCatalog);
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
@@ -540,6 +568,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       socket.off("action_error", handleActionError);
       socket.off("rooms_list");
       socket.off("admin_board_pushed");
+      socket.off("boards_catalog_updated", fetchBoardCatalog);
       socket.off("disconnect", handleSocketDisconnect);
       socket.off("you_are_host", handleYouAreHost);
       socket.off("connect", handleSocketConnect);
@@ -548,17 +577,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     };
   }, [roomId, sessionPlayerId]);
 
-  // Fetch active admin board on mount (works even without socket connection)
+  // Fetch saved board catalog on mount so the map picker matches the admin board library
   useEffect(() => {
-    fetch('/api/active-board')
-      .then(r => r.json())
-      .then(({ board }) => {
-        if (board) {
-          setCustomBoard(board);
-          localStorage.setItem('adminActiveBoard', JSON.stringify(board));
-        }
-      })
-      .catch(() => {/* server not available */});
+    fetchBoardCatalog();
   }, []);
 
   // Scroll chat to bottom
@@ -1585,20 +1606,21 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                 >
                   Classic
                 </DropdownMenuItem>
-                {customBoard && (
+                {savedBoards.map((board: any) => (
                   <DropdownMenuItem
+                    key={board.id}
                     disabled={!isHost || gameStarted}
-                    onClick={() => updateGeneralSetting('boardMap', customBoard.name)}
+                    onClick={() => updateGeneralSetting('boardMap', board.name)}
                     className="focus:bg-slate-800 focus:text-slate-200 cursor-pointer rounded-lg m-1 font-bold"
                   >
-                    {customBoard.name}
+                    {board.name}
                   </DropdownMenuItem>
-                )}
+                ))}
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          {!customBoard && (
-            <div className="text-[10px] text-slate-600 mt-1.5">No custom maps pushed yet</div>
+          {savedBoards.length === 0 && (
+            <div className="text-[10px] text-slate-600 mt-1.5">No saved boards available yet</div>
           )}
         </div>
       </div>

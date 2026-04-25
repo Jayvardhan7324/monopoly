@@ -334,6 +334,10 @@ async function startServer() {
     createdAt: r.createdAt instanceof Date ? r.createdAt.getTime() : r.createdAt,
   }) : null;
 
+  const broadcastBoardsCatalog = () => {
+    io.emit('boards_catalog_updated', { activeBoard: activeAdminBoard });
+  };
+
   // Load active board from DB on startup so it survives restarts.
   if (db && schema) {
     try {
@@ -406,6 +410,7 @@ async function startServer() {
         boardSize: Number(boardSize) || 40,
         tiles,
       }).returning();
+      broadcastBoardsCatalog();
       res.json({ success: true, board: rowToBoard(row) });
     } catch (e: any) {
       log('admin board save failed:', e?.message);
@@ -423,7 +428,11 @@ async function startServer() {
         .where(eq(schema.adminBoard.id, req.params.id))
         .returning();
       if (!row) return res.status(404).json({ error: 'Board not found' });
-      if (activeAdminBoard?.id === row.id) activeAdminBoard = rowToBoard(row);
+      if (activeAdminBoard?.id === row.id) {
+        activeAdminBoard = rowToBoard(row);
+        io.emit('admin_board_pushed', { board: activeAdminBoard });
+      }
+      broadcastBoardsCatalog();
       res.json({ success: true, board: rowToBoard(row) });
     } catch (e: any) {
       log('admin board update failed:', e?.message);
@@ -434,8 +443,23 @@ async function startServer() {
   app.delete('/api/admin/boards/:id', requireAdmin, async (req, res) => {
     if (!requireDB(res)) return;
     try {
-      await db.delete(schema.adminBoard).where(eq(schema.adminBoard.id, req.params.id));
-      if (activeAdminBoard?.id === req.params.id) activeAdminBoard = null;
+      const [deletedRow] = await db.delete(schema.adminBoard)
+        .where(eq(schema.adminBoard.id, req.params.id))
+        .returning();
+      if (!deletedRow) return res.status(404).json({ error: 'Board not found' });
+      const deletedBoard = rowToBoard(deletedRow);
+      if (activeAdminBoard?.id === req.params.id) {
+        activeAdminBoard = null;
+        io.emit('admin_board_pushed', { board: null });
+      }
+      for (const [roomId, room] of rooms.entries()) {
+        if (!room.state && room.settings.boardMap === deletedBoard?.name) {
+          room.settings = { ...room.settings, boardMap: DEFAULT_ROOM_SETTINGS.boardMap };
+          emitRoomUpdate(roomId, room);
+          io.to(roomId).emit('settings_updated', room.settings);
+        }
+      }
+      broadcastBoardsCatalog();
       res.json({ success: true });
     } catch (e: any) {
       log('admin board delete failed:', e?.message);
@@ -455,6 +479,7 @@ async function startServer() {
       if (!row) return res.status(404).json({ error: 'Board not found' });
       activeAdminBoard = rowToBoard(row);
       io.emit('admin_board_pushed', { board: activeAdminBoard });
+      broadcastBoardsCatalog();
       log(`Admin pushed board "${row.name}" to all clients.`);
       res.json({ success: true });
     } catch (e: any) {
@@ -518,6 +543,18 @@ async function startServer() {
     return room.settings.allowBots ? Math.max(0, room.maxPlayers - humanSeatCount(room)) : 0;
   }
 
+  function nextAvailableAvatar(room: RoomData): number {
+    const used = new Set(
+      room.players
+        .map((p: any) => p.avatar)
+        .filter((avatar: any) => Number.isInteger(avatar))
+    );
+    for (let i = 0; i < 32; i++) {
+      if (!used.has(i)) return i;
+    }
+    return 0;
+  }
+
   function reconcileLobbyBots(roomId: string, room: RoomData, emitUpdate = true) {
     clearRoomBotTimers(roomId);
     if (room.state) return;
@@ -548,7 +585,7 @@ async function startServer() {
             id: botId,
             originalId: botId,
             name: generateBotLobbyName(activeRoom, activeRoom.players.length + i),
-            avatar: (activeRoom.players.length + i) % 32,
+            avatar: nextAvailableAvatar(activeRoom),
             isHost: false,
             isBot: true,
           });
@@ -771,6 +808,20 @@ async function startServer() {
     // Broadcast updated room list to everyone (via socket)
     scheduleRoomsListBroadcast();
     res.json({ success: true, roomId, playerId, players: rooms.get(roomId)!.players, settings });
+  });
+
+  app.get('/api/boards', async (_req, res) => {
+    if (!requireDB(res)) return;
+    try {
+      const rows = await db.select().from(schema.adminBoard).orderBy(schema.adminBoard.createdAt);
+      res.json({
+        boards: rows.reverse().map(rowToBoard),
+        activeBoard: activeAdminBoard,
+      });
+    } catch (e: any) {
+      log('public boards list failed:', e?.message);
+      res.status(500).json({ error: 'Failed to load boards' });
+    }
   });
 
   // REST API: Join a random room

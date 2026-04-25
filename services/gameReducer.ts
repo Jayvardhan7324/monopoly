@@ -211,51 +211,63 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // Assign each player their chosen appearance color (from APPEARANCE_COLORS palette
       // selected in the lobby). Bots pick unused slots. Fallback cycles if exhausted.
       const usedColors = new Set<string>();
+      const usedAvatarIds = new Set<number>();
+      const reserveAvatar = (avatarIdx: number): number => {
+        const normalized = Number.isInteger(avatarIdx) ? ((avatarIdx % APPEARANCE_COLORS.length) + APPEARANCE_COLORS.length) % APPEARANCE_COLORS.length : 0;
+        if (!usedAvatarIds.has(normalized)) {
+          usedAvatarIds.add(normalized);
+          return normalized;
+        }
+        for (let i = 0; i < APPEARANCE_COLORS.length; i++) {
+          if (!usedAvatarIds.has(i)) {
+            usedAvatarIds.add(i);
+            return i;
+          }
+        }
+        return normalized;
+      };
       const colorFromAvatar = (avatarIdx: number): string => {
         const color = APPEARANCE_COLORS[(avatarIdx ?? 0) % APPEARANCE_COLORS.length];
         usedColors.add(color);
         return color;
-      };
-      const nextUnusedColor = (): string => {
-        const pick = APPEARANCE_COLORS.find(c => !usedColors.has(c));
-        if (pick) { usedColors.add(pick); return pick; }
-        const fallback = APPEARANCE_COLORS[usedColors.size % APPEARANCE_COLORS.length];
-        usedColors.add(fallback);
-        return fallback;
       };
 
       if (lobbyPlayers && lobbyPlayers.length > 0) {
         // Online multiplayer setup — use each player's chosen avatar color
         players = lobbyPlayers
           .filter((p: any) => !p.isSpectator)
-          .map((p: any) => ({
-            id: players.length,  // will be reassigned below via index
-            name: p.name,
-            color: colorFromAvatar(p.avatar ?? 0),
-            money: settings.rules.startingCash,
-            position: 0,
-            isBot: !!p.isBot,
-            isBankrupt: false,
-            inJail: false,
-            jailTurns: 0,
-            avatarId: p.avatar,
-            profileImage: p.isBot ? undefined : (p.profileImage ?? undefined),
-          }))
+          .map((p: any) => {
+            const avatarId = reserveAvatar(p.avatar ?? 0);
+            return {
+              id: players.length,  // will be reassigned below via index
+              name: p.name,
+              color: colorFromAvatar(avatarId),
+              money: settings.rules.startingCash,
+              position: 0,
+              isBot: !!p.isBot,
+              isBankrupt: false,
+              inJail: false,
+              jailTurns: 0,
+              avatarId,
+              profileImage: p.isBot ? undefined : (p.profileImage ?? undefined),
+            };
+          })
           .map((p: any, i: number) => ({ ...p, id: i }));
       } else {
         // Local game setup — use the player's chosen avatar color
+        const avatarId = reserveAvatar(selectedAvatar ?? 0);
         players = [
           {
             id: 0,
             name: humanName || 'Player 1',
-            color: colorFromAvatar(selectedAvatar ?? 0),
+            color: colorFromAvatar(avatarId),
             money: settings.rules.startingCash,
             position: 0,
             isBot: false,
             isBankrupt: false,
             inJail: false,
             jailTurns: 0,
-            avatarId: selectedAvatar,
+            avatarId,
             profileImage: profileImage ?? undefined,
           },
         ];
@@ -287,10 +299,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
       for (let i = 0; i < botCount; i++) {
         const botId = players.length;
+        const avatarId = reserveAvatar(Math.floor(Math.random() * APPEARANCE_COLORS.length));
         players.push({
           id: botId,
           name: genBotName(),
-          color: nextUnusedColor(),
+          color: colorFromAvatar(avatarId),
           money: settings.rules.startingCash,
           position: 0,
           isBot: true,
@@ -298,7 +311,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           inJail: false,
           jailTurns: 0,
           personality: botPersonalities[i % botPersonalities.length],
-          avatarId: Math.floor(Math.random() * 12),
+          avatarId,
         });
       }
 
