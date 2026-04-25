@@ -30,13 +30,72 @@ interface RoomData {
   state: any;
   isPrivate: boolean;
   maxPlayers: number;
+  settings: any;
   createdAt: number;
   socketToGamePlayerId?: Record<string, number>;
 }
 
+const DEFAULT_ROOM_SETTINGS = {
+  maxPlayers: 4,
+  isPrivate: false,
+  allowBots: true,
+  boardMap: 'Classic',
+  rules: {
+    doubleRentOnFullSet: true,
+    vacationCash: true,
+    auctionEnabled: true,
+    noRentInJail: true,
+    mortgageEnabled: true,
+    evenBuild: true,
+    startingCash: 1500,
+    randomizeOrder: true,
+  },
+};
+
+const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
+const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
+
 // Dev-only logger — silent in production
 const isDev = process.env.NODE_ENV !== 'production';
 const log = isDev ? (...args: any[]) => console.log(...args) : () => {};
+
+function humanSeatCount(room: RoomData): number {
+  return room.players.filter((p: any) => !p.isSpectator && !p.isBot).length;
+}
+
+function sanitizeBoardMap(value: unknown, fallback = DEFAULT_ROOM_SETTINGS.boardMap): string {
+  if (typeof value !== 'string') return fallback;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 80) return fallback;
+  return trimmed;
+}
+
+function sanitizeRoomSettings(input: any, current = DEFAULT_ROOM_SETTINGS) {
+  const rulesIn = input?.rules ?? {};
+  const currentRules = current.rules ?? DEFAULT_ROOM_SETTINGS.rules;
+  const startingCash = Number.isInteger(rulesIn.startingCash) && rulesIn.startingCash >= 500 && rulesIn.startingCash <= 10000
+    ? rulesIn.startingCash
+    : currentRules.startingCash;
+
+  return {
+    maxPlayers: Number.isInteger(input?.maxPlayers) && input.maxPlayers >= 2 && input.maxPlayers <= 8
+      ? input.maxPlayers
+      : current.maxPlayers,
+    isPrivate: typeof input?.isPrivate === 'boolean' ? input.isPrivate : current.isPrivate,
+    allowBots: typeof input?.allowBots === 'boolean' ? input.allowBots : current.allowBots,
+    boardMap: sanitizeBoardMap(input?.boardMap, current.boardMap),
+    rules: {
+      doubleRentOnFullSet: typeof rulesIn.doubleRentOnFullSet === 'boolean' ? rulesIn.doubleRentOnFullSet : currentRules.doubleRentOnFullSet,
+      vacationCash: typeof rulesIn.vacationCash === 'boolean' ? rulesIn.vacationCash : currentRules.vacationCash,
+      auctionEnabled: typeof rulesIn.auctionEnabled === 'boolean' ? rulesIn.auctionEnabled : currentRules.auctionEnabled,
+      noRentInJail: typeof rulesIn.noRentInJail === 'boolean' ? rulesIn.noRentInJail : currentRules.noRentInJail,
+      mortgageEnabled: typeof rulesIn.mortgageEnabled === 'boolean' ? rulesIn.mortgageEnabled : currentRules.mortgageEnabled,
+      evenBuild: typeof rulesIn.evenBuild === 'boolean' ? rulesIn.evenBuild : currentRules.evenBuild,
+      startingCash,
+      randomizeOrder: typeof rulesIn.randomizeOrder === 'boolean' ? rulesIn.randomizeOrder : currentRules.randomizeOrder,
+    },
+  };
+}
 
 async function startServer() {
   // ── Startup env validation ──────────────────────────────────────────────────
@@ -431,6 +490,79 @@ async function startServer() {
   const rooms = new Map<string, RoomData>();
   const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
   const roomIdleTimers = new Map<string, NodeJS.Timeout>(); // keyed by roomId — fires when all players disconnected
+  const botJoinTimers = new Map<string, Map<string, NodeJS.Timeout>>();
+
+  function clearRoomBotTimers(roomId: string) {
+    const timers = botJoinTimers.get(roomId);
+    if (!timers) return;
+    for (const timer of timers.values()) clearTimeout(timer);
+    botJoinTimers.delete(roomId);
+  }
+
+  function emitRoomUpdate(roomId: string, room: RoomData) {
+    io.to(roomId).emit("room_updated", { players: room.players, settings: room.settings });
+  }
+
+  function generateBotLobbyName(room: RoomData, indexHint = room.players.length): string {
+    const usedNames = new Set(room.players.map((p: any) => p.name));
+    let name = '';
+    let attempt = 0;
+    do {
+      name = BOT_ADJ[(indexHint * 7 + attempt * 3 + 3) % BOT_ADJ.length] + ' ' + BOT_NOUN[(indexHint * 11 + attempt * 5 + 5) % BOT_NOUN.length];
+      attempt++;
+    } while (usedNames.has(name) && attempt < 60);
+    return name;
+  }
+
+  function desiredBotCount(room: RoomData): number {
+    return room.settings.allowBots ? Math.max(0, room.maxPlayers - humanSeatCount(room)) : 0;
+  }
+
+  function reconcileLobbyBots(roomId: string, room: RoomData, emitUpdate = true) {
+    clearRoomBotTimers(roomId);
+    if (room.state) return;
+
+    const bots = room.players.filter((p: any) => p.isBot);
+    const target = desiredBotCount(room);
+
+    if (bots.length > target) {
+      const overflow = bots.length - target;
+      const removableIds = new Set(bots.slice(-overflow).map((p: any) => p.id));
+      room.players = room.players.filter((p: any) => !removableIds.has(p.id));
+    }
+
+    const missing = target - room.players.filter((p: any) => p.isBot).length;
+    if (missing > 0) {
+      const timers = new Map<string, NodeJS.Timeout>();
+      botJoinTimers.set(roomId, timers);
+      for (let i = 0; i < missing; i++) {
+        const botId = "bot_" + randomUUID().replace(/-/g, '').slice(0, 12);
+        const timer = setTimeout(() => {
+          const activeRoom = rooms.get(roomId);
+          const activeTimers = botJoinTimers.get(roomId);
+          activeTimers?.delete(botId);
+          if (!activeRoom || activeRoom.state) return;
+          const liveBots = activeRoom.players.filter((p: any) => p.isBot).length;
+          if (liveBots >= desiredBotCount(activeRoom)) return;
+          activeRoom.players.push({
+            id: botId,
+            originalId: botId,
+            name: generateBotLobbyName(activeRoom, activeRoom.players.length + i),
+            avatar: (activeRoom.players.length + i) % 32,
+            isHost: false,
+            isBot: true,
+          });
+          emitRoomUpdate(roomId, activeRoom);
+          scheduleRoomsListBroadcast();
+          if (activeTimers && activeTimers.size === 0) botJoinTimers.delete(roomId);
+        }, 900 + i * 700);
+        timers.set(botId, timer);
+      }
+    }
+
+    if (emitUpdate) emitRoomUpdate(roomId, room);
+    scheduleRoomsListBroadcast();
+  }
 
   // Debounced rooms_list broadcast — collapses bursts of calls into one emit per 50ms
   let roomsListFlushTimer: NodeJS.Timeout | null = null;
@@ -463,6 +595,7 @@ async function startServer() {
           clearTimeout(roomIdleTimers.get(roomId)!);
           roomIdleTimers.delete(roomId);
         }
+        clearRoomBotTimers(roomId);
         rooms.delete(roomId);
         log(`GC: deleted stale room ${roomId} (all disconnected > 1hr)`);
       }
@@ -481,6 +614,7 @@ async function startServer() {
     room.players.splice(idx, 1);
     disconnectTimers.delete(originalPlayerId);
     if (room.players.length === 0) {
+      clearRoomBotTimers(roomId);
       rooms.delete(roomId);
     } else {
       // Transfer host if the removed player was host
@@ -501,7 +635,7 @@ async function startServer() {
           if (next) io.to(heir.id).emit("you_are_host");
         }
       }
-      io.to(roomId).emit("room_updated", { players: room.players });
+      emitRoomUpdate(roomId, room);
       // B3: If the removed player was the current turn player, force turn advancement
       // Match by name since game state uses numeric IDs, not socket IDs
       if (room.state && room.state.players) {
@@ -587,11 +721,11 @@ async function startServer() {
     const publicRooms: any[] = [];
     for (const [id, room] of rooms.entries()) {
       // Only list rooms that are: public, not started, and not full
-      if (!room.isPrivate && !room.state) {
+      if (!room.isPrivate && !room.state && humanSeatCount(room) < room.maxPlayers) {
         publicRooms.push({
           roomId: id,
           hostName: room.hostName,
-          playerCount: room.players.length,
+          playerCount: humanSeatCount(room),
           maxPlayers: room.maxPlayers,
           createdAt: room.createdAt,
         });
@@ -617,19 +751,26 @@ async function startServer() {
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const safeImg = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
     const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg(data.profileImage), isHost: true };
+    const settings = sanitizeRoomSettings(data, {
+      ...DEFAULT_ROOM_SETTINGS,
+      isPrivate: !!data.isPrivate,
+      maxPlayers: Number.isInteger(data.maxPlayers) ? data.maxPlayers : DEFAULT_ROOM_SETTINGS.maxPlayers,
+    });
     rooms.set(roomId, {
       host: playerId, // Will be updated to socket.id when they connect
       hostName: sanitizeName(data.name) || 'Player',
       players: [player],
       state: null,
-      isPrivate: data.isPrivate || false,
-      maxPlayers: data.maxPlayers || 5,
+      isPrivate: settings.isPrivate,
+      maxPlayers: settings.maxPlayers,
+      settings,
       createdAt: Date.now(),
     });
 
+    reconcileLobbyBots(roomId, rooms.get(roomId)!, false);
     // Broadcast updated room list to everyone (via socket)
     scheduleRoomsListBroadcast();
-    res.json({ success: true, roomId, playerId, players: [player] });
+    res.json({ success: true, roomId, playerId, players: rooms.get(roomId)!.players, settings });
   });
 
   // REST API: Join a random room
@@ -642,7 +783,7 @@ async function startServer() {
     // Find a room that is not full, not private, and hasn't started
     let targetRoomId = null;
     for (const [id, room] of rooms.entries()) {
-      if (!room.state && !room.isPrivate && room.players.length < room.maxPlayers) {
+      if (!room.state && !room.isPrivate && humanSeatCount(room) < room.maxPlayers) {
         targetRoomId = id;
         break;
       }
@@ -655,26 +796,30 @@ async function startServer() {
       const safeImg2 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
       const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg2(data.profileImage), isHost: false };
       room.players.push(player);
+      reconcileLobbyBots(targetRoomId, room, false);
       // We don't broadcast room_updated here because socket isn't connected yet.
       // We will broadcast when they actually connect their socket.
-      res.json({ success: true, roomId: targetRoomId, playerId, players: room.players });
+      res.json({ success: true, roomId: targetRoomId, playerId, players: room.players, settings: room.settings });
     } else {
       // Create a new room
       const roomId = randomBytes(3).toString('hex').toUpperCase();
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const safeImg3 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
       const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg3(data.profileImage), isHost: true };
+      const settings = sanitizeRoomSettings(data, DEFAULT_ROOM_SETTINGS);
       rooms.set(roomId, {
         host: playerId,
         hostName: sanitizeName(data.name) || 'Player',
         players: [player],
         state: null,
-        isPrivate: false,
-        maxPlayers: 5,
+        isPrivate: settings.isPrivate,
+        maxPlayers: settings.maxPlayers,
+        settings,
         createdAt: Date.now(),
       });
+      reconcileLobbyBots(roomId, rooms.get(roomId)!, false);
       scheduleRoomsListBroadcast();
-      res.json({ success: true, roomId, playerId, players: [player] });
+      res.json({ success: true, roomId, playerId, players: rooms.get(roomId)!.players, settings });
     }
   });
 
@@ -709,17 +854,21 @@ async function startServer() {
           clearTimeout(roomIdleTimers.get(roomId)!);
           roomIdleTimers.delete(roomId);
         }
-        res.json({ success: true, roomId, playerId, players: room.players, isSpectator: false, becameHost: true });
+        res.json({ success: true, roomId, playerId, players: room.players, settings: room.settings, isSpectator: false, becameHost: true });
       } else {
         // Game in progress with active players — join as spectator
         const safeImg5 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
         const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg5(data.profileImage), isHost: false, isSpectator: true };
         room.players.push(player);
-        res.json({ success: true, roomId, playerId, players: room.players, isSpectator: true });
+        res.json({ success: true, roomId, playerId, players: room.players, settings: room.settings, isSpectator: true });
       }
       return;
     }
-    if (room.players.length >= room.maxPlayers) {
+    const existingBot = room.players.find((p: any) => p.isBot);
+    if (existingBot) {
+      room.players = room.players.filter((p: any) => p.id !== existingBot.id);
+    }
+    if (humanSeatCount(room) >= room.maxPlayers) {
       return res.status(400).json({ success: false, error: "Room is full" });
     }
 
@@ -728,9 +877,10 @@ async function startServer() {
     const safeImg6 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
     const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg6(data.profileImage), isHost: false };
     room.players.push(player);
+    reconcileLobbyBots(roomId, room, false);
 
     scheduleRoomsListBroadcast();
-    res.json({ success: true, roomId: roomId, playerId, players: room.players });
+    res.json({ success: true, roomId: roomId, playerId, players: room.players, settings: room.settings });
   });
 
   // Socket.io logic
@@ -817,7 +967,7 @@ async function startServer() {
       }
 
       // Notify everyone that player is back (with updated host flags)
-      io.to(roomId).emit("room_updated", { players: room.players });
+      emitRoomUpdate(roomId, room);
 
       // If game is already in progress, send current state to the rejoining player
       if (room.state) {
@@ -825,7 +975,7 @@ async function startServer() {
         log(`Sent live game state to reconnecting player ${timerKey} in room ${roomId}.`);
       }
 
-      if (callback) callback({ success: true, players: room.players, gameInProgress: !!room.state });
+      if (callback) callback({ success: true, players: room.players, settings: room.settings, gameInProgress: !!room.state });
     });
 
     socket.on("update_player", (data, callback) => {
@@ -854,7 +1004,7 @@ async function startServer() {
               }
               player.avatar = data.avatar;
             }
-            io.to(roomId).emit("room_updated", { players: room.players });
+            emitRoomUpdate(roomId, room);
             if (callback) callback({ success: true });
           }
         }
@@ -871,7 +1021,9 @@ async function startServer() {
             const raw = JSON.stringify(data?.initialState ?? null);
             if (!raw || raw.length > 512 * 1024) return;
           } catch { return; }
+          clearRoomBotTimers(roomId);
           room.state = data.initialState;
+          room.settings = sanitizeRoomSettings(data.initialState?.settings, room.settings);
           // B6 FIX: Build socket→gamePlayerId map at game-start using name matching (names are unique at this point)
           if (data.initialState?.players && Array.isArray(data.initialState.players)) {
             room.socketToGamePlayerId = {};
@@ -902,9 +1054,10 @@ async function startServer() {
       if (playerIndex === -1) return;
       const kickedPlayer = room.players[playerIndex];
       room.players.splice(playerIndex, 1);
+      reconcileLobbyBots(roomId, room, false);
       io.sockets.sockets.get(kickedPlayer.id)?.leave(roomId);
-      io.to(kickedPlayer.id).emit("kicked");
-      io.to(roomId).emit("room_updated", { players: room.players });
+      if (!kickedPlayer.isBot) io.to(kickedPlayer.id).emit("kicked");
+      emitRoomUpdate(roomId, room);
       scheduleRoomsListBroadcast();
     });
 
@@ -915,22 +1068,14 @@ async function startServer() {
       if (!room || room.host !== socket.id || room.state) return;
       const s = data?.settings;
       if (!s || typeof s !== 'object') return;
-      // SEC: Whitelist + bound-check every field. Build a clean settings object for broadcast
-      // so clients can't smuggle extra keys.
-      const clean: { isPrivate?: boolean; maxPlayers?: number } = {};
-      if (typeof s.isPrivate === 'boolean') {
-        room.isPrivate = s.isPrivate;
-        clean.isPrivate = s.isPrivate;
-      }
-      if (Number.isInteger(s.maxPlayers) && s.maxPlayers >= 2 && s.maxPlayers <= 8) {
-        // Can't shrink below current player count
-        if (s.maxPlayers >= room.players.length) {
-          room.maxPlayers = s.maxPlayers;
-          clean.maxPlayers = s.maxPlayers;
-        }
-      }
-      if (Object.keys(clean).length === 0) return;
-      socket.to(roomId).emit("settings_updated", clean);
+      const nextSettings = sanitizeRoomSettings(s, room.settings);
+      if (nextSettings.maxPlayers < humanSeatCount(room)) return;
+      room.settings = nextSettings;
+      room.isPrivate = nextSettings.isPrivate;
+      room.maxPlayers = nextSettings.maxPlayers;
+      reconcileLobbyBots(roomId, room, false);
+      io.to(roomId).emit("settings_updated", room.settings);
+      emitRoomUpdate(roomId, room);
       scheduleRoomsListBroadcast();
     });
 
@@ -970,8 +1115,10 @@ async function startServer() {
       room.players.splice(playerIndex, 1);
       socket.leave(roomId);
       if (room.players.length === 0) {
+        clearRoomBotTimers(roomId);
         rooms.delete(roomId);
       } else {
+        if (!room.state) reconcileLobbyBots(roomId, room, false);
         if (room.host === player.id) {
           // B9: Only promote a currently connected player; if all are disconnected, assign the
           // first player as nominal host but skip the emit (join_session will auto-promote on reconnect)
@@ -984,7 +1131,7 @@ async function startServer() {
             if (next) io.to(next.id).emit("you_are_host");
           }
         }
-        io.to(roomId).emit("room_updated", { players: room.players });
+        emitRoomUpdate(roomId, room);
       }
       scheduleRoomsListBroadcast();
     });
@@ -1190,8 +1337,10 @@ async function startServer() {
             // Game hasn't started — remove immediately so rejoining player keeps original name
             room.players.splice(playerIndex, 1);
             if (room.players.length === 0) {
+              clearRoomBotTimers(roomId);
               rooms.delete(roomId);
             } else {
+              reconcileLobbyBots(roomId, room, false);
               if (room.host === player.id) {
                 // B9: Only promote a connected player; fall back to first if all disconnected
                 const next = room.players.find((p: any) => !p.disconnected);
@@ -1203,7 +1352,7 @@ async function startServer() {
                   if (next) io.to(next.id).emit("you_are_host");
                 }
               }
-              io.to(roomId).emit("room_updated", { players: room.players });
+              emitRoomUpdate(roomId, room);
             }
             scheduleRoomsListBroadcast();
             log(`Player ${timerKey} removed immediately from lobby ${roomId} (game not started).`);
@@ -1214,7 +1363,7 @@ async function startServer() {
             log(`Player ${timerKey} disconnected from room ${roomId}. Starting ${RECONNECT_WINDOW_MS / 60000}-min reconnect window.`);
 
             // Notify others that this player temporarily disconnected
-            io.to(roomId).emit("room_updated", { players: room.players });
+            emitRoomUpdate(roomId, room);
             scheduleRoomsListBroadcast();
 
             // Schedule permanent removal after the reconnect window
@@ -1228,6 +1377,7 @@ async function startServer() {
             if (allDisconnected && !roomIdleTimers.has(roomId)) {
               log(`All players disconnected from room ${roomId}. Room will persist for ${ROOM_IDLE_TTL / 60000} min.`);
               const idleTimer = setTimeout(() => {
+                clearRoomBotTimers(roomId);
                 rooms.delete(roomId);
                 roomIdleTimers.delete(roomId);
                 log(`Room ${roomId} deleted after idle TTL (all players disconnected).`);
@@ -1552,7 +1702,7 @@ async function startServer() {
   const ALLOWED_ITEM_TYPES = new Set(['avatar', 'board_skin', 'token', 'profile_pic', 'misc']);
 
   app.post('/api/admin/store/items', requireAdmin, async (req, res) => {
-    const { name, description, type, priceCoins, assetUrl } = req.body ?? {};
+    const { name, description, type, priceCoins, assetUrl, active } = req.body ?? {};
     if (!name || !type) return res.status(400).json({ error: 'name and type required' });
     if (!ALLOWED_ITEM_TYPES.has(String(type))) return res.status(400).json({ error: 'Invalid item type' });
     const price = Number(priceCoins ?? 100);
@@ -1565,7 +1715,7 @@ async function startServer() {
         type: String(type),
         priceCoins: Math.floor(price),
         assetUrl: assetUrl ? String(assetUrl).slice(0, 500) : null,
-        active: true,
+        active: typeof active === 'boolean' ? active : true,
         createdAt: new Date(),
       };
       await db.insert(schema.storeItem).values(item);

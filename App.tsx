@@ -157,10 +157,6 @@ function HomeParticles() {
   );
 }
 
-const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
-const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
-const generateBotLobbyName = (index: number) => BOT_ADJ[(index * 7 + 3) % BOT_ADJ.length] + BOT_NOUN[(index * 11 + 5) % BOT_NOUN.length];
-
 interface AppProps {
   onOpenStore?: () => void;
   onOpenLogin?: () => void;
@@ -182,6 +178,30 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const [customBoard, setCustomBoard] = useState<any>(() => {
     try { return JSON.parse(localStorage.getItem('adminActiveBoard') || 'null'); } catch { return null; }
   });
+
+  const customBoardTiles = useMemo(() => {
+    if (settings.boardMap === 'Classic' || !customBoard?.tiles) return null;
+    return (customBoard.tiles as any[])
+      .map((t: any) => ({
+        id: t.position ?? t.id,
+        name: t.name,
+        type: t.type,
+        price: t.price ?? 0,
+        rent: t.rent ?? [],
+        group: t.group,
+        ownerId: null,
+        buildingCount: 0,
+        isMortgaged: false,
+        houseCost: t.houseCost ?? 0,
+        countryCode: t.countryCode,
+      }))
+      .sort((a: any, b: any) => a.id - b.id);
+  }, [customBoard, settings.boardMap]);
+
+  const lobbyPreviewState = useMemo(
+    () => (!gameStarted && customBoardTiles ? { ...gameState, tiles: customBoardTiles } : gameState),
+    [customBoardTiles, gameStarted, gameState]
+  );
 
   // FEAT-04: Sound toggle
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -244,7 +264,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   useEffect(() => { isHostRef.current = isHost; }, [isHost]);
   // 100ms per-action-type throttle — prevents double-fire from rapid clicks
   const lastActionTimeRef = useRef<Map<string, number>>(new Map());
-  const [kickedBotIds, setKickedBotIds] = useState<Set<number>>(new Set());
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [activePolicyPage, setActivePolicyPage] = useState<'privacy' | 'terms' | 'cookies' | 'contact' | null>(null);
   const [showBugModal, setShowBugModal] = useState(false);
@@ -272,7 +291,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     return () => window.removeEventListener('resize', checkLayout);
   }, []);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const kickTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const prevLobbyCountRef = useRef(-1);
 
   // IMP-11: Prevent duplicate bot bid timers (BUG-11)
@@ -316,6 +334,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               setSessionPlayerId(res.playerId);
               setIsHost(false);
               setLobbyPlayers(res.players);
+              if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
               if (res.isSpectator) setIsSpectator(true);
               localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, savedAt: Date.now() }));
               window.history.replaceState({}, '', `/room/${res.roomId}`);
@@ -396,6 +415,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       }
       prevLobbyCountRef.current = newCount;
       setLobbyPlayers(data.players);
+      if (data.settings) {
+        setSettings((prev) => ({ ...prev, ...data.settings, rules: { ...prev.rules, ...(data.settings.rules || {}) } }));
+      }
       const me = data.players.find((p: any) => p.id === socket.id);
       if (me && !me.isSpectator) {
         setIsHost(me.isHost);
@@ -438,7 +460,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     };
 
     const handleSettingsUpdated = (newSettings: any) => {
-      setSettings(newSettings);
+      setSettings((prev) => ({ ...prev, ...newSettings, rules: { ...prev.rules, ...(newSettings?.rules || {}) } }));
     };
 
     const handleKicked = () => {
@@ -499,8 +521,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       setCustomBoard(board);
       localStorage.setItem('adminActiveBoard', JSON.stringify(board));
       // Reset map selection so host must explicitly pick the new board
-      setSettings(s => ({ ...s, boardMap: 'Classic' }));
-    });
+        setSettings(s => ({ ...s, boardMap: s.boardMap === 'Classic' ? 'Classic' : board.name }));
+      });
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
@@ -895,23 +917,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         lobbyPlayers: isOnline ? lobbyPlayers : null,
         selectedAvatar,
         profileImage: session?.user?.image ?? undefined,
-        customTiles: settings.boardMap !== 'Classic' && customBoard?.tiles
-          ? (customBoard.tiles as any[])
-              .map((t: any) => ({
-                id: t.position ?? t.id,
-                name: t.name,
-                type: t.type,
-                price: t.price ?? 0,
-                rent: t.rent ?? [],
-                group: t.group,
-                ownerId: null,
-                buildingCount: 0,
-                isMortgaged: false,
-                houseCost: t.houseCost ?? 0,
-                countryCode: t.countryCode,
-              }))
-              .sort((a: any, b: any) => a.id - b.id)
-          : undefined,
+        customTiles: customBoardTiles ?? undefined,
       },
     };
 
@@ -928,7 +934,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       const r = await fetch("/api/rooms", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined, isPrivate, maxPlayers: settings.maxPlayers }),
+        body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined, ...settings, isPrivate }),
       });
       if (!r.ok) throw new Error(await r.text());
       const res = await r.json();
@@ -939,6 +945,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setSessionPlayerId(res.playerId);
         setIsHost(true);
         setLobbyPlayers(res.players);
+        if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         setShowRoomBrowser(false);
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         if (isPrivate) {
@@ -972,6 +979,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setSessionPlayerId(res.playerId);
         setIsHost(false);
         setLobbyPlayers(res.players);
+        if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         setShowRoomBrowser(false);
         if (res.isSpectator) setIsSpectator(true);
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
@@ -1002,6 +1010,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
+        if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.pushState({}, '', `/room/${res.roomId}`);
       } else {
@@ -1023,9 +1032,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     setSavedSession(null);
     dispatch({ type: 'RESET_GAME' });
     startGameBroadcastedRef.current = false;
-    // MEM-04: Clear bot-kick timers so they don't fire into a stale session
-    kickTimersRef.current.forEach(t => clearTimeout(t));
-    kickTimersRef.current.clear();
     prevLobbyCountRef.current = -1;
     setIsOnline(false);
     setRoomId(null);
@@ -1088,28 +1094,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       }
     } catch {}
   }, [gameState.turnCount]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reset kicked bots when allowBots or maxPlayers changes
-  useEffect(() => { setKickedBotIds(new Set()); }, [settings.allowBots, settings.maxPlayers]);
-
-  const kickBotSlot = (index: number) => {
-    setKickedBotIds(prev => new Set([...prev, index]));
-    // Bot rejoins after 20 seconds — track timer so it can be cleared on unmount
-    const t = setTimeout(() => {
-      kickTimersRef.current.delete(index);
-      setKickedBotIds(prev => {
-        const next = new Set(prev);
-        next.delete(index);
-        return next;
-      });
-    }, 20000);
-    kickTimersRef.current.set(index, t);
-  };
-
-  // Cleanup all pending kick-bot timers on unmount
-  useEffect(() => {
-    return () => { kickTimersRef.current.forEach(t => clearTimeout(t)); };
-  }, []);
 
   // Award 1 coin to logged-in user when they win
   const winCoinPostedRef = useRef(false);
@@ -2548,7 +2532,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         {/* Center Column: Board */}
         <div className="flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2 group-data-[layout=row]:order-2">
           <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
-            <Board gameState={gameState} onTileClick={() => { }}>
+            <Board gameState={lobbyPreviewState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
                 {showAppearanceModal ? (
                   <motion.div
@@ -2630,8 +2614,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                     </div>
 
                     {(() => {
-                      const activeBots = settings.allowBots ? Math.max(0, settings.maxPlayers - lobbyPlayers.length - kickedBotIds.size) : 0;
-                      const totalPlayers = lobbyPlayers.length + activeBots;
+                      const totalPlayers = lobbyPlayers.filter((p: any) => !p.isSpectator).length;
                       const canStart = isHost && totalPlayers >= 2;
                       return (
                         <div className="flex flex-col items-center gap-1">
@@ -2650,9 +2633,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                     })()}
 
                     {(() => {
-                      const humanCount = lobbyPlayers.filter((p: any) => !p.isSpectator).length;
+                      const humanCount = lobbyPlayers.filter((p: any) => !p.isSpectator && !p.isBot).length;
+                      const botCount = lobbyPlayers.filter((p: any) => p.isBot).length;
                       const spectatorCount = lobbyPlayers.filter((p: any) => p.isSpectator).length;
-                      const botCount = settings.allowBots ? Math.max(0, settings.maxPlayers - humanCount - kickedBotIds.size) : 0;
                       return (
                         <div className="flex items-center gap-3 bg-black/40 px-4 py-2 rounded-full border border-white/5 backdrop-blur-md">
                           <Users size={16} className="text-indigo-400" />
@@ -2691,7 +2674,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                 <Users size={13} /> In Lobby
               </h3>
-              <span className="text-[10px] font-bold text-slate-600">{lobbyPlayers.length}/{settings.maxPlayers}</span>
+              <span className="text-[10px] font-bold text-slate-600">{lobbyPlayers.filter((p: any) => !p.isSpectator).length}/{settings.maxPlayers}</span>
             </div>
             {lobbyPlayers.length === 0 ? (
                 <div className="flex flex-col gap-3">
@@ -2709,6 +2692,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       <Avatar avatarId={player.avatar ?? 0} className="w-8 h-8 shrink-0" />
                       <span className="text-sm font-bold text-slate-200 truncate flex-1">{player.name}</span>
                       {player.isHost && <Crown size={13} className="text-amber-400 shrink-0" />}
+                      {player.isBot && <span className="text-[8px] bg-slate-800 text-violet-400 px-1.5 py-0.5 rounded border border-slate-700 font-bold">BOT</span>}
                       {player.disconnected && <span className="text-[9px] font-bold text-rose-400 uppercase">Away</span>}
                       {isHost && !player.isHost && player.id !== sessionPlayerId && (
                         <button
@@ -2723,31 +2707,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   ))}
                 </>
               )}
-            {/* Bot slots — shown when allowBots is on */}
-            {(() => {
-              const realCount = lobbyPlayers.length;
-              const totalBotSlots = settings.allowBots ? Math.max(0, settings.maxPlayers - realCount) : 0;
-              return Array.from({ length: totalBotSlots }, (_, i) => i)
-                .filter(i => !kickedBotIds.has(i))
-                .map(i => (
-                  <div key={`bot-${i}`} className="flex items-center gap-3 opacity-70">
-                    <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-                      <Bot size={14} className="text-violet-400" />
-                    </div>
-                    <span className="text-sm font-bold text-slate-400 truncate flex-1">{generateBotLobbyName(i)}</span>
-                    <span className="text-[8px] bg-slate-800 text-slate-500 px-1.5 py-0.5 rounded border border-slate-700 font-bold">BOT</span>
-                    {isHost && (
-                      <button
-                        onClick={() => kickBotSlot(i)}
-                        className="p-1 text-slate-600 hover:text-rose-400 transition-colors rounded-lg hover:bg-rose-950/30"
-                        title="Kick bot"
-                      >
-                        <UserX size={12} />
-                      </button>
-                    )}
-                  </div>
-                ));
-            })()}
             <button
               onClick={leaveRoom}
               className="w-full py-2 bg-slate-800 hover:bg-rose-900/40 text-slate-500 hover:text-rose-400 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2"

@@ -91,7 +91,7 @@ export const initialState: GameState = {
   settings: {
     maxPlayers: 4,
     isPrivate: false,
-    allowBots: false,
+    allowBots: true,
     boardMap: 'Classic',
     rules: {
       doubleRentOnFullSet: true,
@@ -234,12 +234,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
             color: colorFromAvatar(p.avatar ?? 0),
             money: settings.rules.startingCash,
             position: 0,
-            isBot: false,
+            isBot: !!p.isBot,
             isBankrupt: false,
             inJail: false,
             jailTurns: 0,
             avatarId: p.avatar,
-            profileImage: p.profileImage ?? undefined,
+            profileImage: p.isBot ? undefined : (p.profileImage ?? undefined),
           }))
           .map((p: any, i: number) => ({ ...p, id: i }));
       } else {

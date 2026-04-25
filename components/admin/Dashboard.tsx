@@ -159,7 +159,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [storeLoading, setStoreLoading] = useState(false);
   const [showItemForm, setShowItemForm] = useState(false);
   const [editingItem, setEditingItem] = useState<StoreItemRow | null>(null);
-  const [itemForm, setItemForm] = useState({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
+  const [itemForm, setItemForm] = useState({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '', active: true });
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-admin-token': token };
 
@@ -253,7 +253,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
       }
       toast.success(editingItem ? 'Item updated' : 'Item created');
       setShowItemForm(false); setEditingItem(null);
-      setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' });
+      setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '', active: true });
       fetchStoreItems();
     } catch { toast.error('Failed to save item'); }
   };
@@ -921,7 +921,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
           <TabsContent value="store">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold flex items-center gap-2"><ShoppingBag className="h-5 w-5" /> Store Management</h2>
-              <Button size="sm" onClick={() => { setEditingItem(null); setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '' }); setShowItemForm(true); }}>
+              <Button size="sm" onClick={() => { setEditingItem(null); setItemForm({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '', active: true }); setShowItemForm(true); }}>
                 <Plus className="h-4 w-4 mr-1" /> Add Item
               </Button>
             </div>
@@ -956,6 +956,19 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                       <input type="number" value={itemForm.priceCoins} min={0}
                         onChange={e => setItemForm(f => ({ ...f, priceCoins: Number(e.target.value) }))}
                         className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Store visibility</label>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={itemForm.active ? 'default' : 'outline'}
+                        className="w-full justify-center"
+                        onClick={() => setItemForm(f => ({ ...f, active: !f.active }))}
+                      >
+                        <Power className="h-3.5 w-3.5 mr-1.5" />
+                        {itemForm.active ? 'Enabled' : 'Disabled'}
+                      </Button>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
@@ -1007,7 +1020,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                           <div className="flex gap-1.5">
                             <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => {
                               setEditingItem(item);
-                              setItemForm({ name: item.name, description: item.description, type: item.type, priceCoins: item.priceCoins, assetUrl: item.assetUrl ?? '' });
+                              setItemForm({ name: item.name, description: item.description, type: item.type, priceCoins: item.priceCoins, assetUrl: item.assetUrl ?? '', active: item.active });
                               setShowItemForm(true);
                             }}>
                               <Edit2 className="h-3 w-3 mr-1" />Edit
