@@ -544,16 +544,18 @@ async function startServer() {
     return room.settings.allowBots ? Math.max(0, room.maxPlayers - humanSeatCount(room)) : 0;
   }
 
-  function nextAvailableAvatar(room: RoomData): number {
+  function randomAvailableAvatar(room: RoomData): number {
     const used = new Set(
       room.players
         .map((p: any) => p.avatar)
         .filter((avatar: any) => Number.isInteger(avatar))
     );
+    const available: number[] = [];
     for (let i = 0; i < 32; i++) {
-      if (!used.has(i)) return i;
+      if (!used.has(i)) available.push(i);
     }
-    return 0;
+    if (available.length === 0) return Math.floor(Math.random() * 32);
+    return available[Math.floor(Math.random() * available.length)];
   }
 
   function reconcileLobbyBots(roomId: string, room: RoomData, emitUpdate = true) {
@@ -586,7 +588,7 @@ async function startServer() {
             id: botId,
             originalId: botId,
             name: generateBotLobbyName(activeRoom, activeRoom.players.length + i),
-            avatar: nextAvailableAvatar(activeRoom),
+            avatar: randomAvailableAvatar(activeRoom),
             isHost: false,
             isBot: true,
           });

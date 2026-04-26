@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Tile, TileType, Player, ColorGroup } from '../types';
-import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, AlertCircle, Unlock } from 'lucide-react';
+import { X, ArrowUpCircle, Banknote, Landmark, Home, Building2, AlertTriangle, AlertCircle, Unlock, MapPin, WalletCards, TrendingUp } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_CONSTANTS } from '../constants';
@@ -46,6 +46,9 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
   const mortgageValue = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE);
   const unmortgageCost = Math.floor(mortgageValue * GAME_CONSTANTS.UNMORTGAGE_FEE);
   const sellValue = Math.floor(tile.price * GAME_CONSTANTS.SELL_RATE);
+  const activeRent = tile.rent[tile.buildingCount] ?? tile.rent[0] ?? 0;
+  const districtName = tile.group !== ColorGroup.NONE ? tile.group.replace('_', ' ') : tile.type;
+  const countryFlag = tile.countryCode ? `https://flagcdn.com/w80/${tile.countryCode}.png` : null;
 
   const getLevelLabel = (count: number) => {
     if (count === 0) return 'Base Rent';
@@ -85,19 +88,30 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
         exit={{ scale: 0.95, y: 20, opacity: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
         // Portrait: narrower & taller
-        className="w-full max-w-[300px] max-h-[85vh] flex flex-col outline-none"
+        className="w-full max-w-[330px] max-h-[88vh] flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <Card className="bg-slate-900 border-slate-800 overflow-hidden flex flex-col max-h-[85vh]">
+        <Card className="bg-slate-900 border-slate-800 overflow-hidden flex flex-col max-h-[88vh] shadow-2xl shadow-black/50">
           {/* Coloured Header Banner */}
           <CardHeader className={`${colorMap[tile.group]} p-0 shrink-0 relative overflow-hidden`}>
             <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,#000_10px,#000_20px)] mix-blend-overlay" />
             <div className="absolute inset-0 bg-gradient-to-b from-white/15 to-transparent pointer-events-none" />
-            <div className="p-4 pr-10 relative z-10">
-              <h2 id="property-modal-title" className="text-lg font-black text-white drop-shadow-md uppercase tracking-tighter leading-tight">{tile.name}</h2>
-              <p className="text-white/60 text-[9px] font-bold uppercase tracking-widest mt-0.5">
-                {tile.group !== 'NONE' ? tile.group.replace('_', ' ') : tile.type} district
-              </p>
+            <div className="p-5 pr-12 relative z-10 min-h-[118px] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  {countryFlag && (
+                    <img src={countryFlag} alt="" className="w-7 h-5 object-cover rounded-[3px] border border-white/30 shadow-md" />
+                  )}
+                  <span className="text-white/70 text-[9px] font-black uppercase tracking-[0.22em]">
+                    {districtName} district
+                  </span>
+                </div>
+                <h2 id="property-modal-title" className="text-2xl font-black text-white drop-shadow-md uppercase tracking-tight leading-none">{tile.name}</h2>
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-white/70 text-[10px] font-bold uppercase tracking-widest">
+                <MapPin size={12} />
+                <span>City deed</span>
+              </div>
             </div>
             {/* UX-3: 44x44 tap target via invisible padding; visible icon stays small. */}
             <button
@@ -111,45 +125,69 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
             </button>
           </CardHeader>
 
-          <CardContent className="p-4 space-y-3 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+          <CardContent className="p-4 space-y-4 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
             {/* Owner / Price Row */}
-            <div className="flex justify-between items-center">
-              <div className="space-y-0.5">
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">Portfolio Owner</span>
+            <div className="grid grid-cols-[1fr_auto] gap-3 items-stretch">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/45 p-3 min-w-0">
+                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block mb-2">Portfolio Owner</span>
                 {owner ? (
                   <div className="flex items-center gap-1.5">
-                    <Avatar avatarId={owner.avatarId} color={owner.color} isBankrupt={owner.isBankrupt} inJail={owner.inJail} className="w-4 h-4" />
-                    <span className="font-bold text-xs">{owner.name}</span>
+                    {owner.profileImage ? (
+                      <img src={owner.profileImage} alt="" className="w-6 h-6 rounded-full object-cover border border-white/10" />
+                    ) : (
+                      <Avatar avatarId={owner.avatarId} color={owner.color} isBankrupt={owner.isBankrupt} inJail={owner.inJail} className="w-6 h-6" />
+                    )}
+                    <span className="font-bold text-xs truncate">{owner.name}</span>
                   </div>
                 ) : (
-                  <Badge variant="outline" className="text-[9px] text-slate-400 border-slate-700 py-0 px-1.5">Market Available</Badge>
+                  <Badge variant="outline" className="text-[10px] text-slate-300 border-emerald-500/30 bg-emerald-500/10 py-1 px-2 rounded-full">Market Available</Badge>
                 )}
               </div>
-              <div className="text-right space-y-0.5">
-                <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wider block">List Price</span>
-                <span className="font-mono text-lg font-black text-emerald-400">${tile.price}</span>
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3 text-right min-w-[96px]">
+                <span className="text-[8px] font-bold text-emerald-200/60 uppercase tracking-wider block">List Price</span>
+                <span className="font-mono text-2xl font-black text-emerald-300">${tile.price}</span>
               </div>
             </div>
 
-            <Separator className="bg-slate-800" />
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-slate-800 bg-slate-950/35 p-2">
+                <WalletCards size={13} className="text-emerald-400 mb-1" />
+                <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Active Rent</p>
+                <p className="font-mono text-sm font-black text-white">${activeRent}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950/35 p-2">
+                <Landmark size={13} className="text-sky-400 mb-1" />
+                <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Mortgage</p>
+                <p className="font-mono text-sm font-black text-white">${mortgageValue}</p>
+              </div>
+              <div className="rounded-lg border border-slate-800 bg-slate-950/35 p-2">
+                <TrendingUp size={13} className="text-amber-400 mb-1" />
+                <p className="text-[8px] uppercase tracking-wider text-slate-500 font-bold">Build Cost</p>
+                <p className="font-mono text-sm font-black text-white">${tile.houseCost || 0}</p>
+              </div>
+            </div>
 
             {/* Rent Table */}
-            <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800 space-y-1">
+            <div className="bg-slate-950/50 p-3 rounded-xl border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-500">Rent Ladder</span>
+                {tile.isMortgaged && <span className="text-[9px] font-bold text-rose-400">Mortgaged</span>}
+              </div>
               {!tile.isMortgaged ? (
-                <div className="text-[10px] flex flex-col gap-1">
-                  <div className={`flex justify-between items-center px-1 rounded ${tile.buildingCount === 0 ? 'text-white font-bold bg-white/5 py-0.5' : 'text-slate-400'}`}>
+                <div className="text-[11px] flex flex-col gap-1">
+                  <div className={`flex justify-between items-center px-2 rounded-md ${tile.buildingCount === 0 ? 'text-white font-bold bg-white/8 py-1' : 'text-slate-400 py-0.5'}`}>
                     <span>Base Rent</span>
                     <span className="font-mono">${tile.rent[0]}</span>
                   </div>
                   {isProperty && [1, 2, 3, 4, 5].map(lvl => (
                     <div
                       key={lvl}
-                      className={`flex justify-between items-center px-1 rounded ${tile.buildingCount === lvl ? 'text-white font-bold bg-white/5 py-0.5' : 'text-slate-400'} ${lvl === 5 ? 'mt-0.5 pt-0.5 border-t border-white/5' : ''}`}
+                      className={`flex justify-between items-center px-2 rounded-md ${tile.buildingCount === lvl ? 'text-white font-bold bg-white/8 py-1' : 'text-slate-400 py-0.5'} ${lvl === 5 ? 'mt-1 pt-1 border-t border-white/5' : ''}`}
                     >
                       <div className="flex items-center gap-1">
                         {lvl < 5
-                          ? <Home size={8} className={tile.buildingCount === lvl ? 'text-emerald-400' : 'text-slate-600'} />
-                          : <Building2 size={8} className={tile.buildingCount === lvl ? 'text-rose-400' : 'text-slate-600'} />
+                          ? <Home size={10} className={tile.buildingCount === lvl ? 'text-emerald-400' : 'text-slate-600'} />
+                          : <Building2 size={10} className={tile.buildingCount === lvl ? 'text-rose-400' : 'text-slate-600'} />
                         }
                         <span>{getLevelLabel(lvl)}</span>
                       </div>
@@ -158,7 +196,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-2 text-rose-500 text-[10px] font-bold flex items-center justify-center gap-1.5">
+                <div className="text-center py-3 text-rose-500 text-[10px] font-bold flex items-center justify-center gap-1.5">
                   <AlertCircle size={12} /> Revenue streams suspended
                 </div>
               )}

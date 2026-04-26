@@ -44,6 +44,18 @@ const GamePanelFallback = () => (
   </div>
 );
 
+const getProfileFallbackImage = (name: string, avatarId = 0, color?: string): string => {
+  const bg = color || APPEARANCE_COLORS[Math.abs(avatarId) % APPEARANCE_COLORS.length] || '#6366f1';
+  const initials = (name || 'P')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('') || 'P';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${bg}"/><stop offset="1" stop-color="#111827"/></linearGradient></defs><rect width="96" height="96" rx="48" fill="url(#g)"/><circle cx="72" cy="20" r="18" fill="rgba(255,255,255,.16)"/><circle cx="25" cy="73" r="24" fill="rgba(0,0,0,.18)"/><text x="48" y="57" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="900" fill="white">${initials}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 const VISUAL_DEFAULTS = {
   particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
@@ -2997,20 +3009,15 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   <div className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-indigo-500 border-2 border-[#111116] animate-pulse z-10" />
                 )}
                 <div className="relative shrink-0">
-                  {player.profileImage ? (
-                    <img
-                      src={player.profileImage}
-                      alt=""
-                      className={`w-9 h-9 rounded-full object-cover shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''} ${player.isBankrupt ? 'opacity-40 grayscale' : ''}`}
-                    />
-                  ) : (
-                    <Avatar
-                      avatarId={player.avatarId}
-                      color={player.color}
-                      isBankrupt={player.isBankrupt}
-                      inJail={player.inJail}
-                      className={`w-9 h-9 shadow-lg ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''}`}
-                    />
+                  <img
+                    src={player.profileImage || getProfileFallbackImage(player.name, player.avatarId, player.color)}
+                    alt=""
+                    className={`w-9 h-9 rounded-full object-cover shadow-lg border border-white/10 ${isActive ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-[#111116]' : ''} ${player.isBankrupt ? 'opacity-40 grayscale' : ''}`}
+                  />
+                  {player.inJail && !player.isBankrupt && (
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-rose-600 border border-white/80 flex items-center justify-center shadow-sm">
+                      <Lock size={9} className="text-white" strokeWidth={3} />
+                    </div>
                   )}
                   {player.isBankrupt && (
                     <div className="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center">

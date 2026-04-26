@@ -91,8 +91,8 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
             <div className="flex flex-col items-center justify-center h-full w-full bg-gradient-to-br from-[#1b1c2e] to-[#151525] p-1">
               <span className="text-xl text-lime-400 font-black tracking-tighter uppercase leading-none drop-shadow-[0_0_8px_rgba(132,204,22,0.4)]">Start</span>
               <ArrowRight size={22} className="text-lime-500 drop-shadow-md mt-0.5" />
-              <div className="mt-0.5 inline-flex items-center bg-lime-500/20 px-1 rounded-[3px] border border-lime-500/40 leading-none h-[10px]">
-                <span className="text-[7px] font-mono text-lime-400 font-bold leading-none">+${GAME_CONSTANTS.GO_BONUS}</span>
+              <div className="mt-0.5 inline-flex items-center bg-lime-500/20 px-1.5 rounded-[4px] border border-lime-500/40 leading-none h-[12px]">
+                <span className="text-[8px] font-mono text-lime-400 font-bold leading-none">+${GAME_CONSTANTS.GO_BONUS}</span>
               </div>
             </div>
           );
@@ -114,8 +114,8 @@ const TileInner: React.FC<TileProps> = ({ tile, players, allPlayers, onClick, is
               <TreePalm size={32} className="text-[#98d287] drop-shadow-[0_0_10px_rgba(152,210,135,0.4)]" />
               <span className="text-[9px] text-slate-200 mt-0.5 font-bold">Vacation</span>
               {taxPool !== undefined && taxPool > 0 && (
-                <div className="mt-0.5 inline-flex items-center bg-emerald-500/20 px-1 rounded-[3px] border border-emerald-500/40 leading-none h-[10px]">
-                  <span className="text-[7px] font-mono text-emerald-400 font-bold leading-none">${taxPool}</span>
+                <div className="mt-0.5 inline-flex items-center bg-emerald-500/20 px-1.5 rounded-[4px] border border-emerald-500/40 leading-none h-[12px]">
+                  <span className="text-[8px] font-mono text-emerald-400 font-bold leading-none">${taxPool}</span>
                 </div>
               )}
             </div>
