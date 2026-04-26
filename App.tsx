@@ -1,5 +1,4 @@
 import React, { useReducer, useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
-import { createPortal } from 'react-dom';
 import { gameReducer, initialState } from './services/gameReducer';
 import { PLAYER_ALLOWED_ACTIONS } from './services/actionPolicy';
 import { getBotAction, getBotBidAction } from './services/botService';
@@ -44,6 +43,81 @@ const GamePanelFallback = () => (
   </div>
 );
 
+type LoadingScreenProps = {
+  title: string;
+  subtitle: string;
+  mode?: 'fixed' | 'absolute';
+};
+
+const CashlyLoadingScreen = ({ title, subtitle, mode = 'fixed' }: LoadingScreenProps) => (
+  <motion.div
+    className={`${mode === 'fixed' ? 'fixed' : 'absolute'} inset-0 z-[600] overflow-hidden bg-[#0e0e14]/96 backdrop-blur-md flex items-center justify-center px-6`}
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.25 }}
+  >
+    <div className="absolute inset-x-0 top-0 h-36 bg-gradient-to-b from-indigo-500/20 via-violet-500/10 to-transparent pointer-events-none" />
+    <div className="absolute inset-0 opacity-[0.05] pointer-events-none" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='32' height='32' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 31.5H32M.5 0V32' stroke='white' stroke-opacity='.8'/%3E%3C/svg%3E\")", backgroundSize: '32px 32px' }} />
+
+    <motion.div
+      className="relative flex w-full max-w-[360px] flex-col items-center gap-5 text-center"
+      initial={{ opacity: 0, y: 10, scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+    >
+      <div className="relative h-28 w-28">
+        <motion.div
+          className="absolute inset-0 rounded-full border border-indigo-400/25"
+          animate={{ scale: [0.92, 1.08, 0.92], opacity: [0.35, 0.75, 0.35] }}
+          transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute inset-3 rounded-full border border-violet-300/15"
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 7, ease: 'linear' }}
+        >
+          <Coins size={16} className="absolute -top-2 left-1/2 -translate-x-1/2 text-amber-300" />
+          <Landmark size={16} className="absolute bottom-1 left-0 text-sky-300" />
+          <Car size={16} className="absolute bottom-1 right-0 text-emerald-300" />
+        </motion.div>
+        <motion.div
+          className="absolute inset-0 flex items-center justify-center"
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}
+        >
+          <Dices size={48} className="text-indigo-300 drop-shadow-[0_0_24px_rgba(129,140,248,0.45)]" />
+        </motion.div>
+      </div>
+
+      <div className="space-y-1">
+        <p className="text-white font-black text-xl tracking-tight">{title}</p>
+        <p className="text-slate-400 text-sm font-medium">{subtitle}</p>
+      </div>
+
+      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-800/80 border border-white/10">
+        <motion.div
+          className="h-full w-1/2 rounded-full bg-gradient-to-r from-indigo-400 via-violet-400 to-fuchsia-400"
+          animate={{ x: ['-105%', '210%'] }}
+          transition={{ repeat: Infinity, duration: 1.25, ease: 'easeInOut' }}
+        />
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+const getProfileFallbackImage = (name: string, avatarId = 0, color?: string): string => {
+  const bg = color || APPEARANCE_COLORS[Math.abs(avatarId) % APPEARANCE_COLORS.length] || '#6366f1';
+  const initials = (name || 'P')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part[0]?.toUpperCase() ?? '')
+    .join('') || 'P';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${bg}"/><stop offset="1" stop-color="#111827"/></linearGradient></defs><rect width="96" height="96" rx="48" fill="url(#g)"/><circle cx="72" cy="20" r="18" fill="rgba(255,255,255,.16)"/><circle cx="25" cy="73" r="24" fill="rgba(0,0,0,.18)"/><text x="48" y="57" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-size="30" font-weight="900" fill="white">${initials}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 const VISUAL_DEFAULTS = {
   particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
@@ -66,12 +140,11 @@ function HomeGlow() {
     window.addEventListener('storage', hs);
     return () => { window.removeEventListener('cashly_visual_change', h); window.removeEventListener('storage', hs); };
   }, []);
-  return createPortal(
+  return (
     <div
       className="pointer-events-none bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full"
-      style={{ position: 'fixed', top: `${s.glowY}px`, left: '50%', transform: 'translateX(-50%)', width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
-    />,
-    document.body
+      style={{ position: 'absolute', top: `${s.glowY}px`, left: '50%', transform: 'translateX(-50%)', width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
+    />
   );
 }
 
@@ -96,7 +169,9 @@ function HomeParticles() {
     const particles: P[] = [];
     const resize = () => {
       const dpr = window.devicePixelRatio || 1;
-      cssW = window.innerWidth; cssH = window.innerHeight;
+      const rect = canvas.getBoundingClientRect();
+      cssW = rect.width || window.innerWidth;
+      cssH = rect.height || Math.round(window.innerHeight * 0.72);
       canvas.width = cssW * dpr; canvas.height = cssH * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
@@ -158,9 +233,8 @@ function HomeParticles() {
     tick();
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
   }, []);
-  return createPortal(
-    <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', pointerEvents: 'none', zIndex: 0 }} />,
-    document.body
+  return (
+    <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '72dvh', pointerEvents: 'none', zIndex: 0 }} />
   );
 }
 
@@ -1648,32 +1722,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           {/* Creating room overlay */}
           <AnimatePresence>
             {isCreatingRoom && (
-              <motion.div
+              <CashlyLoadingScreen
                 key="creating-room"
-                className="fixed inset-0 z-[600] bg-[#0e0e14]/95 backdrop-blur-md flex flex-col items-center justify-center gap-6"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.25 }}
-              >
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
-                >
-                  <Dices size={52} className="text-indigo-400" />
-                </motion.div>
-                <div className="flex flex-col items-center gap-1">
-                  <p className="text-white font-black text-xl tracking-tight">Creating room…</p>
-                  <p className="text-slate-500 text-sm">Setting up your private game</p>
-                </div>
-                <div className="flex gap-1.5">
-                  {[0,1,2].map(i => (
-                    <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-500"
-                      animate={{ opacity: [0.3, 1, 0.3] }}
-                      transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.4 }} />
-                  ))}
-                </div>
-              </motion.div>
+                title="Creating room..."
+                subtitle="Setting up your private game"
+              />
             )}
           </AnimatePresence>
 
@@ -1786,14 +1839,16 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           </AnimatePresence>
 
           {/* Auto-join loading overlay */}
-          {isAutoJoining && (
-            <div className="absolute inset-0 z-[200] flex flex-col items-center justify-center bg-[#111116]/95 backdrop-blur-sm gap-4">
-                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                  <Dices size={40} className="text-indigo-400" />
-                </motion.div>
-                <p className="text-slate-300 font-black uppercase tracking-widest text-sm">Joining room…</p>
-              </div>
-          )}
+          <AnimatePresence>
+            {isAutoJoining && (
+              <CashlyLoadingScreen
+                key="auto-joining"
+                mode="absolute"
+                title="Joining room..."
+                subtitle="Finding your table and syncing players"
+              />
+            )}
+          </AnimatePresence>
 
           {/* Header glow — sits behind the top nav */}
           <HomeGlow />
@@ -2504,22 +2559,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     // Session restore loading screen — shown while rejoining an in-progress game
     if (isRestoringSession) {
       return (
-        <div className="fixed inset-0 z-[999] bg-[#111116] flex flex-col items-center justify-center gap-6">
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-              <Dices size={48} className="text-indigo-400" />
-            </motion.div>
-            <div className="flex flex-col items-center gap-1">
-              <p className="text-white font-black text-xl tracking-tight">Rejoining game…</p>
-              <p className="text-slate-500 text-sm">Restoring your session</p>
-            </div>
-            <div className="flex gap-1.5">
-              {[0, 1, 2].map(i => (
-                <motion.div key={i} className="w-1.5 h-1.5 rounded-full bg-indigo-500"
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ repeat: Infinity, duration: 1.2, delay: i * 0.4 }} />
-              ))}
-            </div>
-          </div>
+        <CashlyLoadingScreen
+          title="Rejoining game..."
+          subtitle="Restoring your session"
+        />
       );
     }
 
