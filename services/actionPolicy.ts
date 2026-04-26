@@ -22,5 +22,4 @@ export const PLAYER_ALLOWED_ACTIONS: ReadonlySet<string> = new Set<string>([
   'END_TURN',
   'DECLARE_BANKRUPT',
   'VOTE_KICK',
-  'CANCEL_VOTE_KICK',
 ]);

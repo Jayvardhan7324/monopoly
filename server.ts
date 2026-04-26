@@ -14,6 +14,7 @@ const OWN_TURN_ONLY_ACTIONS = new Set<string>([
   'ATTEMPT_JAIL_ROLL',
   'SKIP_JAIL_TURN',
   'PAY_JAIL_FINE',
+  'USE_JAIL_CARD',
   'MORTGAGE_PROPERTY',
   'UNMORTGAGE_PROPERTY',
   'UPGRADE_PROPERTY',
@@ -183,6 +184,16 @@ async function startServer() {
     console.warn("DATABASE_URL not set — auth and store routes disabled");
   }
 
+  async function getSessionUser(req: any) {
+    if (!auth || !fromNodeHeaders) return null;
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      return session?.user ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   // Gzip/brotli compress all responses
   app.use(compression());
 
@@ -227,9 +238,9 @@ async function startServer() {
     next();
   });
 
-  // SEC: Cap JSON body size. Admin board saves can be a few hundred KB (tiles jsonb), so 256KB
-  // is the generous upper bound. Anything larger is almost certainly abuse.
-  app.use(express.json({ limit: '256kb' }));
+  // SEC: Cap JSON body size. Bug reports allow screenshots up to ~1.5MB, so keep
+  // the parser limit just above that and let route-level validators reject excess.
+  app.use(express.json({ limit: '2mb' }));
 
   // Serve audio assets from richup_assets/sounds at /sounds
   const pathModule = await import("path");
@@ -358,10 +369,12 @@ async function startServer() {
     } catch { return false; }
   }
 
-  function requireAdmin(req: any, res: any, next: any) {
-    if (!ADMIN_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+  async function requireAdmin(req: any, res: any, next: any) {
     const provided = typeof req.headers['x-admin-token'] === 'string' ? req.headers['x-admin-token'] : '';
-    if (!safeEqual(provided, ADMIN_TOKEN)) return res.status(401).json({ error: 'Unauthorized' });
+    if (ADMIN_TOKEN && safeEqual(provided, ADMIN_TOKEN)) return next();
+    const sessionUser = await getSessionUser(req);
+    const role = String(sessionUser?.role ?? '');
+    if (!sessionUser || !['admin', 'moderator'].includes(role)) return res.status(401).json({ error: 'Unauthorized' });
     next();
   }
 
@@ -526,7 +539,12 @@ async function startServer() {
   }
 
   function emitRoomUpdate(roomId: string, room: RoomData) {
-    io.to(roomId).emit("room_updated", { players: room.players, settings: room.settings });
+    const players = room.players.map((p: any) => {
+      const socketKey = p.originalId || p.id;
+      const gamePlayerId = room.socketToGamePlayerId?.[socketKey];
+      return gamePlayerId === undefined ? p : { ...p, gamePlayerId };
+    });
+    io.to(roomId).emit("room_updated", { players, settings: room.settings });
   }
 
   function generateBotLobbyName(room: RoomData, indexHint = room.players.length): string {
@@ -774,6 +792,14 @@ async function startServer() {
     return publicRooms;
   }
 
+  function generateRoomId(): string {
+    for (let i = 0; i < 10; i++) {
+      const roomId = randomBytes(3).toString('hex').toUpperCase();
+      if (!rooms.has(roomId)) return roomId;
+    }
+    throw new Error('Unable to allocate a unique room ID');
+  }
+
   // REST API: List active public rooms
   app.get("/api/rooms", (req, res) => {
     res.json(getPublicRoomsList());
@@ -785,7 +811,7 @@ async function startServer() {
     if (isRoomCreateRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many requests. Please wait.' });
     const data = req.body;
     // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
-    const roomId = randomBytes(3).toString('hex').toUpperCase();
+    const roomId = generateRoomId();
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const safeImg = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
     const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg(data.profileImage), isHost: true };
@@ -854,7 +880,7 @@ async function startServer() {
       res.json({ success: true, roomId: targetRoomId, playerId, players: room.players, settings: room.settings });
     } else {
       // Create a new room
-      const roomId = randomBytes(3).toString('hex').toUpperCase();
+      const roomId = generateRoomId();
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const safeImg3 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
       const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg3(data.profileImage), isHost: true };
@@ -1233,11 +1259,9 @@ async function startServer() {
 
       chatHistory.push({ t: now, msg: broken });
 
-      // SEC-4: HTML-escape before broadcast.
-      const safeText = escapeHtml(broken);
-      if (!safeText) return;
+      if (!broken) return;
       // SEC: Use server clock, not client-supplied time, so clients can't backdate or spoof ordering.
-      io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: safeText, time: now });
+      io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: broken, time: now });
     });
 
     // SEC-05 / CQ-8: Allowlist lives in services/actionPolicy.ts — shared with App.tsx host gate.
@@ -1324,7 +1348,13 @@ async function startServer() {
               }
             }
           }
-          io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
+          const payloadWithActor =
+            data?.payload && typeof data.payload === 'object'
+              ? { ...data.payload, senderPlayerId: senderGamePlayerId }
+              : senderGamePlayerId !== undefined
+                ? { senderPlayerId: senderGamePlayerId }
+                : data?.payload;
+          io.to(room.host).emit("host_process_action", { ...data, payload: payloadWithActor, _senderId: socket.id });
         }
       }
     });
@@ -1449,16 +1479,6 @@ async function startServer() {
   // ─── Store API (only when DB is available) ───────────────────────────────────
   if (hasDB && db) {
 
-  // Helper: get authed user from request via Better Auth session cookie.
-  async function getSessionUser(req: any) {
-    try {
-      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-      return session?.user ?? null;
-    } catch {
-      return null;
-    }
-  }
-
   app.get('/api/store/items', async (_req, res) => {
     try {
       const items = await db.select().from(schema.storeItem).where(eq(schema.storeItem.active, true));
@@ -1469,6 +1489,9 @@ async function startServer() {
   });
 
   app.get('/api/store/inventory/:userId', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    if (sessionUser.id !== req.params.userId) return res.status(403).json({ error: 'Forbidden' });
     try {
       const purchases = await db
         .select({ itemId: schema.purchase.itemId })
@@ -1978,6 +2001,7 @@ async function startServer() {
   app.post('/api/profile/stats', async (req, res) => {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(410).json({ error: 'Client-submitted profile stats are disabled. Results must be recorded by the game server.' });
     const {
       gamesPlayed = 0, gamesWon = 0, gamesLost = 0,
       totalEarnings = 0, propertiesBought = 0,
@@ -2014,6 +2038,7 @@ async function startServer() {
   app.post('/api/profile/win-coin', async (req, res) => {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(410).json({ error: 'Client-submitted win rewards are disabled. Results must be recorded by the game server.' });
     if (isWinCoinRateLimited(sessionUser.id)) return res.status(429).json({ error: 'Too many requests.' });
     try {
       const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));

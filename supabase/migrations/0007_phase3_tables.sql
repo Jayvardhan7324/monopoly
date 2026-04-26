@@ -22,8 +22,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS friendships_pair_unique
 CREATE TABLE IF NOT EXISTS game_history (
   id                text PRIMARY KEY,
   room_id           text NOT NULL,
-  host_user_id      text REFERENCES profiles(id) ON DELETE SET NULL,
-  winner_user_id    text REFERENCES profiles(id) ON DELETE SET NULL,
+  host_user_id      text REFERENCES "user"(id) ON DELETE SET NULL,
+  winner_user_id    text REFERENCES "user"(id) ON DELETE SET NULL,
   players           jsonb NOT NULL,
   final_net_worth   jsonb,
   started_at        timestamp NOT NULL,
@@ -42,8 +42,8 @@ CREATE TABLE IF NOT EXISTS trade_history (
   id            text PRIMARY KEY,
   game_id       text REFERENCES game_history(id) ON DELETE CASCADE,
   room_id       text NOT NULL,
-  from_user_id  text REFERENCES profiles(id) ON DELETE SET NULL,
-  to_user_id    text REFERENCES profiles(id) ON DELETE SET NULL,
+  from_user_id  text REFERENCES "user"(id) ON DELETE SET NULL,
+  to_user_id    text REFERENCES "user"(id) ON DELETE SET NULL,
   from_name     text NOT NULL DEFAULT '',
   to_name       text NOT NULL DEFAULT '',
   offered       jsonb NOT NULL,
@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS trade_history_created_idx ON trade_history (created_a
 -- ──────────────────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_log (
   id             text PRIMARY KEY,
-  admin_user_id  text REFERENCES profiles(id) ON DELETE SET NULL,
+  admin_user_id  text REFERENCES "user"(id) ON DELETE SET NULL,
   action         text NOT NULL,
   target_type    text NOT NULL,
   target_id      text NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS achievements (
 
 CREATE TABLE IF NOT EXISTS user_achievements (
   id              text PRIMARY KEY,
-  user_id         text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  user_id         text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   achievement_id  text NOT NULL REFERENCES achievements(id) ON DELETE CASCADE,
   unlocked_at     timestamp NOT NULL DEFAULT NOW()
 );
@@ -100,7 +100,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS user_achievements_user_ach_unique
 -- ──────────────────────────────────────────────────────────────────────────────
 -- Additional indexes
 -- ──────────────────────────────────────────────────────────────────────────────
-CREATE INDEX IF NOT EXISTS profiles_role_banned_idx ON profiles (role, banned);
+CREATE INDEX IF NOT EXISTS user_role_banned_idx ON "user" (role, banned);
 CREATE INDEX IF NOT EXISTS user_stats_games_won_desc_idx ON user_stats (games_won DESC);
 CREATE INDEX IF NOT EXISTS purchase_user_purchased_idx ON purchase (user_id, purchased_at DESC);
 CREATE INDEX IF NOT EXISTS friendships_requester_idx ON friendships (requester_id);
@@ -130,8 +130,8 @@ DROP POLICY IF EXISTS audit_log_admin_read ON audit_log;
 CREATE POLICY audit_log_admin_read ON audit_log
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()::text AND profiles.role = 'admin'
+      SELECT 1 FROM "user"
+      WHERE "user".id = auth.uid()::text AND "user".role = 'admin'
     )
   );
 
@@ -169,8 +169,8 @@ DROP POLICY IF EXISTS bug_report_admin_read ON bug_report;
 CREATE POLICY bug_report_admin_read ON bug_report
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM profiles
-      WHERE profiles.id = auth.uid()::text AND profiles.role = 'admin'
+      SELECT 1 FROM "user"
+      WHERE "user".id = auth.uid()::text AND "user".role = 'admin'
     )
   );
 

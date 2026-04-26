@@ -43,9 +43,24 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
   const isProperty = tile.type === TileType.PROPERTY;
   const isMine = owner?.id === currentPlayer?.id;
+  const groupTiles = myProperties?.filter(t => t.group === tile.group) ?? [];
+  const canBuildHere = canUpgrade &&
+    isMine &&
+    isProperty &&
+    !tile.isMortgaged &&
+    tile.buildingCount < 5 &&
+    !!currentPlayer &&
+    currentPlayer.money >= tile.houseCost &&
+    groupTiles.length > 0 &&
+    groupTiles.every(t => t.ownerId === currentPlayer.id) &&
+    !groupTiles.some(t => t.isMortgaged);
   const mortgageValue = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE);
   const unmortgageCost = Math.floor(mortgageValue * GAME_CONSTANTS.UNMORTGAGE_FEE);
   const sellValue = Math.floor(tile.price * GAME_CONSTANTS.SELL_RATE);
+  const ownedSet = myProperties ?? [];
+  const railroadRent = [25, 50, 100, 200];
+  const ownedRailroads = owner ? ownedSet.filter(t => t.ownerId === owner.id && t.type === TileType.RAILROAD).length : 1;
+  const ownedUtilities = owner ? ownedSet.filter(t => t.ownerId === owner.id && t.type === TileType.UTILITY).length : 1;
 
   const getLevelLabel = (count: number) => {
     if (count === 0) return 'Base Rent';
@@ -135,7 +150,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
             {/* Rent Table */}
             <div className="bg-slate-950/50 p-3 rounded-lg border border-slate-800 space-y-1">
-              {!tile.isMortgaged ? (
+              {!tile.isMortgaged && isProperty ? (
                 <div className="text-[10px] flex flex-col gap-1">
                   <div className={`flex justify-between items-center px-1 rounded ${tile.buildingCount === 0 ? 'text-white font-bold bg-white/5 py-0.5' : 'text-slate-400'}`}>
                     <span>Base Rent</span>
@@ -157,9 +172,29 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
                     </div>
                   ))}
                 </div>
-              ) : (
+              ) : tile.isMortgaged ? (
                 <div className="text-center py-2 text-rose-500 text-[10px] font-bold flex items-center justify-center gap-1.5">
                   <AlertCircle size={12} /> Revenue streams suspended
+                </div>
+              ) : (
+                <div className="text-[11px] flex flex-col gap-1">
+                  {tile.type === TileType.RAILROAD ? railroadRent.map((rent, idx) => (
+                    <div key={idx} className={`flex justify-between items-center px-2 rounded-md ${ownedRailroads === idx + 1 ? 'text-white font-bold bg-white/8 py-1' : 'text-slate-400 py-0.5'}`}>
+                      <span>{idx + 1} Railroad{idx === 0 ? '' : 's'}</span>
+                      <span className="font-mono">${rent}</span>
+                    </div>
+                  )) : (
+                    <>
+                      <div className={`flex justify-between items-center px-2 rounded-md ${ownedUtilities < 2 ? 'text-white font-bold bg-white/8 py-1' : 'text-slate-400 py-0.5'}`}>
+                        <span>1 Utility</span>
+                        <span className="font-mono">4x dice</span>
+                      </div>
+                      <div className={`flex justify-between items-center px-2 rounded-md ${ownedUtilities >= 2 ? 'text-white font-bold bg-white/8 py-1' : 'text-slate-400 py-0.5'}`}>
+                        <span>2 Utilities</span>
+                        <span className="font-mono">10x dice</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -168,7 +203,7 @@ export const PropertyModal: React.FC<PropertyModalProps> = ({
 
             {/* Action Panel */}
             <div className="space-y-2">
-              {isMine && !tile.isMortgaged && canUpgrade && isProperty && tile.buildingCount < 5 && (
+              {canBuildHere && (
                 <Button
                   onClick={onUpgrade}
                   size="sm"

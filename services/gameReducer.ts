@@ -45,25 +45,25 @@ export type Action =
   | { type: 'BUY_PROPERTY' }
   | { type: 'PAY_RENT' }
   | { type: 'END_TURN' }
-  | { type: 'UPGRADE_PROPERTY'; payload: { tileId: number } }
-  | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number } }
-  | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number } }
-  | { type: 'SELL_PROPERTY'; payload: { tileId: number } }
-  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number | null; targetPlayerId?: number; requestCash: number } }
-  | { type: 'ACCEPT_TRADE' }
-  | { type: 'DECLINE_TRADE' }
-  | { type: 'CANCEL_TRADE' }
-  | { type: 'PAY_JAIL_FINE' }
-  | { type: 'USE_JAIL_CARD' }
-  | { type: 'ATTEMPT_JAIL_ROLL' }
-  | { type: 'SKIP_JAIL_TURN' }
-  | { type: 'START_AUCTION' }
-  | { type: 'PLACE_BID'; payload: { playerId: number; amount: number } }
+  | { type: 'UPGRADE_PROPERTY'; payload: { tileId: number; senderPlayerId?: number } }
+  | { type: 'MORTGAGE_PROPERTY'; payload: { tileId: number; senderPlayerId?: number } }
+  | { type: 'UNMORTGAGE_PROPERTY'; payload: { tileId: number; senderPlayerId?: number } }
+  | { type: 'SELL_PROPERTY'; payload: { tileId: number; senderPlayerId?: number } }
+  | { type: 'PROPOSE_TRADE'; payload: { proposerId: number; offerCash: number; offerPropertyIds: number[]; targetTileId: number | null; targetPlayerId?: number; requestCash: number; senderPlayerId?: number } }
+  | { type: 'ACCEPT_TRADE'; payload?: { senderPlayerId?: number } }
+  | { type: 'DECLINE_TRADE'; payload?: { senderPlayerId?: number } }
+  | { type: 'CANCEL_TRADE'; payload?: { senderPlayerId?: number } }
+  | { type: 'PAY_JAIL_FINE'; payload?: { senderPlayerId?: number } }
+  | { type: 'USE_JAIL_CARD'; payload?: { senderPlayerId?: number } }
+  | { type: 'ATTEMPT_JAIL_ROLL'; payload?: { senderPlayerId?: number } }
+  | { type: 'SKIP_JAIL_TURN'; payload?: { senderPlayerId?: number } }
+  | { type: 'START_AUCTION'; payload?: { senderPlayerId?: number } }
+  | { type: 'PLACE_BID'; payload: { playerId: number; amount: number; senderPlayerId?: number } }
   | { type: 'DECREMENT_AUCTION_TIMER' }
   | { type: 'END_AUCTION' }
   | { type: 'KICK_PLAYER'; payload: { playerId: number } }
   | { type: 'DECLARE_BANKRUPT' }
-  | { type: 'DOWNGRADE_PROPERTY'; payload: { tileId: number } }
+  | { type: 'DOWNGRADE_PROPERTY'; payload: { tileId: number; senderPlayerId?: number } }
   | { type: 'VOTE_KICK'; payload: { targetId: number; voterId: number; expiresAt?: number } }
   | { type: 'CHECK_VOTEKICKS'; payload?: { now?: number } }
   | { type: 'SYNC_STATE'; payload: GameState }
@@ -120,6 +120,19 @@ const addLog = (logs: string[], ...entries: string[]): string[] => {
   const reversedEntries = [...entries].reverse();
   return [...reversedEntries, ...logs].slice(0, GAME_CONSTANTS.LOG_MAX_ENTRIES);
 };
+
+const actionSenderId = (action: Action): number | undefined => {
+  const payload = (action as any).payload;
+  return typeof payload?.senderPlayerId === 'number' ? payload.senderPlayerId : undefined;
+};
+
+const senderMatches = (action: Action, playerId: number | null | undefined): boolean => {
+  const senderId = actionSenderId(action);
+  return senderId === undefined || senderId === playerId;
+};
+
+const isTradeableTile = (tile: Tile | undefined): tile is Tile =>
+  !!tile && (tile.type === TileType.PROPERTY || tile.type === TileType.RAILROAD || tile.type === TileType.UTILITY);
 
 const shouldKeepBotProposedTrade = (state: GameState, players: Player[] = state.players): boolean => {
   if (!state.pendingTrade || state.pendingTrade.botDecision) return false;
@@ -415,12 +428,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const effectiveBoardSize = state.tiles.length || BOARD_SIZE;
       if (newPos >= effectiveBoardSize) {
         newPos -= effectiveBoardSize;
-        if (newPos === 0) {
-          passGoBonus = 300;
-          landedOnStart = true;
-        } else {
-          passGoBonus = GAME_CONSTANTS.GO_BONUS;
-        }
+        passGoBonus = GAME_CONSTANTS.GO_BONUS;
+        landedOnStart = newPos === 0;
       }
 
       const newPlayers = [...state.players];
@@ -438,7 +447,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           logs:
             passGoBonus > 0
               ? addLog(state.logs, landedOnStart
-                  ? `${player.name} landed on START and collected $300!`
+                  ? `${player.name} landed on START and collected $${GAME_CONSTANTS.GO_BONUS}!`
                   : `${player.name} passed GO and collected $${GAME_CONSTANTS.GO_BONUS}.`)
               : state.logs,
         },
@@ -701,7 +710,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── PAY_JAIL_FINE ─────────────────────────────────────────────────────────
     case 'PAY_JAIL_FINE': {
+      if (state.phase !== 'ROLL') return state;
       const player = state.players[state.currentPlayerIndex];
+      if (!senderMatches(action, player?.id)) return state;
       if (!player.inJail || player.money < GAME_CONSTANTS.JAIL_FINE) return state;
       const newPlayers = [...state.players];
       newPlayers[state.currentPlayerIndex] = {
@@ -716,10 +727,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           ...state,
           players: newPlayers,
           taxPool: jailFinePool,
-          phase: 'TURN_END',
+          phase: 'ROLL',
           lastDiceRollDoubles: false,
           doublesCount: 0,
-          logs: addLog(state.logs, `${player.name} paid $${GAME_CONSTANTS.JAIL_FINE} to leave Jail. They can play on their next turn.`),
+          logs: addLog(state.logs, `${player.name} paid $${GAME_CONSTANTS.JAIL_FINE} to leave Jail and can roll now.`),
         },
         'pay'
       );
@@ -728,7 +739,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     // ─── USE_JAIL_CARD ─────────────────────────────────────────────────────────
     // GL-11: Consume a held "Get Out of Jail Free" card to leave jail without paying.
     case 'USE_JAIL_CARD': {
+      if (state.phase !== 'ROLL') return state;
       const player = state.players[state.currentPlayerIndex];
+      if (!senderMatches(action, player?.id)) return state;
       if (!player.inJail) return state;
       const held = player.jailFreeCards ?? 0;
       if (held <= 0) return state;
@@ -752,7 +765,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── ATTEMPT_JAIL_ROLL ─────────────────────────────────────────────────────
     case 'ATTEMPT_JAIL_ROLL': {
+      if (state.phase !== 'ROLL') return state;
       const player = state.players[state.currentPlayerIndex];
+      if (!senderMatches(action, player?.id)) return state;
       if (!player.inJail) return state;
       const d1 = rollDie();
       const d2 = rollDie();
@@ -823,7 +838,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── SKIP_JAIL_TURN ────────────────────────────────────────────────────────
     case 'SKIP_JAIL_TURN': {
+      if (state.phase !== 'ROLL') return state;
       const player = state.players[state.currentPlayerIndex];
+      if (!senderMatches(action, player?.id)) return state;
       if (!player.inJail) return state;
       const nextJailTurns = player.jailTurns + 1;
       // BUG-9: Force exit at MAX_JAIL_TURNS so players can't skip indefinitely
@@ -832,6 +849,26 @@ const coreReducer = (state: GameState, action: Action): GameState => {
         const newMoney = player.money - fine;
         const newPlayers = [...state.players];
         newPlayers[state.currentPlayerIndex] = { ...player, inJail: false, jailTurns: 0, money: newMoney };
+        if (newMoney < 0) {
+          const { players, tiles, logs } = declareBankruptcy(
+            { ...state, players: newPlayers, logs: addLog(state.logs, `${player.name} could not afford the forced jail fine.`) },
+            player.id
+          );
+          const winnerId = getWinnerId(players);
+          return withSound(
+            {
+              ...state,
+              players,
+              tiles,
+              winnerId,
+              phase: 'TURN_END',
+              logs: winnerId !== null
+                ? addLog(logs, `${players.find(p => p.id === winnerId)?.name} WINS!`)
+                : logs,
+            },
+            winnerId !== null ? 'win' : 'pay'
+          );
+        }
         const jailFinePool = state.settings.rules.vacationCash ? state.taxPool + fine : state.taxPool;
         return withSound(
           {
@@ -856,8 +893,11 @@ const coreReducer = (state: GameState, action: Action): GameState => {
 
     // ─── START_AUCTION ─────────────────────────────────────────────────────────
     case 'START_AUCTION': {
+      if (state.phase !== 'ACTION' || !state.settings.rules.auctionEnabled) return state;
       const player = state.players[state.currentPlayerIndex];
+      if (!senderMatches(action, player?.id)) return state;
       const tile = state.tiles[player.position];
+      if (!isTradeableTile(tile) || tile.ownerId !== null || tile.price <= 0) return state;
       const eligibleBidders = state.players.filter(p => !p.isBankrupt);
       // B11: If fewer than 2 eligible bidders, skip the auction entirely
       if (eligibleBidders.length < 2) {
@@ -888,6 +928,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'PLACE_BID': {
       if (state.winnerId !== null) return state;
       const { playerId, amount } = action.payload;
+      if (!senderMatches(action, playerId)) return state;
       if (!state.auction || state.auction.tileId < 0 || state.auction.tileId >= state.tiles.length) return state;
       if (amount <= state.auction.currentBid) return state;
       const bidder = state.players.find(p => p.id === playerId);
@@ -1038,7 +1079,8 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const tile = state.tiles[tileId];
       // Can only build on your own turn (ACTION or TURN_END phase)
       if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
-      if (state.players[state.currentPlayerIndex]?.id !== tile.ownerId) return state;
+      if (!tile || state.players[state.currentPlayerIndex]?.id !== tile.ownerId) return state;
+      if (!senderMatches(action, tile.ownerId)) return state;
       const player = state.players.find(p => p.id === tile.ownerId);
       if (!player || player.money < tile.houseCost || tile.buildingCount >= 5) return state;
 
@@ -1077,6 +1119,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (!state.settings.rules.mortgageEnabled) return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
+      if (!tile || !isTradeableTile(tile)) return state;
+      if (state.players[state.currentPlayerIndex]?.id !== tile.ownerId) return state;
+      if (!senderMatches(action, tile.ownerId)) return state;
       if (tile.ownerId === null || tile.isMortgaged) return state;
       const mortgageValue = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE);
       // If buildings exist, sell them at half the house cost before mortgaging
@@ -1102,6 +1147,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
+      if (!tile || !isTradeableTile(tile)) return state;
+      if (state.players[state.currentPlayerIndex]?.id !== tile.ownerId) return state;
+      if (!senderMatches(action, tile.ownerId)) return state;
       if (tile.ownerId === null || !tile.isMortgaged) return state;
       const cost = Math.floor(tile.price * GAME_CONSTANTS.MORTGAGE_RATE * GAME_CONSTANTS.UNMORTGAGE_FEE);
       const newPlayers = [...state.players];
@@ -1126,6 +1174,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { tileId } = action.payload;
       const tile = state.tiles[tileId];
+      if (!tile || !isTradeableTile(tile)) return state;
+      if (state.players[state.currentPlayerIndex]?.id !== tile.ownerId) return state;
+      if (!senderMatches(action, tile.ownerId)) return state;
       if (tile.ownerId === null || tile.buildingCount > 0 || tile.isMortgaged) return state;
       const sellValue = Math.floor(tile.price * GAME_CONSTANTS.SELL_RATE);
       const newPlayers = [...state.players];
@@ -1152,6 +1203,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (!tile || tile.buildingCount === 0 || tile.ownerId === null) return state;
       // Only the current player can downgrade their own buildings
       if (tile.ownerId !== state.players[state.currentPlayerIndex]?.id) return state;
+      if (!senderMatches(action, tile.ownerId)) return state;
 
       // GL-3: Mirror UPGRADE's evenBuild gate. Enforce even-build on sell only when the
       // rule is enabled — can only sell from the tile with the MOST buildings in its group.
@@ -1182,6 +1234,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     // ─── PROPOSE_TRADE ────────────────────────────────────────────────────────
     case 'PROPOSE_TRADE': {
       const { proposerId, offerCash, offerPropertyIds, targetTileId, targetPlayerId: explicitTargetPlayerId, requestCash } = action.payload;
+      if (!senderMatches(action, proposerId)) return state;
 
       // Resolve target player: either from the tile they own, or directly by id (cash-only trades)
       const targetTile = targetTileId !== null ? state.tiles[targetTileId] : null;
@@ -1216,6 +1269,13 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // BUG-12: Proposer must own all properties they are offering
       const offerContainsUnowned = offerPropertyIds.some(id => state.tiles[id]?.ownerId !== proposerId);
       if (offerContainsUnowned) return state;
+      const offerContainsDeveloped = offerPropertyIds.some(id => (state.tiles[id]?.buildingCount ?? 0) > 0);
+      if (offerContainsDeveloped || (targetTile?.buildingCount ?? 0) > 0) {
+        return withSound(
+          { ...state, logs: addLog(state.logs, 'Cannot trade developed properties. Sell buildings first.') },
+          'error'
+        );
+      }
 
       // BUG-03 / BUG-13: Do not allow offering mortgaged properties (applies to all trades, not just bot)
       const offerContainsMortgaged = offerPropertyIds.some(id => state.tiles[id].isMortgaged);
@@ -1340,6 +1400,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // B12: Reject trade acceptance during incompatible phases (e.g. mid-roll, auction)
       if (state.phase !== 'ROLL' && state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
+      if (!senderMatches(action, targetId)) return state;
 
       const proposer = state.players.find(p => p.id === proposerId);
       const target = state.players.find(p => p.id === targetId);
@@ -1362,6 +1423,12 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       const offerTilesStillOwned = offerPropertyIds.every(id => state.tiles[id]?.ownerId === proposerId);
       if (!targetTileStillOwned || !offerTilesStillOwned) {
         return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled — property ownership changed.`) }, 'error');
+      }
+
+      const anyDeveloped = (targetPropertyId !== null && (state.tiles[targetPropertyId]?.buildingCount ?? 0) > 0) ||
+        offerPropertyIds.some(id => (state.tiles[id]?.buildingCount ?? 0) > 0);
+      if (anyDeveloped) {
+        return withSound({ ...state, pendingTrade: null, logs: addLog(state.logs, `Trade cancelled - developed properties cannot be traded.`) }, 'error');
       }
 
       // B4 FIX: Warn if any traded property was mortgaged after the proposal was made
@@ -1424,6 +1491,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     case 'DECLINE_TRADE': {
       if (state.winnerId !== null) return state;
       if (!state.pendingTrade) return state;
+      if (!senderMatches(action, state.pendingTrade.targetId)) return state;
       const target = state.players.find(p => p.id === state.pendingTrade!.targetId)!;
       const proposerForDecline = state.players.find(p => p.id === state.pendingTrade!.proposerId);
       const declineLog: TradeLog = {
@@ -1449,6 +1517,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     // ─── CANCEL_TRADE ───────────────────────────────────────────────────────────
     case 'CANCEL_TRADE': {
       if (!state.pendingTrade) return state;
+      if (!senderMatches(action, state.pendingTrade.proposerId)) return state;
       const proposerForCancel = state.players.find(p => p.id === state.pendingTrade!.proposerId);
       if (proposerForCancel?.isBot) return state;
       const proposerName = proposerForCancel?.name ?? 'A player';

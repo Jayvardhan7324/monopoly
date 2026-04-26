@@ -80,6 +80,7 @@ export const Controls: React.FC<ControlsProps> = ({
     const groupTiles = gameState.tiles.filter(t => t.group === currentTile.group);
     const hasMonopoly = groupTiles.every(t => t.ownerId === currentPlayer.id);
     if (!hasMonopoly) return false;
+    if (groupTiles.some(t => t.isMortgaged)) return false;
     if (gameState.settings.rules.evenBuild) {
       const minBuildings = Math.min(...groupTiles.map(t => t.buildingCount));
       if (currentTile.buildingCount > minBuildings) return false;
@@ -89,7 +90,8 @@ export const Controls: React.FC<ControlsProps> = ({
 
   if (!currentPlayer) return null;
 
-  const canBuy = !!currentTile && currentTile.price > 0 && currentPlayer.money >= currentTile.price && currentTile.ownerId === null;
+  const isPurchasableTile = !!currentTile && (currentTile.type === TileType.PROPERTY || currentTile.type === TileType.RAILROAD || currentTile.type === TileType.UTILITY);
+  const canBuy = isPurchasableTile && currentTile.price > 0 && currentPlayer.money >= currentTile.price && currentTile.ownerId === null;
 
   const myPlayer = gameState.players.find(p => p.id === myPlayerId);
 
@@ -386,7 +388,7 @@ export const Controls: React.FC<ControlsProps> = ({
                       )}
 
                       {/* Auction button — replaces SKIP when auction is on and tile is buyable */}
-                      {gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && currentTile.ownerId === null && currentTile.price > 0 && (
+                      {gameState.phase === 'ACTION' && gameState.settings.rules.auctionEnabled && isPurchasableTile && currentTile.ownerId === null && currentTile.price > 0 && (
                         <motion.button
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}

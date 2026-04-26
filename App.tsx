@@ -529,10 +529,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       const me = data.players.find((p: any) => p.id === socket.id);
       if (me && !me.isSpectator) {
         setIsHost(me.isHost);
-        // STATE-01: Use the player's stable index in the non-disconnected list
-        // so myPlayerId doesn't shift when other players disconnect and are spliced.
-        const activeIndex = data.players.filter((p: any) => !p.disconnected).indexOf(me);
-        setMyPlayerId(activeIndex >= 0 ? activeIndex : data.players.indexOf(me));
+        if (typeof me.gamePlayerId === 'number') {
+          setMyPlayerId(me.gamePlayerId);
+        } else {
+          const activeIndex = data.players.filter((p: any) => !p.disconnected).indexOf(me);
+          setMyPlayerId(activeIndex >= 0 ? activeIndex : data.players.indexOf(me));
+        }
       }
     };
 
@@ -3292,7 +3294,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             onUpgrade={() => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
             canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId && gameState.players[gameState.currentPlayerIndex]?.id === myPlayerId}
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
-            myProperties={myProperties}
+            myProperties={gameState.tiles}
             onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
