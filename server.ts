@@ -200,7 +200,8 @@ async function startServer() {
     "object-src 'none'",
     "img-src 'self' https: data: blob:",
     "font-src 'self' data: https:",
-    "style-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "script-src 'self'" + (isProd ? "" : " 'unsafe-eval'"),
     "script-src-attr 'none'",
     `connect-src ${cspConnect.join(' ')}`,
@@ -1821,6 +1822,9 @@ async function startServer() {
   // Public — only enabled + within window. Grouped by placement for cheap lookup.
   app.get('/api/ads', async (_req, res) => {
     try {
+      if (!db || !schema?.ad) {
+        return res.json({ ads: {} });
+      }
       const rows = await db.select().from(schema.ad);
       const now = Date.now();
       const visible = rows.filter(r => {
@@ -1839,8 +1843,9 @@ async function startServer() {
         });
       }
       res.json({ ads: grouped });
-    } catch {
-      res.status(500).json({ ads: {} });
+    } catch (err) {
+      if (isDev) console.warn('[ads] Falling back to empty ads:', err instanceof Error ? err.message : err);
+      res.json({ ads: {} });
     }
   });
 

@@ -710,8 +710,10 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           ...state,
           players: newPlayers,
           taxPool: jailFinePool,
-          phase: 'ROLL',
-          logs: addLog(state.logs, `${player.name} paid $${GAME_CONSTANTS.JAIL_FINE} to leave Jail.`),
+          phase: 'TURN_END',
+          lastDiceRollDoubles: false,
+          doublesCount: 0,
+          logs: addLog(state.logs, `${player.name} paid $${GAME_CONSTANTS.JAIL_FINE} to leave Jail. They can play on their next turn.`),
         },
         'pay'
       );

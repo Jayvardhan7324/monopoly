@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Player, Tile, ColorGroup, TileType } from '../types';
+import { Player, Tile, TileType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, ArrowRightLeft, Coins } from 'lucide-react';
 import { Avatar } from './Avatar';
+import { TradeTileIcon } from './TradeTileIcon';
 
 interface CreateTradeModalProps {
   isOpen: boolean;
@@ -11,30 +12,6 @@ interface CreateTradeModalProps {
   tiles: Tile[];
   myPlayerId: number;
   onTrade: (offerCash: number, offerPropertyIds: number[], targetTileId: number | null, requestCash: number, targetPlayerId: number) => void;
-}
-
-const colorMap: Record<ColorGroup, string> = {
-  [ColorGroup.BROWN]: '#92400e',
-  [ColorGroup.LIGHT_BLUE]: '#0891b2',
-  [ColorGroup.PINK]: '#c026d3',
-  [ColorGroup.ORANGE]: '#ea580c',
-  [ColorGroup.RED]: '#b91c1c',
-  [ColorGroup.YELLOW]: '#ca8a04',
-  [ColorGroup.GREEN]: '#047857',
-  [ColorGroup.DARK_BLUE]: '#1e40af',
-  [ColorGroup.NONE]: '#475569',
-};
-
-function FlagImg({ countryCode, name }: { countryCode?: string; name: string }) {
-  if (!countryCode) return <span className="text-base leading-none">🏠</span>;
-  return (
-    <img
-      src={`https://flagcdn.com/w40/${countryCode}.png`}
-      srcSet={`https://flagcdn.com/w80/${countryCode}.png 2x`}
-      alt={countryCode}
-      className="w-5 h-3.5 object-cover rounded-sm shrink-0"
-    />
-  );
 }
 
 const PropertyRow: React.FC<{
@@ -55,7 +32,7 @@ const PropertyRow: React.FC<{
           : 'bg-slate-800/50 border-slate-700/50 hover:bg-slate-800 hover:border-slate-600'
       }`}
     >
-      <FlagImg countryCode={tile.countryCode} name={tile.name} />
+      <TradeTileIcon tile={tile} />
       <span className={`flex-1 text-[11px] font-bold uppercase truncate ${selected ? 'text-indigo-200' : 'text-slate-300'}`}>
         {tile.name}
       </span>

@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { X, ArrowRightLeft, Coins } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useModalAccessibility } from '../hooks/useModalAccessibility';
+import { TradeTileIcon } from './TradeTileIcon';
 
 interface TradeProposalModalProps {
   trade: TradeOffer;
@@ -99,6 +100,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
               {offeredTiles.map(tile => (
                 <div key={tile.id} className="bg-white/5 border border-white/5 rounded-lg p-2 flex items-center gap-2">
                   <div className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: groupColor[tile.group] ?? '#64748b' }} />
+                  <TradeTileIcon tile={tile} className="w-4 h-4" />
                   <span className="text-[10px] font-bold text-white uppercase truncate">{tile.name}</span>
                 </div>
               ))}
@@ -124,6 +126,7 @@ export const TradeProposalModal: React.FC<TradeProposalModalProps> = ({
               {targetTile && (
                 <div className="bg-white/5 border border-white/5 rounded-lg p-2 flex items-center gap-2">
                   <div className="w-1 h-4 rounded-full shrink-0" style={{ backgroundColor: groupColor[targetTile.group] ?? '#64748b' }} />
+                  <TradeTileIcon tile={targetTile} className="w-4 h-4" />
                   <span className="text-[10px] font-bold text-white uppercase truncate">{targetTile.name}</span>
                 </div>
               )}
