@@ -95,7 +95,8 @@
     width: 100%;
     background: #111116;
     overflow-x: hidden;
-    overscroll-behavior-y: none;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   html {

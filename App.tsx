@@ -1643,7 +1643,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25 }}
           role="main"
-          className="min-h-[100dvh] w-screen max-w-none bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto overflow-x-hidden"
+          className="min-h-[100dvh] w-full max-w-none bg-[#111116] text-slate-50 flex flex-col relative overflow-x-hidden touch-pan-y"
         >
           {/* Creating room overlay */}
           <AnimatePresence>
@@ -2029,7 +2029,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
 
           {/* Main content — switches between landing & inline room browser */}
-          <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden w-screen max-w-none">
+          <div className="flex-1 flex flex-col overflow-x-hidden w-full max-w-none">
             <AnimatePresence mode="wait">
               {showRoomBrowser ? (
                 /* ── Inline Room Browser (U4) ── */
@@ -2126,7 +2126,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -24 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-                  className="flex-1 flex flex-col relative z-10 w-screen max-w-none"
+                  className="flex-1 flex flex-col relative z-10 w-full max-w-none"
                 >
                   {/* Hero / join form */}
                   <div className="flex flex-col items-center w-full px-4 sm:px-6 pt-10 sm:pt-14 pb-6 relative">
