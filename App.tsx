@@ -1,16 +1,9 @@
-import React, { useReducer, useEffect, useState, useRef, useMemo } from 'react';
+import React, { useReducer, useEffect, useState, useRef, useMemo, lazy, Suspense } from 'react';
 import { createPortal } from 'react-dom';
-import { SetCompleteAnimation } from './components/SetCompleteAnimation';
 import { gameReducer, initialState } from './services/gameReducer';
 import { PLAYER_ALLOWED_ACTIONS } from './services/actionPolicy';
 import { getBotAction, getBotBidAction } from './services/botService';
 import { Board } from './components/Board';
-import { Controls } from './components/Controls';
-import { PropertyModal } from './components/PropertyModal';
-import { PlayerPortfolioModal } from './components/PlayerPortfolioModal';
-import { TradeProposalModal } from './components/TradeProposalModal';
-import { CreateTradeModal } from './components/CreateTradeModal';
-import { AuctionModal } from './components/AuctionModal';
 import { GameSettings, TileType, ColorGroup } from './types';
 import {
   Play, Settings, Users, UsersRound, Info, ShieldCheck, Globe, Lock, Cpu,
@@ -36,6 +29,20 @@ import NavDock, { NavDockItem, NavDockLink, NavDockSep } from './components/ui/N
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
 import { authFetch } from './lib/auth-client';
+
+const Controls = lazy(() => import('./components/Controls').then(m => ({ default: m.Controls })));
+const PropertyModal = lazy(() => import('./components/PropertyModal').then(m => ({ default: m.PropertyModal })));
+const PlayerPortfolioModal = lazy(() => import('./components/PlayerPortfolioModal').then(m => ({ default: m.PlayerPortfolioModal })));
+const TradeProposalModal = lazy(() => import('./components/TradeProposalModal').then(m => ({ default: m.TradeProposalModal })));
+const CreateTradeModal = lazy(() => import('./components/CreateTradeModal').then(m => ({ default: m.CreateTradeModal })));
+const AuctionModal = lazy(() => import('./components/AuctionModal').then(m => ({ default: m.AuctionModal })));
+const SetCompleteAnimation = lazy(() => import('./components/SetCompleteAnimation').then(m => ({ default: m.SetCompleteAnimation })));
+
+const GamePanelFallback = () => (
+  <div className="w-full min-h-[260px] flex items-center justify-center">
+    <div className="w-6 h-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+  </div>
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 const VISUAL_DEFAULTS = {
@@ -2922,29 +2929,31 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto"
         >
           <Board gameState={gameState} onTileClick={handleTileClick}>
-            <Controls
-              gameState={gameState}
-              myPlayerId={myPlayerId}
-              logs={gameState.logs}
-              onRoll={() => handleDispatch({ type: 'ROLL_DICE' })}
-              onBuy={() => handleDispatch({ type: 'BUY_PROPERTY' })}
-              onEndTurn={() => handleDispatch({ type: 'END_TURN' })}
-              onUpgrade={tileId => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId } })}
-              onOpenProperty={handleTileClick}
-              onTrade={(offer, targetTileId, targetPlayerId) =>
-                handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash, targetPlayerId } })
-              }
-              dispatch={handleDispatch}
-              onViewPlayer={id => setViewingPlayerId(id)}
-              netWorthHistory={netWorthHistory}
-              onReset={() => {
-                // STATE-03: Reset both the game reducer state AND all React online state
-                dispatch({ type: 'RESET_GAME' });
-                setGameStarted(false);
-                startGameBroadcastedRef.current = false;
-                if (isOnline) leaveRoom();
-              }}
-            />
+            <Suspense fallback={<GamePanelFallback />}>
+              <Controls
+                gameState={gameState}
+                myPlayerId={myPlayerId}
+                logs={gameState.logs}
+                onRoll={() => handleDispatch({ type: 'ROLL_DICE' })}
+                onBuy={() => handleDispatch({ type: 'BUY_PROPERTY' })}
+                onEndTurn={() => handleDispatch({ type: 'END_TURN' })}
+                onUpgrade={tileId => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId } })}
+                onOpenProperty={handleTileClick}
+                onTrade={(offer, targetTileId, targetPlayerId) =>
+                  handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash: offer.cash, offerPropertyIds: offer.properties, targetTileId, requestCash: offer.requestCash, targetPlayerId } })
+                }
+                dispatch={handleDispatch}
+                onViewPlayer={id => setViewingPlayerId(id)}
+                netWorthHistory={netWorthHistory}
+                onReset={() => {
+                  // STATE-03: Reset both the game reducer state AND all React online state
+                  dispatch({ type: 'RESET_GAME' });
+                  setGameStarted(false);
+                  startGameBroadcastedRef.current = false;
+                  if (isOnline) leaveRoom();
+                }}
+              />
+            </Suspense>
           </Board>
         </motion.div>
       </div>
@@ -3230,9 +3239,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         )}
       </div>
 
-      <AnimatePresence>
-        {selectedTileId !== null && (
-          <PropertyModal
+      <Suspense fallback={null}>
+        <AnimatePresence>
+          {selectedTileId !== null && (
+            <PropertyModal
             tile={gameState.tiles[selectedTileId]}
             owner={gameState.players.find(p => p.id === gameState.tiles[selectedTileId].ownerId)}
             onClose={() => setSelectedTileId(null)}
@@ -3244,34 +3254,36 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}
             onDowngrade={() => handleDispatch({ type: 'DOWNGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
-          />
-        )}
+            />
+          )}
 
-        {viewingPlayerId !== null && gameState.players.find(p => p.id === viewingPlayerId) && (
-          <PlayerPortfolioModal
+          {viewingPlayerId !== null && gameState.players.find(p => p.id === viewingPlayerId) && (
+            <PlayerPortfolioModal
             player={gameState.players.find(p => p.id === viewingPlayerId)!}
             tiles={gameState.tiles}
             onClose={() => setViewingPlayerId(null)}
-          />
-        )}
+            />
+          )}
 
-        <CreateTradeModal
-          isOpen={showCreateTradeModal}
-          onClose={() => setShowCreateTradeModal(false)}
-          players={gameState.players}
-          tiles={gameState.tiles}
-          myPlayerId={myPlayerId}
-          onTrade={(offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId) => {
-            handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId } });
-          }}
-        />
+          {showCreateTradeModal && (
+            <CreateTradeModal
+              isOpen={showCreateTradeModal}
+              onClose={() => setShowCreateTradeModal(false)}
+              players={gameState.players}
+              tiles={gameState.tiles}
+              myPlayerId={myPlayerId}
+              onTrade={(offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId) => {
+                handleDispatch({ type: 'PROPOSE_TRADE', payload: { proposerId: myPlayerId, offerCash, offerPropertyIds, targetTileId, requestCash, targetPlayerId } });
+              }}
+            />
+          )}
 
-        {gameState.pendingTrade &&
+          {gameState.pendingTrade &&
          !gameState.pendingTrade.botDecision &&
          gameState.pendingTrade.targetId === myPlayerId &&
          !tradePopupDismissed &&
          gameState.players.some(p => p.id === gameState.pendingTrade?.proposerId && !p.isBankrupt) && (
-          <TradeProposalModal
+            <TradeProposalModal
             trade={gameState.pendingTrade}
             players={gameState.players}
             tiles={gameState.tiles}
@@ -3280,27 +3292,29 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             onDecline={() => { setTradePopupDismissed(false); handleDispatch({ type: 'DECLINE_TRADE' }); }}
             onDismiss={() => setTradePopupDismissed(true)}
             onCancel={() => { setTradePopupDismissed(false); handleDispatch({ type: 'CANCEL_TRADE' }); }}
-          />
-        )}
+            />
+          )}
 
-        <AuctionModal
-          gameState={gameState}
-          myPlayerId={myPlayerId}
-          dispatch={handleDispatch}
-          isSpectator={isSpectator}
-        />
+          {gameState.phase === 'AUCTION' && (
+            <AuctionModal
+              gameState={gameState}
+              myPlayerId={myPlayerId}
+              dispatch={handleDispatch}
+              isSpectator={isSpectator}
+            />
+          )}
 
-        {setCompleteAnim && (
-          <SetCompleteAnimation
+          {setCompleteAnim && (
+            <SetCompleteAnimation
             group={setCompleteAnim.group}
             tiles={setCompleteAnim.tiles}
             ownerName={setCompleteAnim.ownerName}
             ownerColor={setCompleteAnim.ownerColor}
             onDone={() => setSetCompleteAnim(null)}
-          />
-        )}
+            />
+          )}
 
-        {showSettingsModal && (
+          {showSettingsModal && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -3330,7 +3344,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               </div>
             </motion.div>
           </motion.div>
-        )}
+          )}
 
         {systemAlert && (
           <motion.div
@@ -3556,7 +3570,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+        </AnimatePresence>
+      </Suspense>
     </motion.div>
   );
 };

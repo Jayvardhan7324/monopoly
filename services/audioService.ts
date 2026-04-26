@@ -1,8 +1,16 @@
 import { SoundEffectType } from '../types';
 
 // ── Real MP3 assets ─────────────────────────────────────────────────────────
-// Files served from /sounds (cashly_assets/sounds via server.ts static route)
+// Files served from /sounds (richup_assets/sounds via server.ts static route)
 const audioCache = new Map<string, HTMLAudioElement>();
+
+const REAL_AUDIO: Partial<Record<SoundEffectType, { src: string; volume: number }>> = {
+  roll:          { src: '/sounds/dice.mp3', volume: 0.75 },
+  trade_accept:  { src: '/sounds/trade-accept.mp3', volume: 0.8 },
+  trade_decline: { src: '/sounds/trade-decline.mp3', volume: 0.8 },
+  player_join:   { src: '/sounds/game-start.mp3', volume: 0.55 },
+  notification:  { src: '/sounds/chat-in.mp3', volume: 0.65 },
+};
 
 function playMp3(src: string, volume = 1.0) {
   try {
@@ -161,27 +169,10 @@ function playSynth(effect: SoundEffectType) {
 
 // ── Public API ───────────────────────────────────────────────────────────────
 export const playSound = (effect: SoundEffectType) => {
-  switch (effect) {
-    // Real MP3 assets
-    case 'roll':
-      playMp3('/assets/images/kenney_boardgame-pack/Bonus/dieShuffle1.ogg', 0.75);
-      break;
-    case 'trade_accept':
-      playSynth('trade');
-      break;
-    case 'trade_decline':
-      playSynth('error');
-      break;
-    case 'notification':
-      playSynth('notification');
-      break;
-    case 'win':
-      playSynth('win');
-      break;
-
-    // Synth fallbacks for everything else
-    default:
-      playSynth(effect);
-      break;
+  const realAudio = REAL_AUDIO[effect];
+  if (realAudio) {
+    playMp3(realAudio.src, realAudio.volume);
+    return;
   }
+  playSynth(effect);
 };

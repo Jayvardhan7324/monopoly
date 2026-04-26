@@ -230,10 +230,10 @@ async function startServer() {
   // is the generous upper bound. Anything larger is almost certainly abuse.
   app.use(express.json({ limit: '256kb' }));
 
-  // Serve audio assets from cashly_assets/sounds at /sounds
+  // Serve audio assets from richup_assets/sounds at /sounds
   const pathModule = await import("path");
   app.use("/sounds", express.static(
-    pathModule.default.resolve(process.cwd(), "cashly_assets/sounds")
+    pathModule.default.resolve(process.cwd(), "richup_assets/sounds")
   ));
   // Serve project assets (SVGs, images) at /assets
   app.use("/assets", express.static(
