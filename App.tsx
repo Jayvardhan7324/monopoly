@@ -69,7 +69,7 @@ function HomeGlow() {
   return createPortal(
     <div
       className="pointer-events-none bg-gradient-to-b from-indigo-500 via-violet-500/40 to-transparent blur-3xl rounded-full"
-      style={{ position: 'absolute', top: `${s.glowY}px`, left: '50%', transform: 'translateX(-50%)', width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
+      style={{ position: 'fixed', top: `${s.glowY}px`, left: '50%', transform: 'translateX(-50%)', width: `${s.glowWidth}px`, height: `${s.glowHeight}px`, opacity: s.glowOpacity, zIndex: 0 }}
     />,
     document.body
   );
@@ -159,7 +159,7 @@ function HomeParticles() {
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
   }, []);
   return createPortal(
-    <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 0 }} />,
+    <canvas ref={canvasRef} style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100dvh', pointerEvents: 'none', zIndex: 0 }} />,
     document.body
   );
 }
@@ -1643,7 +1643,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
           animate={{ opacity: 1 }}
           transition={{ duration: 0.25 }}
           role="main"
-          className="min-h-[100dvh] w-full bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto"
+          className="min-h-[100dvh] w-screen max-w-none bg-[#111116] text-slate-50 flex flex-col relative overflow-y-auto overflow-x-hidden"
         >
           {/* Creating room overlay */}
           <AnimatePresence>
@@ -2029,7 +2029,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
 
           {/* Main content — switches between landing & inline room browser */}
-          <div className="flex-1 flex flex-col overflow-y-auto w-full">
+          <div className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden w-screen max-w-none">
             <AnimatePresence mode="wait">
               {showRoomBrowser ? (
                 /* ── Inline Room Browser (U4) ── */
@@ -2126,12 +2126,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -24 }}
                   transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-                  className="flex-1 flex flex-col relative z-10 w-full"
+                  className="flex-1 flex flex-col relative z-10 w-screen max-w-none"
                 >
                   {/* Hero / join form */}
                   <div className="flex flex-col items-center w-full px-4 sm:px-6 pt-10 sm:pt-14 pb-6 relative">
                     <HomeParticles />
-                    <div className="w-full max-w-[42rem] flex flex-col items-center gap-4 relative z-10">
+                    <div className="w-full max-w-sm flex flex-col items-center gap-4 relative z-10">
                       <div className="flex flex-col items-center gap-1.5">
                         <motion.div
                           animate={{ y: [0, -6, 0], rotate: [0, 6, 0, -6, 0] }}
@@ -2141,9 +2141,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           <div className="absolute inset-0 blur-2xl bg-indigo-500/40 rounded-full scale-125" />
                           <Dices size={56} className="relative text-white drop-shadow-[0_4px_18px_rgba(99,102,241,0.55)]" />
                         </motion.div>
-                        <h1 className="text-[clamp(3rem,13vw,4.5rem)] sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
+                        <h1 className="text-5xl sm:text-6xl font-black tracking-tight text-center leading-[1.1] pb-1 px-2">
                           <span className="bg-gradient-to-br from-white via-slate-100 to-slate-300 bg-clip-text text-transparent inline-block pr-0.5">CASHLY</span>
-                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block text-[clamp(1.25rem,5vw,1.75rem)] sm:text-2xl align-baseline ml-1 font-black">.IO</span>
+                          <span className="bg-gradient-to-br from-indigo-400 via-violet-500 to-fuchsia-500 bg-clip-text text-transparent inline-block text-xl sm:text-2xl align-baseline ml-1 font-black">.IO</span>
                         </h1>
                         <div className="flex items-center gap-2 mt-1">
                           <span className="relative flex h-1.5 w-1.5">
