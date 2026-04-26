@@ -121,6 +121,12 @@ const addLog = (logs: string[], ...entries: string[]): string[] => {
   return [...reversedEntries, ...logs].slice(0, GAME_CONSTANTS.LOG_MAX_ENTRIES);
 };
 
+const shouldKeepBotProposedTrade = (state: GameState, players: Player[] = state.players): boolean => {
+  if (!state.pendingTrade || state.pendingTrade.botDecision) return false;
+  const proposer = players.find(p => p.id === state.pendingTrade!.proposerId);
+  return !!proposer?.isBot && !proposer.isBankrupt;
+};
+
 /** Pick a random card and return it */
 const drawCard = (cards: Card[]): Card => cards[Math.floor(Math.random() * cards.length)];
 
@@ -1332,7 +1338,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       if (state.winnerId !== null) return state;
       if (!state.pendingTrade) return state;
       // B12: Reject trade acceptance during incompatible phases (e.g. mid-roll, auction)
-      if (state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
+      if (state.phase !== 'ROLL' && state.phase !== 'ACTION' && state.phase !== 'TURN_END') return state;
       const { proposerId, targetId, offerCash, offerPropertyIds, targetPropertyId, requestCash } = state.pendingTrade;
 
       const proposer = state.players.find(p => p.id === proposerId);
@@ -1443,7 +1449,9 @@ const coreReducer = (state: GameState, action: Action): GameState => {
     // ─── CANCEL_TRADE ───────────────────────────────────────────────────────────
     case 'CANCEL_TRADE': {
       if (!state.pendingTrade) return state;
-      const proposerName = state.players.find(p => p.id === state.pendingTrade!.proposerId)?.name ?? 'A player';
+      const proposerForCancel = state.players.find(p => p.id === state.pendingTrade!.proposerId);
+      if (proposerForCancel?.isBot) return state;
+      const proposerName = proposerForCancel?.name ?? 'A player';
       const targetForCancel = state.players.find(p => p.id === state.pendingTrade!.targetId);
       const cancelLog: TradeLog = {
         proposerName,
@@ -1565,7 +1573,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
           phase: 'ROLL',
           turnCount: state.turnCount + 1,
           auction: null,
-          pendingTrade: null,
+          pendingTrade: shouldKeepBotProposedTrade(state, processedPlayers) ? state.pendingTrade : null,
           doublesCount: nextDoublesCount,
           votekicks: votekicksAfterTurn,
         },
@@ -1710,10 +1718,7 @@ const coreReducer = (state: GameState, action: Action): GameState => {
       // Preserve a bot's outgoing trade across END_TURN — bots can't take back
       // their offers. Human-proposed trades still clear at end of turn (humans
       // have an explicit "Cancel offer" button).
-      const proposerForEnd = state.pendingTrade
-        ? state.players.find(p => p.id === state.pendingTrade!.proposerId)
-        : null;
-      const keepPendingTrade = !!(proposerForEnd && proposerForEnd.isBot && !state.pendingTrade!.botDecision);
+      const keepPendingTrade = shouldKeepBotProposedTrade(state);
       return { ...state, currentPlayerIndex: nextIndex, phase: 'ROLL', doublesCount: 0, auction: null, pendingTrade: keepPendingTrade ? state.pendingTrade : null, turnLogs: [] };
     }
 
