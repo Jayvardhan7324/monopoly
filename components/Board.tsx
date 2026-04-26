@@ -45,11 +45,11 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
   return (
     <div
       ref={boardRef}
-      className="relative w-full max-w-[100vw] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-auto group-data-[layout=row]:h-full aspect-square bg-[#0c121d] rounded-2xl shadow-[0_50px_100px_rgba(0,0,0,0.9)] border border-white/5 mx-auto @container"
+      className="game-board-frame relative max-w-[calc(100vw-0.75rem)] max-h-[calc(100dvh-1rem)] sm:max-w-[660px] aspect-square bg-[#0c121d] rounded-xl sm:rounded-2xl shadow-[0_28px_60px_rgba(0,0,0,0.75)] sm:shadow-[0_50px_100px_rgba(0,0,0,0.9)] border border-white/5 mx-auto @container touch-pan-y"
       style={{ '--board-scale': scale } as React.CSSProperties}
     >
       <div
-        className="w-full h-full grid gap-[1.5px] bg-[#1a212e] p-[1.5px] rounded-lg border border-slate-800 shadow-inner"
+        className="w-full h-full grid gap-px sm:gap-[1.5px] bg-[#1a212e] p-px sm:p-[1.5px] rounded-lg border border-slate-800 shadow-inner"
         style={{
           gridTemplateColumns: gridTemplate,
           gridTemplateRows: gridTemplate,
@@ -63,7 +63,7 @@ export const Board: React.FC<BoardProps> = ({ gameState, onTileClick, children }
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1e2640_0%,_#0f1420_60%,_#0a0e18_100%)] opacity-80 pointer-events-none"></div>
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none"></div>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_40%,_rgba(0,0,0,0.4)_100%)] pointer-events-none"></div>
-          <div className="relative z-10 w-full h-full flex items-center justify-center p-4">
+          <div className="relative z-10 w-full h-full flex items-center justify-center p-1.5 sm:p-4">
             <div
               className="relative flex flex-col items-center justify-center w-full h-full"
               style={{

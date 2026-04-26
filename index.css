@@ -91,6 +91,24 @@
   body {
     @apply bg-background text-foreground antialiased min-h-screen;
     font-family: 'Space Grotesk', sans-serif;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+
+  html {
+    min-height: 100%;
+    overflow-x: hidden;
+  }
+
+  #root {
+    min-height: 100dvh;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px;
   }
 
   ::-webkit-scrollbar {
@@ -215,6 +233,22 @@
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  .game-board-frame {
+    width: min(100%, calc(100vw - 0.75rem), calc(100dvh - 1rem));
+  }
+
+  .group[data-layout="stacked"] .game-board-frame {
+    width: min(100%, calc(100vw - 0.75rem), calc(100dvh - 5.5rem));
+    max-height: calc(100dvh - 5.5rem);
+  }
+
+  .group[data-layout="row"] .game-board-frame {
+    width: auto;
+    height: 100%;
+    max-width: none;
+    max-height: 100%;
   }
 
   /* Subtle hover glow for cards */

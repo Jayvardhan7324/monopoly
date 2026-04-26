@@ -1263,7 +1263,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   };
 
   const renderChatBox = (isMobilePopup = false) => (
-    <div className={`bg-[#1e1e24] rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg ${isMobilePopup ? 'w-80 h-96' : 'h-80 shrink-0'}`}>
+    <div className={`bg-[#1e1e24] rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg ${isMobilePopup ? 'w-[min(20rem,calc(100vw-2rem))] h-[min(24rem,calc(100dvh-7rem))]' : 'h-80 shrink-0'}`}>
       <div className="p-4 border-b border-slate-800 flex items-center justify-between text-slate-300 shrink-0">
         <div className="flex items-center gap-2 font-medium">
           <MessageSquare size={16} className="text-indigo-400" />
@@ -1320,11 +1320,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   );
 
   const renderShareBox = (showSettingsButton = false) => (
-    <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col gap-3 shadow-lg shrink-0">
-      <div className="text-sm font-bold text-slate-200 flex items-center gap-2">
+    <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-3 sm:p-5 flex flex-col gap-3 shadow-lg shrink-0">
+      <div className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-2">
         Share this game <Info size={14} className="text-slate-500" />
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
           {window.location.origin}/room/{roomId}
         </div>
@@ -1359,7 +1359,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               }
             }
           }}
-          className="bg-indigo-500 hover:bg-indigo-400 p-2 rounded-xl text-white transition-colors flex items-center gap-2 px-3 text-sm font-bold shadow-lg shadow-indigo-500/20"
+          className="bg-indigo-500 hover:bg-indigo-400 min-h-10 p-2 rounded-xl text-white transition-colors flex items-center gap-1.5 sm:gap-2 px-3 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-500/20 shrink-0"
         >
           <Copy size={16} /> Copy
         </button>
@@ -2530,7 +2530,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 18 }}
         transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-        className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+        className="group min-h-[100dvh] data-[layout=row]:h-[100dvh] bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
         data-layout={isStacked ? "stacked" : "row"}
       >
         {/* Disconnect overlay */}
@@ -2543,7 +2543,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         )}
 
         {/* Left Column: Share, Ad & Chat */}
-        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-first group-data-[layout=row]:order-1">
+        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
 
           {/* Ad Banner Space — desktop only; mobile version sits below board */}
@@ -2559,8 +2559,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         </div>
 
         {/* Center Column: Board */}
-        <div className="flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2 group-data-[layout=row]:order-2">
-          <div className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
+        <div className="flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
+          <div className="w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
             <Board gameState={lobbyPreviewState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
                 {showAppearanceModal ? (
@@ -2690,13 +2690,13 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         </div>
 
         {/* Ad Banner — mobile only, below board */}
-        <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-[100px]">
+        <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-16">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
           <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
 
         {/* Right Column: Profile & Settings */}
-        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3">
+        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-4 group-data-[layout=row]:order-3">
           {/* Lobby Players List */}
           <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex flex-col gap-3 shadow-lg shrink-0">
             <div className="flex items-center justify-between mb-1">
@@ -2780,7 +2780,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-      className="group min-h-screen data-[layout=row]:h-screen bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+      className="group min-h-[100dvh] data-[layout=row]:h-[100dvh] bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
       data-layout={isStacked ? "stacked" : "row"}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
@@ -2803,7 +2803,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       )}
 
       {/* Sound toggle + Rules button */}
-      <div className="fixed top-4 right-4 z-50 flex items-center gap-2">
+      <div className="fixed top-2 right-2 sm:top-4 sm:right-4 z-50 flex items-center gap-2">
         <button
           onClick={() => setShowRulesModal(true)}
           className="p-2 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-400 hover:text-indigo-400 transition-colors backdrop-blur-sm shadow-lg"
@@ -2821,7 +2821,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Left Column: Share, Ad Banner & Chat */}
-      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-first group-data-[layout=row]:order-1">
+      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
         {isOnline && renderShareBox(true)}
 
         {/* Ad Banner Space — desktop only; mobile version sits below board */}
@@ -2921,12 +2921,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Center Column: Board Preview */}
-      <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2 group-data-[layout=row]:order-2">
+      <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="w-full max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto"
+          className="w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto"
         >
           <Board gameState={gameState} onTileClick={handleTileClick}>
             <Suspense fallback={<GamePanelFallback />}>
@@ -2959,13 +2959,13 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Ad Banner — mobile only, below board */}
-      <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-[100px]">
+      <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-16">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
         <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
       </div>
 
       {/* Right Column: Players, Actions & Properties */}
-      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-3 shrink-0 z-10 group-data-[layout=row]:h-full order-3 group-data-[layout=row]:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-3 shrink-0 z-10 group-data-[layout=row]:h-full order-4 group-data-[layout=row]:order-3 group-data-[layout=row]:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
 
         {/* Players List */}
         <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex flex-col gap-2 shadow-lg shrink-0">
@@ -3224,7 +3224,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Mobile Chat Button & Popup */}
-      <div className="group-data-[layout=row]:hidden fixed bottom-4 right-4 z-[60]">
+      <div className="group-data-[layout=row]:hidden fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 sm:right-4 z-[60]">
         {showMobileChat ? (
           <div className="mb-4 shadow-2xl">
             {renderChatBox(true)}

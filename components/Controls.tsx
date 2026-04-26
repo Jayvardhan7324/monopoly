@@ -96,17 +96,17 @@ export const Controls: React.FC<ControlsProps> = ({
   return (
     <div className="w-full h-full flex flex-col items-center justify-center overflow-hidden relative">
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-        <div className="flex -space-x-40 relative -mt-52">
+        <div className="flex -space-x-40 relative -mt-48 sm:-mt-52 opacity-80 sm:opacity-100">
           <Dice value={gameState.dice[0]} isRolling={isRollingAnim} size={300} index={0} />
           <Dice value={gameState.dice[1]} isRolling={isRollingAnim} size={300} index={1} />
         </div>
       </div>
-      <div className="flex-1 flex flex-col gap-4 relative min-h-0 w-full animate-fade-in p-2 z-10">
+      <div className="flex-1 flex flex-col gap-3 sm:gap-4 relative min-h-0 w-full animate-fade-in p-1 sm:p-2 z-10">
 
 
 
         {/* Main action */}
-        <div className="flex-1 flex flex-col items-center relative overflow-hidden justify-center translate-y-[8%]">
+        <div className="flex-1 flex flex-col items-center relative overflow-hidden justify-center translate-y-[4%] sm:translate-y-[8%]">
           {gameState.winnerId !== null ? (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -227,7 +227,7 @@ export const Controls: React.FC<ControlsProps> = ({
           ) : (
             <>
               {(gameState.phase === 'ROLL' || gameState.phase === 'MOVING' || gameState.phase === 'RESOLVING') && (
-                <div className="flex flex-col items-center gap-3 mt-6">
+                <div className="flex flex-col items-center gap-2.5 sm:gap-3 mt-3 sm:mt-6 w-full px-1">
                   {/* Vacation skip banner */}
                   <AnimatePresence>
                     {currentPlayer.onVacation && (
@@ -260,12 +260,12 @@ export const Controls: React.FC<ControlsProps> = ({
                         initial={{ opacity: 0, scale: 0.95, y: 10 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                        className="flex flex-row flex-wrap justify-center items-center gap-3"
+                        className="flex flex-row flex-wrap justify-center items-center gap-2 sm:gap-3"
                       >
                         <button
                           onClick={() => dispatch({ type: 'PAY_JAIL_FINE' })}
                           disabled={currentPlayer.money < GAME_CONSTANTS.JAIL_FINE}
-                          className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
+                          className="min-h-11 px-4 sm:px-6 py-2.5 sm:py-3 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white rounded-xl font-black text-[11px] sm:text-xs shadow-lg shadow-emerald-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2"
                         >
                           <Coins size={14} />
                           Bail ${GAME_CONSTANTS.JAIL_FINE}
@@ -273,7 +273,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         {(currentPlayer.jailFreeCards ?? 0) > 0 && (
                           <button
                             onClick={() => dispatch({ type: 'USE_JAIL_CARD' })}
-                            className="px-6 py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-xs shadow-lg shadow-amber-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
+                            className="min-h-11 px-4 sm:px-6 py-2.5 sm:py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-black text-[11px] sm:text-xs shadow-lg shadow-amber-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2"
                             aria-label={`Use Get Out of Jail Free card (${currentPlayer.jailFreeCards} held)`}
                           >
                             🎟️ Use Card ({currentPlayer.jailFreeCards})
@@ -281,7 +281,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         )}
                         <button
                           onClick={() => dispatch({ type: 'ATTEMPT_JAIL_ROLL' })}
-                          className="px-6 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
+                          className="min-h-11 px-4 sm:px-6 py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[11px] sm:text-xs shadow-lg shadow-indigo-600/20 border border-white/10 active:scale-95 transition-all uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2"
                         >
                           <Dices size={14} />
                           Roll Doubles
@@ -289,7 +289,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         <button
                           onClick={() => dispatch({ type: 'SKIP_JAIL_TURN' })}
                           disabled={currentPlayer.jailTurns >= GAME_CONSTANTS.MAX_JAIL_TURNS - 1}
-                          className="px-6 py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-400 rounded-xl font-black text-xs shadow-lg border border-white/5 active:scale-95 transition-all uppercase tracking-widest flex items-center gap-2"
+                          className="min-h-11 px-4 sm:px-6 py-2.5 sm:py-3 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-slate-400 rounded-xl font-black text-[11px] sm:text-xs shadow-lg border border-white/5 active:scale-95 transition-all uppercase tracking-wider sm:tracking-widest flex items-center gap-1.5 sm:gap-2"
                         >
                           <ArrowRight size={14} />
                           Wait Turn
@@ -303,7 +303,7 @@ export const Controls: React.FC<ControlsProps> = ({
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={onRoll}
-                        className="px-7 py-3 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 text-white rounded-xl font-black text-base shadow-[0_0_30px_rgba(99,102,241,0.4)] border border-white/10 animate-glow-pulse relative overflow-hidden group"
+                        className="min-h-12 px-7 py-3 bg-gradient-to-br from-indigo-500 via-indigo-600 to-indigo-700 hover:from-indigo-400 hover:via-indigo-500 hover:to-indigo-600 text-white rounded-xl font-black text-base shadow-[0_0_30px_rgba(99,102,241,0.4)] border border-white/10 animate-glow-pulse relative overflow-hidden group"
                       >
                         {/* Shimmer overlay */}
                         <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-in-out" />
@@ -319,18 +319,18 @@ export const Controls: React.FC<ControlsProps> = ({
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                  className="flex flex-col items-center gap-2.5 mt-6 w-full"
+                  className="flex flex-col items-center gap-2.5 mt-3 sm:mt-6 w-full px-1"
                 >
                   {/* Top row: Buy + Build */}
                   {(!currentPlayer.isBot && isHumanTurn && (canBuy || canUpgrade)) && (
-                    <div className="flex flex-row flex-wrap justify-center items-center gap-3">
+                    <div className="flex flex-row flex-wrap justify-center items-center gap-2 sm:gap-3">
                       {gameState.phase === 'ACTION' && canBuy && (
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
                           onClick={onBuy}
                           aria-label={`Buy ${currentTile.name} for $${currentTile.price}`}
-                          className="px-5 py-3 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-white/10 relative overflow-hidden group"
+                          className="min-h-11 px-4 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-emerald-500 via-emerald-600 to-emerald-700 hover:from-emerald-400 hover:via-emerald-500 hover:to-emerald-600 text-white rounded-xl font-black text-xs sm:text-sm shadow-[0_0_20px_rgba(16,185,129,0.3)] border border-white/10 relative overflow-hidden group"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center">BUY FOR ${currentTile.price}</span>
@@ -342,7 +342,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           animate={{ opacity: 1, y: 0 }}
                           onClick={() => onUpgrade(currentTile.id)}
                           aria-label={`Build ${currentTile.buildingCount === 4 ? 'hotel' : 'house'} for $${currentTile.houseCost}`}
-                          className="px-4 py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-xs shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-2"
+                          className="min-h-11 px-4 py-2.5 sm:py-3 bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white rounded-xl font-black text-[11px] sm:text-xs shadow-xl shadow-amber-600/20 uppercase tracking-tight active:scale-95 flex items-center justify-center gap-1.5 sm:gap-2"
                         >
                           <Hammer size={16} />
                           {currentTile.buildingCount === 4 ? 'Build Hotel' : 'Build House'} (${currentTile.houseCost})
@@ -353,7 +353,7 @@ export const Controls: React.FC<ControlsProps> = ({
 
                   {/* Bottom row — SKIP shown only when auction won't handle it; END TURN always in TURN_END */}
                   {!currentPlayer.isBot && isHumanTurn && (
-                    <div className="flex flex-row justify-center items-center gap-3">
+                    <div className="flex flex-row flex-wrap justify-center items-center gap-2 sm:gap-3">
                       {/* Show SKIP in ACTION only if auction is off, tile is already owned, or not purchasable */}
                       {(gameState.phase === 'TURN_END' ||
                         !gameState.settings.rules.auctionEnabled ||
@@ -369,7 +369,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           disabled={currentPlayer.money < 0}
                           aria-label={currentPlayer.money < 0 ? 'Settle debt first' : gameState.phase === 'TURN_END' ? 'End turn' : 'Skip action'}
                           title={currentPlayer.money < 0 ? 'Mortgage, sell houses, trade, or declare bankruptcy to continue.' : undefined}
-                          className={`px-5 py-3 text-white rounded-xl font-black text-sm border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
+                          className={`min-h-11 px-4 sm:px-5 py-2.5 sm:py-3 text-white rounded-xl font-black text-xs sm:text-sm border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase ${
                             currentPlayer.money < 0
                               ? 'bg-gradient-to-br from-rose-900/60 via-rose-950/70 to-slate-900 opacity-60 cursor-not-allowed'
                               : gameState.phase === 'TURN_END'
@@ -395,7 +395,7 @@ export const Controls: React.FC<ControlsProps> = ({
                           whileTap={{ scale: 0.95 }}
                           onClick={() => dispatch({ type: 'START_AUCTION' })}
                           aria-label="Put property to auction"
-                          className="px-5 py-3 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600 text-white rounded-xl font-black text-sm shadow-[0_0_20px_rgba(244,63,94,0.2)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase"
+                          className="min-h-11 px-4 sm:px-5 py-2.5 sm:py-3 bg-gradient-to-br from-rose-500 via-rose-600 to-rose-700 hover:from-rose-400 hover:via-rose-500 hover:to-rose-600 text-white rounded-xl font-black text-xs sm:text-sm shadow-[0_0_20px_rgba(244,63,94,0.2)] border border-white/10 relative overflow-hidden group transition-all tracking-tighter uppercase"
                         >
                           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-500 ease-in-out" />
                           <span className="relative z-10 flex items-center justify-center gap-2 whitespace-nowrap">
