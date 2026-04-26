@@ -92,17 +92,23 @@
     @apply bg-background text-foreground antialiased min-h-screen;
     font-family: 'Space Grotesk', sans-serif;
     min-height: 100dvh;
+    width: 100%;
+    background: #111116;
     overflow-x: hidden;
     overscroll-behavior-y: none;
   }
 
   html {
     min-height: 100%;
+    width: 100%;
+    background: #111116;
     overflow-x: hidden;
   }
 
   #root {
     min-height: 100dvh;
+    width: 100%;
+    background: #111116;
   }
 
   input,
