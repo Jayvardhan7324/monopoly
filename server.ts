@@ -54,6 +54,7 @@ const DEFAULT_ROOM_SETTINGS = {
 
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
 const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
+const AVATAR_COLOR_COUNT = 12;
 
 // Dev-only logger — silent in production
 const isDev = process.env.NODE_ENV !== 'production';
@@ -61,6 +62,16 @@ const log = isDev ? (...args: any[]) => console.log(...args) : () => {};
 
 function humanSeatCount(room: RoomData): number {
   return room.players.filter((p: any) => !p.isSpectator && !p.isBot).length;
+}
+
+function normalizeAvatarIndex(value: unknown): number | null {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < AVATAR_COLOR_COUNT
+    ? value
+    : null;
+}
+
+function randomAvatarIndex(): number {
+  return Math.floor(Math.random() * AVATAR_COLOR_COUNT);
 }
 
 function sanitizeBoardMap(value: unknown, fallback = DEFAULT_ROOM_SETTINGS.boardMap): string {
@@ -544,17 +555,19 @@ async function startServer() {
     return room.settings.allowBots ? Math.max(0, room.maxPlayers - humanSeatCount(room)) : 0;
   }
 
-  function randomAvailableAvatar(room: RoomData): number {
+  function randomAvailableAvatar(room: RoomData, preferred?: unknown): number {
     const used = new Set(
       room.players
-        .map((p: any) => p.avatar)
-        .filter((avatar: any) => Number.isInteger(avatar))
+        .map((p: any) => normalizeAvatarIndex(p.avatar))
+        .filter((avatar: any): avatar is number => Number.isInteger(avatar))
     );
+    const preferredAvatar = normalizeAvatarIndex(preferred);
+    if (preferredAvatar !== null && !used.has(preferredAvatar)) return preferredAvatar;
     const available: number[] = [];
-    for (let i = 0; i < 32; i++) {
+    for (let i = 0; i < AVATAR_COLOR_COUNT; i++) {
       if (!used.has(i)) available.push(i);
     }
-    if (available.length === 0) return Math.floor(Math.random() * 32);
+    if (available.length === 0) return randomAvatarIndex();
     return available[Math.floor(Math.random() * available.length)];
   }
 
@@ -790,7 +803,7 @@ async function startServer() {
     const roomId = randomBytes(3).toString('hex').toUpperCase();
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const safeImg = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-    const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg(data.profileImage), isHost: true };
+    const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg(data.profileImage), isHost: true };
     const settings = sanitizeRoomSettings(data, {
       ...DEFAULT_ROOM_SETTINGS,
       isPrivate: !!data.isPrivate,
@@ -848,7 +861,7 @@ async function startServer() {
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
       const safeImg2 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg2(data.profileImage), isHost: false };
+      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg2(data.profileImage), isHost: false };
       room.players.push(player);
       reconcileLobbyBots(targetRoomId, room, false);
       // We don't broadcast room_updated here because socket isn't connected yet.
@@ -859,7 +872,7 @@ async function startServer() {
       const roomId = randomBytes(3).toString('hex').toUpperCase();
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const safeImg3 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-      const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: data.avatar, profileImage: safeImg3(data.profileImage), isHost: true };
+      const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg3(data.profileImage), isHost: true };
       const settings = sanitizeRoomSettings(data, DEFAULT_ROOM_SETTINGS);
       rooms.set(roomId, {
         host: playerId,
@@ -899,7 +912,7 @@ async function startServer() {
         // All game players are gone — new joiner becomes host so they can control/restart
         room.players.forEach((p: any) => { p.isHost = false; });
         const safeImg4 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg4(data.profileImage), isHost: true };
+        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg4(data.profileImage), isHost: true };
         room.players.push(player);
         room.host = playerId; // updated to socket.id on join_session
         room.hostName = uniqueName;
@@ -912,7 +925,7 @@ async function startServer() {
       } else {
         // Game in progress with active players — join as spectator
         const safeImg5 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg5(data.profileImage), isHost: false, isSpectator: true };
+        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg5(data.profileImage), isHost: false, isSpectator: true };
         room.players.push(player);
         res.json({ success: true, roomId, playerId, players: room.players, settings: room.settings, isSpectator: true });
       }
@@ -929,7 +942,7 @@ async function startServer() {
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
     const safeImg6 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-    const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: data.avatar, profileImage: safeImg6(data.profileImage), isHost: false };
+    const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg6(data.profileImage), isHost: false };
     room.players.push(player);
     reconcileLobbyBots(roomId, room, false);
 
@@ -1044,19 +1057,17 @@ async function startServer() {
               player.name = getUniqueName(sanitizeName(data.name), otherPlayers);
             }
             if (data.avatar !== undefined) {
-              // SEC: Accept numeric palette index (0..31) OR a short alphanumeric/hex token
-              const isValidNum = typeof data.avatar === 'number' && Number.isInteger(data.avatar) && data.avatar >= 0 && data.avatar < 32;
-              const isValidStr = typeof data.avatar === 'string' && /^[#a-zA-Z0-9_-]{1,30}$/.test(data.avatar);
-              if (!isValidNum && !isValidStr) {
+              const avatarIndex = normalizeAvatarIndex(data.avatar);
+              if (avatarIndex === null) {
                 if (callback) callback({ success: false, error: 'Invalid avatar' });
                 return;
               }
-              const avatarTaken = room.players.some((p: any) => p.id !== socket.id && p.avatar === data.avatar);
+              const avatarTaken = room.players.some((p: any) => p.id !== socket.id && normalizeAvatarIndex(p.avatar) === avatarIndex);
               if (avatarTaken) {
                 if (callback) callback({ success: false, error: 'Color already taken' });
                 return;
               }
-              player.avatar = data.avatar;
+              player.avatar = avatarIndex;
             }
             emitRoomUpdate(roomId, room);
             if (callback) callback({ success: true });

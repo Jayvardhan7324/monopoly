@@ -118,6 +118,19 @@ const getProfileFallbackImage = (name: string, avatarId = 0, color?: string): st
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
+const getRandomAvatarIndex = () => Math.floor(Math.random() * APPEARANCE_COLORS.length);
+
+const normalizeAppearanceIndex = (value: unknown): number | null => {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return null;
+  return ((value % APPEARANCE_COLORS.length) + APPEARANCE_COLORS.length) % APPEARANCE_COLORS.length;
+};
+
+const getAssignedAvatar = (players: any[] | undefined, playerId: string | null | undefined): number | null => {
+  if (!playerId || !players) return null;
+  const player = players.find((p: any) => p.id === playerId || p.originalId === playerId);
+  return normalizeAppearanceIndex(player?.avatar);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 const VISUAL_DEFAULTS = {
   particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
@@ -330,7 +343,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const [lobbyPlayers, setLobbyPlayers] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
-  const [selectedAvatar, setSelectedAvatar] = useState(11);
+  const [selectedAvatar, setSelectedAvatar] = useState(getRandomAvatarIndex);
   const [showRoomBrowser, setShowRoomBrowser] = useState(false);
   const [activeRooms, setActiveRooms] = useState<any[]>([]);
   const [chatMessages, setChatMessages] = useState<{ sender: string; text: string; time: string }[]>([]);
@@ -432,7 +445,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         fetch(`/api/rooms/${cleanId}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'Guest', avatar: 11 }),
+          body: JSON.stringify({ name: 'Guest', avatar: getRandomAvatarIndex() }),
         })
           .then(r => r.json())
           .then(res => {
@@ -442,6 +455,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               setSessionPlayerId(res.playerId);
               setIsHost(false);
               setLobbyPlayers(res.players);
+              const assignedAvatar = getAssignedAvatar(res.players, res.playerId);
+              if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
               if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
               if (res.isSpectator) setIsSpectator(true);
               localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, savedAt: Date.now() }));
@@ -526,7 +541,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       if (data.settings) {
         setSettings((prev) => ({ ...prev, ...data.settings, rules: { ...prev.rules, ...(data.settings.rules || {}) } }));
       }
-      const me = data.players.find((p: any) => p.id === socket.id);
+      const me = data.players.find((p: any) => p.id === socket.id || p.originalId === sessionPlayerId);
+      if (me) {
+        const assignedAvatar = normalizeAppearanceIndex(me.avatar);
+        if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
+      }
       if (me && !me.isSpectator) {
         setIsHost(me.isHost);
         // STATE-01: Use the player's stable index in the non-disconnected list
@@ -1047,6 +1066,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setSessionPlayerId(res.playerId);
         setIsHost(true);
         setLobbyPlayers(res.players);
+        const assignedAvatar = getAssignedAvatar(res.players, res.playerId);
+        if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
         if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         setShowRoomBrowser(false);
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
@@ -1081,6 +1102,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setSessionPlayerId(res.playerId);
         setIsHost(false);
         setLobbyPlayers(res.players);
+        const assignedAvatar = getAssignedAvatar(res.players, res.playerId);
+        if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
         if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         setShowRoomBrowser(false);
         if (res.isSpectator) setIsSpectator(true);
@@ -1112,6 +1135,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         setSessionPlayerId(res.playerId);
         setIsHost(res.players.find((p: any) => p.id === res.playerId)?.isHost || false);
         setLobbyPlayers(res.players);
+        const assignedAvatar = getAssignedAvatar(res.players, res.playerId);
+        if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
         if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.pushState({}, '', `/room/${res.roomId}`);
@@ -2621,8 +2646,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       {(() => {
                         const takenAvatarIndices = new Set(
                           lobbyPlayers
-                            .filter((p: any) => p.id !== sessionPlayerId)
-                            .map((p: any) => p.avatar ?? 0)
+                            .filter((p: any) => p.id !== sessionPlayerId && p.originalId !== sessionPlayerId)
+                            .map((p: any) => normalizeAppearanceIndex(p.avatar))
+                            .filter((avatar): avatar is number => avatar !== null)
                         );
                         return APPEARANCE_COLORS.map((color, idx) => {
                           const isTaken = takenAvatarIndices.has(idx);
@@ -2632,10 +2658,22 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                               disabled={isTaken}
                               onClick={() => {
                                 if (isTaken) return;
-                                setSelectedAvatar(idx);
-                                sfx('buy');
                                 const socket = getSocket();
-                                if (socket) socket.emit('update_player', { avatar: idx });
+                                if (socket) {
+                                  socket.emit('update_player', { avatar: idx }, (response: any) => {
+                                    if (response?.success === false) {
+                                      setSystemAlert(response.error || 'That color is no longer available.');
+                                      const assignedAvatar = getAssignedAvatar(lobbyPlayers, sessionPlayerId);
+                                      if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
+                                      return;
+                                    }
+                                    setSelectedAvatar(idx);
+                                    sfx('buy');
+                                  });
+                                } else {
+                                  setSelectedAvatar(idx);
+                                  sfx('buy');
+                                }
                               }}
                               title={isTaken ? 'Taken by another player' : undefined}
                               className={`w-7 h-7 rounded-full transition-all relative ${
