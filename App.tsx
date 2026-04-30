@@ -133,9 +133,9 @@ const getAssignedAvatar = (players: any[] | undefined, playerId: string | null |
 
 // ─────────────────────────────────────────────────────────────────────────────
 const VISUAL_DEFAULTS = {
-  particleCount: 120, particleSpeed: 1.0, particleSize: 1.0,
-  particleOpacity: 0.7, particleFadeZone: 0.28,
-  glowOpacity: 0.65, glowWidth: 960, glowHeight: 520, glowY: -180,
+  particleCount: 40, particleSpeed: 1.0, particleSize: 0.5,
+  particleOpacity: 0.29, particleFadeZone: 0.59,
+  glowOpacity: 0.46, glowWidth: 810, glowHeight: 600, glowY: -180,
   particleShape: 'circle' as 'circle' | 'snowflake',
 };
 type VisualSettings = typeof VISUAL_DEFAULTS;
