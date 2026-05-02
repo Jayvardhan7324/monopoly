@@ -257,23 +257,27 @@
       minmax(var(--game-row-sidebar-min), 1fr)
       minmax(0, var(--game-row-board-size))
       minmax(var(--game-row-sidebar-min), 1fr);
-    gap: 0;
-    padding: 0;
+    gap: 0 !important;
+    padding: 0 !important;
     align-items: stretch;
   }
 
   .game-table-shell[data-layout="row"] .game-sidebar {
-    width: auto;
+    width: 100% !important;
+    max-width: none;
     min-width: 0;
     min-height: 0;
+    justify-self: stretch;
   }
 
   .game-table-shell[data-layout="row"] .game-board-column,
   .game-table-shell[data-layout="row"] .game-board-stage {
-    width: 100%;
+    width: 100% !important;
+    max-width: none !important;
     min-width: 0;
     min-height: 0;
-    margin-inline: 0;
+    margin-inline: 0 !important;
+    justify-self: stretch;
   }
 
   .group[data-layout="stacked"] .game-board-frame {
@@ -282,12 +286,12 @@
   }
 
   .game-table-shell[data-layout="row"] .game-board-frame {
-    width: 100%;
+    width: 100% !important;
     height: auto;
     aspect-ratio: 1 / 1;
-    max-width: none;
+    max-width: none !important;
     max-height: 100%;
-    margin-inline: 0;
+    margin-inline: 0 !important;
   }
 
   /* Subtle hover glow for cards */
