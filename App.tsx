@@ -56,6 +56,7 @@ type LoadingScreenProps = {
   mode?: 'fixed' | 'absolute';
 };
 
+
 async function getResponseError(response: Response, fallback: string): Promise<string> {
   const text = await response.text().catch(() => '');
   if (!text) return fallback;
