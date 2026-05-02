@@ -15,7 +15,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from './components/ui/dropdown-menu';
-import { playSound } from './services/audioService';
+import { playSound, unlockAudio } from './services/audioService';
 import AdSlot from './components/ads/AdSlot';
 import {
   INITIAL_TILES,
@@ -383,6 +383,15 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const session = sessionUser ? { user: sessionUser } : null;
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener('pointerdown', unlock, { once: true });
+    window.addEventListener('keydown', unlock, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
   useEffect(() => {
     const refresh = () => { fetchVisualSettings().catch(() => {}); };
     refresh();

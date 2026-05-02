@@ -1,37 +1,74 @@
 import { SoundEffectType } from '../types';
 
-// ── Real MP3 assets ─────────────────────────────────────────────────────────
-// Files served from /sounds (richup_assets/sounds via server.ts static route)
-const audioCache = new Map<string, HTMLAudioElement>();
-
-const REAL_AUDIO: Partial<Record<SoundEffectType, { src: string; volume: number }>> = {
-  roll:          { src: '/sounds/dice.mp3', volume: 0.75 },
-  trade_accept:  { src: '/sounds/trade-accept.mp3', volume: 0.8 },
-  trade_decline: { src: '/sounds/trade-decline.mp3', volume: 0.8 },
-  player_join:   { src: '/sounds/game-start.mp3', volume: 0.55 },
-  notification:  { src: '/sounds/chat-in.mp3', volume: 0.65 },
+type AudioCue = {
+  src: string;
+  volume: number;
+  fallback?: SoundEffectType;
 };
 
-function playMp3(src: string, volume = 1.0) {
-  try {
-    let audio = audioCache.get(src);
-    if (!audio) {
-      audio = new Audio(src);
-      audioCache.set(src, audio);
-    }
-    audio.currentTime = 0;
-    audio.volume = Math.min(1, Math.max(0, volume));
-    audio.play().catch(() => {/* autoplay policy — silently ignore */});
-  } catch (e) {
-    console.error('Audio play failed', e);
-  }
-}
+const sound = (file: string) => `/sounds/${file}`;
 
-// ── Synth fallback via Web Audio API ────────────────────────────────────────
-const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+const REAL_AUDIO: Record<SoundEffectType, AudioCue> = {
+  roll:          { src: sound('dice.mp3'), volume: 0.75 },
+  buy:           { src: sound('_definite.mp3'), volume: 0.5 },
+  pay:           { src: sound('_hollow_pitched_down.mp3'), volume: 0.5 },
+  upgrade:       { src: sound('_arpeggio.mp3'), volume: 0.55 },
+  turn_switch:   { src: sound('_appointed.mp3'), volume: 0.36 },
+  win:           { src: sound('game-start.mp3'), volume: 0.72 },
+  land:          { src: sound('_hollow.mp3'), volume: 0.28 },
+  trade:         { src: sound('_case-closed.mp3'), volume: 0.52 },
+  bid:           { src: sound('_definite_pitched_down.mp3'), volume: 0.44 },
+  ui_click:      { src: sound('_appointed.mp3'), volume: 0.24 },
+  ui_hover:      { src: sound('_hollow_pitched_down.mp3'), volume: 0.12 },
+  modal_open:    { src: sound('_beyond-doubt-2.mp3'), volume: 0.28 },
+  modal_close:   { src: sound('_hollow_pitched_down.mp3'), volume: 0.22 },
+  trade_offer:   { src: sound('chat-out.mp3'), volume: 0.46 },
+  trade_accept:  { src: sound('trade-accept.mp3'), volume: 0.8 },
+  trade_decline: { src: sound('trade-decline.mp3'), volume: 0.8 },
+  notification:  { src: sound('chat-in.mp3'), volume: 0.65 },
+  error:         { src: sound('_case-closed.mp3'), volume: 0.42 },
+  player_join:   { src: sound('game-start.mp3'), volume: 0.55 },
+  player_leave:  { src: sound('_hollow_pitched_down.mp3'), volume: 0.38 },
+  monopoly:      { src: sound('_beyond-doubt-2.mp3'), volume: 0.68, fallback: 'win' },
+};
+
+const POOL_SIZE = 4;
+const audioPools = new Map<string, HTMLAudioElement[]>();
+let unlocked = false;
+
+const getAudioPool = (src: string) => {
+  let pool = audioPools.get(src);
+  if (!pool) {
+    pool = Array.from({ length: POOL_SIZE }, () => {
+      const audio = new Audio(src);
+      audio.preload = 'auto';
+      return audio;
+    });
+    audioPools.set(src, pool);
+  }
+  return pool;
+};
+
+const pickAudio = (src: string) => {
+  const pool = getAudioPool(src);
+  return pool.find(audio => audio.paused || audio.ended) ?? pool[0];
+};
+
+const playAsset = async ({ src, volume }: AudioCue) => {
+  const audio = pickAudio(src);
+  audio.currentTime = 0;
+  audio.volume = Math.min(1, Math.max(0, volume));
+  await audio.play();
+};
+
+const AudioContextClass =
+  typeof window !== 'undefined'
+    ? (window.AudioContext || (window as any).webkitAudioContext)
+    : null;
 let audioCtx: AudioContext | null = null;
 
 const getCtx = () => {
+  if (!AudioContextClass) return null;
   if (!audioCtx) audioCtx = new AudioContextClass();
   return audioCtx;
 };
@@ -59,6 +96,7 @@ const createOsc = (
 function playSynth(effect: SoundEffectType) {
   try {
     const ctx = getCtx();
+    if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
 
@@ -88,13 +126,12 @@ function playSynth(effect: SoundEffectType) {
         osc.stop(now + 0.15);
         break;
       }
-      case 'land':
-        createOsc(ctx, 'sine', 400, now, 0.1, 0.05);
-        break;
       case 'win':
+      case 'monopoly':
         [300, 400, 500, 600, 800].forEach((f, i) => createOsc(ctx, 'triangle', f, now + i * 0.15, 0.5, 0.1));
         break;
       case 'trade':
+      case 'trade_offer':
         createOsc(ctx, 'sine', 600, now, 0.1, 0.05);
         createOsc(ctx, 'sine', 800, now + 0.1, 0.2, 0.05);
         break;
@@ -102,77 +139,35 @@ function playSynth(effect: SoundEffectType) {
         createOsc(ctx, 'sine', 550, now, 0.1, 0.05);
         createOsc(ctx, 'sine', 700, now + 0.05, 0.1, 0.05);
         break;
-      case 'ui_click':
-        createOsc(ctx, 'sine', 800, now, 0.05, 0.05);
-        break;
-      case 'ui_hover':
-        createOsc(ctx, 'sine', 1200, now, 0.03, 0.01);
-        break;
-      case 'modal_open': {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.setValueAtTime(400, now);
-        osc.frequency.exponentialRampToValueAtTime(600, now + 0.2);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
-        break;
-      }
-      case 'modal_close': {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.setValueAtTime(600, now);
-        osc.frequency.exponentialRampToValueAtTime(400, now + 0.2);
-        gain.gain.setValueAtTime(0.05, now);
-        gain.gain.linearRampToValueAtTime(0, now + 0.2);
-        osc.start(now);
-        osc.stop(now + 0.2);
-        break;
-      }
-      case 'trade_offer':
-        createOsc(ctx, 'sine', 500, now, 0.1, 0.05);
-        createOsc(ctx, 'sine', 750, now + 0.1, 0.2, 0.05);
-        break;
-      case 'notification':
-        createOsc(ctx, 'sine', 880, now, 0.3, 0.05);
-        break;
       case 'error':
         createOsc(ctx, 'sawtooth', 150, now, 0.15, 0.08);
-        break;
-      case 'player_join':
-        createOsc(ctx, 'sine', 440, now, 0.1, 0.07);
-        createOsc(ctx, 'sine', 660, now + 0.1, 0.2, 0.07);
         break;
       case 'player_leave':
         createOsc(ctx, 'sine', 550, now, 0.1, 0.06);
         createOsc(ctx, 'sine', 330, now + 0.1, 0.25, 0.06);
         break;
-      case 'monopoly':
-        // Triumphant ascending fanfare
-        [400, 500, 600, 800, 1000, 1200].forEach((f, i) =>
-          createOsc(ctx, 'triangle', f, now + i * 0.1, 0.55, 0.12)
-        );
-        createOsc(ctx, 'sine', 1200, now + 0.6, 0.6, 0.1);
-        break;
       default:
+        createOsc(ctx, 'sine', 700, now, 0.08, 0.04);
         break;
     }
-  } catch (e) {
-    console.error('Audio synth failed', e);
+  } catch {
+    // Audio is decorative; never let it break gameplay.
   }
 }
 
-// ── Public API ───────────────────────────────────────────────────────────────
+export const unlockAudio = () => {
+  if (unlocked) return;
+  unlocked = true;
+  getCtx()?.resume().catch(() => {});
+  Object.values(REAL_AUDIO).forEach(cue => {
+    getAudioPool(cue.src).forEach(audio => {
+      audio.load();
+    });
+  });
+};
+
 export const playSound = (effect: SoundEffectType) => {
-  const realAudio = REAL_AUDIO[effect];
-  if (realAudio) {
-    playMp3(realAudio.src, realAudio.volume);
-    return;
-  }
-  playSynth(effect);
+  unlockAudio();
+  const cue = REAL_AUDIO[effect];
+  playAsset(cue).catch(() => playSynth(cue.fallback ?? effect));
 };
