@@ -409,10 +409,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
   useEffect(() => {
     const checkLayout = () => {
-      const viewport = window.visualViewport;
-      const width = viewport?.width ?? window.innerWidth;
-      const height = viewport?.height ?? window.innerHeight;
-      setIsStacked(width < 1180 || height < 640);
+      const width = window.innerWidth;
+      const hasTouchLayout = window.matchMedia('(pointer: coarse)').matches;
+      setIsStacked(width < 720 || (hasTouchLayout && width < 1024));
     };
     checkLayout();
     window.addEventListener('resize', checkLayout);
