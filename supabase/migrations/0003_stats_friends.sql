@@ -8,8 +8,8 @@ ALTER TABLE user_stats
 -- Friendships table
 CREATE TABLE IF NOT EXISTS friendships (
   id           text PRIMARY KEY,
-  requester_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  addressee_id text NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  requester_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+  addressee_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
   status       text NOT NULL DEFAULT 'pending',
   created_at   timestamptz NOT NULL DEFAULT now(),
   updated_at   timestamptz NOT NULL DEFAULT now()

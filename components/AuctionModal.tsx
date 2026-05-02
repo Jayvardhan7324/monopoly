@@ -1,7 +1,7 @@
 import React from 'react';
 import { GameState } from '../types';
 import { Avatar } from './Avatar';
-import { Gavel } from 'lucide-react';
+import { Gavel, X } from 'lucide-react';
 import { GAME_CONSTANTS } from '../constants';
 import { motion } from 'motion/react';
 
@@ -16,6 +16,17 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
   if (gameState.phase !== 'AUCTION' || !gameState.auction) return null;
 
   const myPlayer = gameState.players.find(p => p.id === myPlayerId);
+  const hasPassed = !isSpectator && !gameState.auction.bidders.includes(myPlayerId) && gameState.auction.highestBidderId !== myPlayerId;
+
+  if (hasPassed) {
+    return (
+      <div className="fixed bottom-4 left-1/2 z-[150] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-slate-700 bg-slate-950/95 p-4 text-center shadow-2xl backdrop-blur" role="status" aria-live="polite">
+        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Auction</div>
+        <div className="mt-1 text-sm font-black text-white">{gameState.tiles[gameState.auction.tileId].name}</div>
+        <p className="mt-2 text-xs font-medium text-slate-400">You passed. Waiting for the auction to finish.</p>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -95,6 +106,16 @@ export const AuctionModal: React.FC<AuctionModalProps> = ({ gameState, myPlayerI
               <span>+$20</span>
             </button>
           </div>
+
+          <button
+            onClick={() => dispatch({ type: 'PASS_AUCTION', payload: { playerId: myPlayerId } })}
+            disabled={isSpectator || gameState.auction.highestBidderId === myPlayerId || (myPlayer?.isBankrupt ?? false)}
+            aria-label="Pass on this auction"
+            className="w-full py-2.5 rounded-xl border border-white/10 bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 font-black text-xs uppercase tracking-widest transition-colors flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <X size={14} />
+            Pass
+          </button>
 
           <div className="w-full flex flex-col items-center gap-1.5 z-10">
             <span className="text-[8px] font-bold uppercase text-slate-500 tracking-[0.2em] self-start">Time Remaining</span>

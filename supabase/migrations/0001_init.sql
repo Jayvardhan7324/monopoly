@@ -1,87 +1,113 @@
--- ── Profiles (linked to Supabase auth.users) ──────────────────────────────────
-CREATE TABLE public.profiles (
-  id           TEXT PRIMARY KEY,                   -- = auth.users.id (UUID)
-  name         TEXT NOT NULL DEFAULT '',
-  email        TEXT NOT NULL DEFAULT '',
-  image        TEXT,
-  role         TEXT NOT NULL DEFAULT 'user',
-  banned       BOOLEAN NOT NULL DEFAULT false,
-  ban_reason   TEXT,
-  ban_expires  TIMESTAMP WITH TIME ZONE,
-  coins        INTEGER NOT NULL DEFAULT 500,
-  created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-  updated_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+-- Better Auth core user tables plus app economy/store tables.
+CREATE TABLE public."user" (
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  email text NOT NULL UNIQUE,
+  email_verified boolean NOT NULL DEFAULT false,
+  image text,
+  role text DEFAULT 'user',
+  banned boolean DEFAULT false,
+  ban_reason text,
+  ban_expires timestamptz,
+  coins integer NOT NULL DEFAULT 500,
+  equipped_avatar_item_id text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ── Store items ────────────────────────────────────────────────────────────────
+CREATE TABLE public.session (
+  id text PRIMARY KEY,
+  expires_at timestamptz NOT NULL,
+  token text NOT NULL UNIQUE,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  ip_address text,
+  user_agent text,
+  user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+  impersonated_by text
+);
+
+CREATE INDEX session_user_id_idx ON public.session(user_id);
+CREATE INDEX session_token_idx ON public.session(token);
+
+CREATE TABLE public.account (
+  id text PRIMARY KEY,
+  account_id text NOT NULL,
+  provider_id text NOT NULL,
+  user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+  access_token text,
+  refresh_token text,
+  id_token text,
+  access_token_expires_at timestamptz,
+  refresh_token_expires_at timestamptz,
+  scope text,
+  password text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX account_user_id_idx ON public.account(user_id);
+CREATE UNIQUE INDEX account_provider_account_unique ON public.account(provider_id, account_id);
+
+CREATE TABLE public.verification (
+  id text PRIMARY KEY,
+  identifier text NOT NULL,
+  value text NOT NULL,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX verification_identifier_idx ON public.verification(identifier);
+
 CREATE TABLE public.store_item (
-  id           TEXT PRIMARY KEY,
-  name         TEXT NOT NULL,
-  description  TEXT NOT NULL DEFAULT '',
-  type         TEXT NOT NULL,
-  price_coins  INTEGER NOT NULL DEFAULT 100,
-  asset_url    TEXT,
-  active       BOOLEAN NOT NULL DEFAULT true,
-  created_at   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+  id text PRIMARY KEY,
+  name text NOT NULL,
+  description text NOT NULL DEFAULT '',
+  type text NOT NULL,
+  price_coins integer NOT NULL DEFAULT 100,
+  asset_url text,
+  active boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ── Purchases ──────────────────────────────────────────────────────────────────
 CREATE TABLE public.purchase (
-  id           TEXT PRIMARY KEY,
-  user_id      TEXT NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  item_id      TEXT NOT NULL REFERENCES public.store_item(id) ON DELETE CASCADE,
-  purchased_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+  id text PRIMARY KEY,
+  user_id text NOT NULL REFERENCES public."user"(id) ON DELETE CASCADE,
+  item_id text NOT NULL REFERENCES public.store_item(id) ON DELETE CASCADE,
+  purchased_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ── Player stats ───────────────────────────────────────────────────────────────
+CREATE INDEX purchase_user_id_idx ON public.purchase(user_id);
+CREATE UNIQUE INDEX purchase_user_item_unique ON public.purchase(user_id, item_id);
+
 CREATE TABLE public.user_stats (
-  user_id           TEXT PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  games_played      INTEGER NOT NULL DEFAULT 0,
-  games_won         INTEGER NOT NULL DEFAULT 0,
-  total_earnings    INTEGER NOT NULL DEFAULT 0,
-  properties_bought INTEGER NOT NULL DEFAULT 0,
-  updated_at        TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+  user_id text PRIMARY KEY REFERENCES public."user"(id) ON DELETE CASCADE,
+  games_played integer NOT NULL DEFAULT 0,
+  games_won integer NOT NULL DEFAULT 0,
+  total_earnings integer NOT NULL DEFAULT 0,
+  properties_bought integer NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
--- ── Trigger: auto-create profile on new Supabase auth user ────────────────────
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, email, created_at, updated_at)
-  VALUES (
-    NEW.id::TEXT,
-    COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.email, ''),
-    NOW(),
-    NOW()
-  )
-  ON CONFLICT (id) DO NOTHING;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- ── RLS policies ───────────────────────────────────────────────────────────────
-ALTER TABLE public.profiles  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public."user" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.session ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.account ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.verification ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.store_item ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.purchase   ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.purchase ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_stats ENABLE ROW LEVEL SECURITY;
 
--- Profiles: anyone can read, user can update own
-CREATE POLICY "profiles_select" ON public.profiles FOR SELECT USING (true);
-CREATE POLICY "profiles_update" ON public.profiles FOR UPDATE USING (auth.uid()::TEXT = id);
-CREATE POLICY "profiles_insert" ON public.profiles FOR INSERT WITH CHECK (auth.uid()::TEXT = id);
+CREATE POLICY user_select_public ON public."user"
+  FOR SELECT USING (true);
+CREATE POLICY user_update_own ON public."user"
+  FOR UPDATE USING (auth.uid()::text = id);
 
--- Store items: public read of active items
-CREATE POLICY "store_item_select" ON public.store_item FOR SELECT USING (active = true);
+CREATE POLICY store_item_select ON public.store_item
+  FOR SELECT USING (active = true);
 
--- Purchases: user sees own
-CREATE POLICY "purchase_select" ON public.purchase FOR SELECT USING (auth.uid()::TEXT = user_id);
-CREATE POLICY "purchase_insert" ON public.purchase FOR INSERT WITH CHECK (auth.uid()::TEXT = user_id);
+CREATE POLICY purchase_select_own ON public.purchase
+  FOR SELECT USING (auth.uid()::text = user_id);
 
--- Stats: public read
-CREATE POLICY "user_stats_select" ON public.user_stats FOR SELECT USING (true);
-CREATE POLICY "user_stats_upsert" ON public.user_stats FOR ALL USING (auth.uid()::TEXT = user_id);
+CREATE POLICY user_stats_select ON public.user_stats
+  FOR SELECT USING (true);

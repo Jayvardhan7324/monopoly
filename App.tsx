@@ -28,6 +28,13 @@ import NavDock, { NavDockItem, NavDockLink, NavDockSep } from './components/ui/N
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
 import { authFetch } from './lib/auth-client';
+import {
+  cacheVisualSettings,
+  fetchVisualSettings,
+  loadCachedVisualSettings,
+  subscribeToVisualSettings,
+  type VisualSettings,
+} from './services/visualSettings';
 
 const Controls = lazy(() => import('./components/Controls').then(m => ({ default: m.Controls })));
 const PropertyModal = lazy(() => import('./components/PropertyModal').then(m => ({ default: m.PropertyModal })));
@@ -48,6 +55,17 @@ type LoadingScreenProps = {
   subtitle: string;
   mode?: 'fixed' | 'absolute';
 };
+
+async function getResponseError(response: Response, fallback: string): Promise<string> {
+  const text = await response.text().catch(() => '');
+  if (!text) return fallback;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed?.error || parsed?.message || fallback;
+  } catch {
+    return text.replace(/^"|"$/g, '') || fallback;
+  }
+}
 
 const CashlyLoadingScreen = ({ title, subtitle, mode = 'fixed' }: LoadingScreenProps) => (
   <motion.div
@@ -118,6 +136,7 @@ const getProfileFallbackImage = (name: string, avatarId = 0, color?: string): st
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
 const getRandomAvatarIndex = () => Math.floor(Math.random() * APPEARANCE_COLORS.length);
 
 const normalizeAppearanceIndex = (value: unknown): number | null => {
@@ -131,27 +150,10 @@ const getAssignedAvatar = (players: any[] | undefined, playerId: string | null |
   return normalizeAppearanceIndex(player?.avatar);
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-const VISUAL_DEFAULTS = {
-  particleCount: 40, particleSpeed: 1.0, particleSize: 0.5,
-  particleOpacity: 0.29, particleFadeZone: 0.59,
-  glowOpacity: 0.46, glowWidth: 810, glowHeight: 600, glowY: -180,
-  particleShape: 'circle' as 'circle' | 'snowflake',
-};
-type VisualSettings = typeof VISUAL_DEFAULTS;
-function loadVisualSettings(): VisualSettings {
-  try { const r = localStorage.getItem('cashly_visual_settings'); return r ? { ...VISUAL_DEFAULTS, ...JSON.parse(r) } : VISUAL_DEFAULTS; }
-  catch { return VISUAL_DEFAULTS; }
-}
-
 function HomeGlow() {
-  const [s, setS] = useState<VisualSettings>(loadVisualSettings);
+  const [s, setS] = useState<VisualSettings>(loadCachedVisualSettings);
   useEffect(() => {
-    const h = () => setS(loadVisualSettings());
-    const hs = (e: StorageEvent) => { if (e.key === 'cashly_visual_settings') h(); };
-    window.addEventListener('cashly_visual_change', h);
-    window.addEventListener('storage', hs);
-    return () => { window.removeEventListener('cashly_visual_change', h); window.removeEventListener('storage', hs); };
+    return subscribeToVisualSettings(setS);
   }, []);
   return (
     <div
@@ -163,13 +165,9 @@ function HomeGlow() {
 
 function HomeParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const sRef = useRef<VisualSettings>(loadVisualSettings());
+  const sRef = useRef<VisualSettings>(loadCachedVisualSettings());
   useEffect(() => {
-    const h = () => { sRef.current = loadVisualSettings(); };
-    const hs = (e: StorageEvent) => { if (e.key === 'cashly_visual_settings') h(); };
-    window.addEventListener('cashly_visual_change', h);
-    window.addEventListener('storage', hs);
-    return () => { window.removeEventListener('cashly_visual_change', h); window.removeEventListener('storage', hs); };
+    return subscribeToVisualSettings((settings) => { sRef.current = settings; });
   }, []);
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -342,6 +340,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const [isHost, setIsHost] = useState(false);
   const [lobbyPlayers, setLobbyPlayers] = useState<any[]>([]);
   const [joinRoomId, setJoinRoomId] = useState('');
+  const [joinRoomError, setJoinRoomError] = useState<string | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<number>(0);
   const [selectedAvatar, setSelectedAvatar] = useState(getRandomAvatarIndex);
   const [showRoomBrowser, setShowRoomBrowser] = useState(false);
@@ -383,6 +382,16 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const session = sessionUser ? { user: sessionUser } : null;
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    const refresh = () => { fetchVisualSettings().catch(() => {}); };
+    refresh();
+    const interval = window.setInterval(refresh, 60_000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+    };
+  }, []);
 
   // ── Color set completion animation ──────────────────────────────────────────
   const [setCompleteAnim, setSetCompleteAnim] = useState<{ group: ColorGroup; tiles: typeof gameState.tiles; ownerName: string; ownerColor: string } | null>(null);
@@ -390,12 +399,18 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
   useEffect(() => {
     const checkLayout = () => {
-      const width = window.innerWidth;
-      setIsStacked(width < 1100);
+      const viewport = window.visualViewport;
+      const width = viewport?.width ?? window.innerWidth;
+      const height = viewport?.height ?? window.innerHeight;
+      setIsStacked(width < 1180 || height < 640);
     };
     checkLayout();
     window.addEventListener('resize', checkLayout);
-    return () => window.removeEventListener('resize', checkLayout);
+    window.visualViewport?.addEventListener('resize', checkLayout);
+    return () => {
+      window.removeEventListener('resize', checkLayout);
+      window.visualViewport?.removeEventListener('resize', checkLayout);
+    };
   }, []);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const prevLobbyCountRef = useRef(-1);
@@ -548,10 +563,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       }
       if (me && !me.isSpectator) {
         setIsHost(me.isHost);
-        // STATE-01: Use the player's stable index in the non-disconnected list
-        // so myPlayerId doesn't shift when other players disconnect and are spliced.
-        const activeIndex = data.players.filter((p: any) => !p.disconnected).indexOf(me);
-        setMyPlayerId(activeIndex >= 0 ? activeIndex : data.players.indexOf(me));
+        if (typeof me.gamePlayerId === 'number') {
+          setMyPlayerId(me.gamePlayerId);
+        } else {
+          const activeIndex = data.players.filter((p: any) => !p.disconnected).indexOf(me);
+          setMyPlayerId(activeIndex >= 0 ? activeIndex : data.players.indexOf(me));
+        }
       }
     };
 
@@ -618,6 +635,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     const handleSocketDisconnect = () => setIsSocketDisconnected(true);
     const handleSocketConnect = () => setIsSocketDisconnected(false);
     const handleYouAreHost = () => setIsHost(true); // B4: server promotes us to host after original host permanently left
+    const handleVisualSettingsUpdated = (data: any) => {
+      if (data?.settings) cacheVisualSettings(data.settings);
+    };
 
     const handleSessionRejected = () => {
       localStorage.removeItem('cashly_session');
@@ -651,6 +671,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       fetchBoardCatalog();
     });
     socket.on("boards_catalog_updated", fetchBoardCatalog);
+    socket.on("visual_settings_updated", handleVisualSettingsUpdated);
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
@@ -669,6 +690,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       socket.off("rooms_list");
       socket.off("admin_board_pushed");
       socket.off("boards_catalog_updated", fetchBoardCatalog);
+      socket.off("visual_settings_updated", handleVisualSettingsUpdated);
       socket.off("disconnect", handleSocketDisconnect);
       socket.off("you_are_host", handleYouAreHost);
       socket.off("connect", handleSocketConnect);
@@ -1057,7 +1079,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined, ...settings, isPrivate }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) {
+        setSystemAlert(await getResponseError(r, 'Failed to create room.'));
+        return;
+      }
       const res = await r.json();
 
       if (res.success) {
@@ -1078,6 +1103,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       }
     } catch (e) {
       console.error(e);
+      setSystemAlert("Could not create the room. Please try again.");
     } finally {
       setIsCreatingRoom(false);
     }
@@ -1087,13 +1113,17 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     if (!specificRoomId) return;
     const cleanId = specificRoomId.trim().toUpperCase();
     setIsJoiningRoom(true);
+    setJoinRoomError(null);
     try {
       const r = await fetch(`/api/rooms/${cleanId}/join`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) {
+        setJoinRoomError(await getResponseError(r, "Room not found. Check the code and try again."));
+        return;
+      }
       const res = await r.json();
 
       if (res.success) {
@@ -1106,14 +1136,16 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         if (assignedAvatar !== null) setSelectedAvatar(assignedAvatar);
         if (res.settings) setSettings((prev) => ({ ...prev, ...res.settings, rules: { ...prev.rules, ...(res.settings.rules || {}) } }));
         setShowRoomBrowser(false);
+        setJoinRoomError(null);
         if (res.isSpectator) setIsSpectator(true);
         localStorage.setItem('cashly_session', JSON.stringify({ playerId: res.playerId, roomId: res.roomId, playerName: humanName, savedAt: Date.now() }));
         window.history.replaceState({}, '', `/room/${res.roomId}`);
       } else {
-        setSystemAlert(res.error || "Failed to join room");
+        setJoinRoomError(res.error || "Failed to join room");
       }
     } catch (e) {
       console.error(e);
+      setJoinRoomError("Could not join the room. Please check the code and try again.");
     } finally {
       setIsJoiningRoom(false);
     }
@@ -1126,7 +1158,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: humanName, avatar: selectedAvatar, profileImage: session?.user?.image ?? undefined }),
       });
-      if (!r.ok) throw new Error(await r.text());
+      if (!r.ok) {
+        setSystemAlert(await getResponseError(r, "No public rooms are available right now."));
+        return;
+      }
       const res = await r.json();
 
       if (res.success) {
@@ -1145,6 +1180,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       }
     } catch (e) {
       console.error(e);
+      setSystemAlert("Could not join a public room. Please try again.");
     }
   };
 
@@ -1778,9 +1814,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       {[
                         { title: 'Information We Collect', body: 'We collect only the player name you enter and basic gameplay data (room IDs, game actions) to operate the multiplayer service. No account registration is required.' },
                         { title: 'How We Use Your Data', body: 'Player names and gameplay data are used solely to run game sessions. Data is stored temporarily in memory and is not persisted to a database after sessions end.' },
-                        { title: 'Cookies', body: 'We use minimal session cookies to maintain your connection to an active game room. No tracking or advertising cookies are used.' },
-                        { title: 'Third Parties', body: 'We do not sell, share, or transfer your data to any third parties.' },
-                        { title: 'Contact', body: 'Questions? Reach us through our Discord server.' },
+                        { title: 'Cookies', body: 'We use minimal session cookies to maintain your connection to an active game room. We do not use advertising cookies.' },
+                        { title: 'Third Parties', body: 'We use Cloudflare for delivery, security, and aggregate traffic measurement. We do not sell your data.' },
+                        { title: 'Contact', body: 'Questions? Use Contact or Report a Bug from the footer.' },
                       ].map((s, i) => (
                         <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
                           <h3 className="font-bold text-white mb-2">{s.title}</h3>
@@ -1812,7 +1848,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       <p className="text-slate-400 text-sm leading-relaxed">Last updated: March 2025</p>
                       {[
                         { title: 'What Are Cookies', body: 'Cookies are small text files stored in your browser. We use them only to maintain your active game session.' },
-                        { title: 'Cookies We Use', body: 'Session cookies: used to keep you connected to your active game room. These expire when your browser closes. We do not use any tracking, analytics, or advertising cookies.' },
+                        { title: 'Cookies We Use', body: 'Session cookies keep you connected to your active game room. Cloudflare may process technical request data for security and aggregate traffic measurement. We do not use advertising cookies.' },
                         { title: 'Disabling Cookies', body: 'You can disable cookies in your browser settings. Note that this will prevent you from joining or creating multiplayer rooms.' },
                       ].map((s, i) => (
                         <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
@@ -1827,9 +1863,9 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       <h1 className="text-3xl font-black text-white">Contact</h1>
                       <p className="text-slate-400 text-sm leading-relaxed">Have a question, bug report, or feedback? We'd love to hear from you.</p>
                       {[
-                        { title: 'Discord Community', body: 'Join our Discord server to chat with the developers and other players, report bugs, and suggest features.' },
-                        { title: 'Bug Reports', body: 'Found a bug? Please describe the steps to reproduce it in our Discord #bug-reports channel.' },
-                        { title: 'Feature Requests', body: 'Share your ideas in #suggestions on Discord. Popular requests get prioritised in our roadmap.' },
+                        { title: 'Support', body: 'Use Report a Bug to send issues with reproduction steps and an optional screenshot.' },
+                        { title: 'Bug Reports', body: 'Include what happened, what you expected, and the room code if the issue happened during a match.' },
+                        { title: 'Feature Requests', body: 'Share suggestions through the contact form or bug report flow so they can be reviewed with product feedback.' },
                       ].map((s, i) => (
                         <div key={i} className="bg-[#1a1a22] rounded-xl p-5 border border-slate-800">
                           <h3 className="font-bold text-white mb-2">{s.title}</h3>
@@ -1888,16 +1924,15 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
               >
                 {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
               </button>
-              <a
-                href="#"
-                title="Join our Discord"
-                aria-label="Join our Discord"
+              <button
+                type="button"
+                onClick={() => setActivePolicyPage('contact')}
+                title="Contact support"
+                aria-label="Contact support"
                 className="hidden sm:inline-flex p-2 text-slate-400 hover:text-indigo-400 transition-colors rounded-xl hover:bg-slate-800/60"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.030zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-                </svg>
-              </a>
+                <MessageSquare size={18} />
+              </button>
             </div>
 
             {/* Mobile menu bar — sm:hidden */}
@@ -1984,13 +2019,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                       )}
 
                       <div className="h-px bg-slate-700/60 my-1 mx-1" />
-                      <a href="#" onClick={() => setMobileNavOpen(false)}
+                      <button type="button" onClick={() => { setActivePolicyPage('contact'); setMobileNavOpen(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-300 hover:text-indigo-400 hover:bg-white/6 active:bg-white/10 transition-colors text-sm font-medium">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" className="text-slate-400 shrink-0">
-                          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.032.054a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.461-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.030zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/>
-                        </svg>
-                        Discord
-                      </a>
+                        <MessageSquare size={15} className="text-slate-400 shrink-0" />
+                        Contact
+                      </button>
                     </motion.div>
                   </>
                 )}
@@ -2329,7 +2362,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                           <input
                             type="text"
                             value={joinRoomId}
-                            onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
+                            onChange={(e) => { setJoinRoomId(e.target.value.toUpperCase()); setJoinRoomError(null); }}
                             placeholder="ROOM CODE"
                             maxLength={6}
                             style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -2347,6 +2380,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
                             ) : 'Join'}
                           </button>
                         </div>
+                        {joinRoomError && (
+                          <p className="text-center text-xs font-bold text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-xl px-3 py-2" role="alert">
+                            {joinRoomError}
+                          </p>
+                        )}
                       </div>
 
                       <div className="w-full pt-1" />
@@ -2598,7 +2636,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: 18 }}
         transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-        className="group min-h-[100dvh] data-[layout=row]:h-[100dvh] bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+        className="game-table-shell group min-h-[100dvh] data-[layout=row]:h-[100dvh] bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
         data-layout={isStacked ? "stacked" : "row"}
       >
         {/* Disconnect overlay */}
@@ -2611,11 +2649,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         )}
 
         {/* Left Column: Share, Ad & Chat */}
-        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
+          <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-1">
           {renderShareBox(false)}
 
           {/* Ad Banner Space — desktop only; mobile version sits below board */}
-          <div className="hidden sm:flex bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
+          <div className="hidden group-data-[layout=row]:flex bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
             <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
           </div>
@@ -2627,8 +2665,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         </div>
 
         {/* Center Column: Board */}
-        <div className="flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
-          <div className="w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
+        <div className="game-board-column flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2">
+          <div className="game-board-stage w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
             <Board gameState={lobbyPreviewState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
                 {showAppearanceModal ? (
@@ -2777,7 +2815,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         </div>
 
         {/* Right Column: Profile & Settings */}
-        <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-4 group-data-[layout=row]:order-3">
+        <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-4 group-data-[layout=row]:order-3">
           {/* Lobby Players List */}
           <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-5 flex flex-col gap-3 shadow-lg shrink-0">
             <div className="flex items-center justify-between mb-1">
@@ -2861,7 +2899,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 280, damping: 28 }}
-      className="group min-h-[100dvh] data-[layout=row]:h-[100dvh] bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
+      className="game-table-shell group min-h-[100dvh] data-[layout=row]:h-[100dvh] bg-[#111116] text-slate-50 flex flex-col data-[layout=row]:flex-row p-1.5 sm:p-2 gap-2 sm:gap-4 relative overflow-y-auto data-[layout=row]:overflow-hidden"
       data-layout={isStacked ? "stacked" : "row"}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-950/30 via-slate-950 to-slate-950 pointer-events-none fixed" />
@@ -2902,11 +2940,11 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Left Column: Share, Ad Banner & Chat */}
-      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-2 group-data-[layout=row]:order-1">
+      <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-1">
         {isOnline && renderShareBox(true)}
 
         {/* Ad Banner Space — desktop only; mobile version sits below board */}
-        <div className="hidden sm:flex bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
+        <div className="hidden group-data-[layout=row]:flex bg-[#1e1e24] border border-slate-800 rounded-2xl p-5 flex-col items-center justify-center shadow-lg flex-1 relative overflow-hidden group min-h-[120px] group-data-[layout=row]:min-h-0">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
           <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
@@ -3002,12 +3040,12 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Center Column: Board Preview */}
-      <div className="w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
+      <div className="game-board-column w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto"
+          className="game-board-stage w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto"
         >
           <Board gameState={gameState} onTileClick={handleTileClick}>
             <Suspense fallback={<GamePanelFallback />}>
@@ -3046,7 +3084,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Right Column: Players, Actions & Properties */}
-      <div className="w-full group-data-[layout=row]:w-64 flex flex-col gap-3 shrink-0 z-10 group-data-[layout=row]:h-full order-4 group-data-[layout=row]:order-3 group-data-[layout=row]:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
+      <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-3 shrink-0 z-10 group-data-[layout=row]:h-full order-4 group-data-[layout=row]:order-3 group-data-[layout=row]:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-700">
 
         {/* Players List */}
         <div className="bg-[#1e1e24] rounded-2xl border border-slate-800 p-3 flex flex-col gap-2 shadow-lg shrink-0">
@@ -3325,7 +3363,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
             onUpgrade={() => handleDispatch({ type: 'UPGRADE_PROPERTY', payload: { tileId: selectedTileId } })}
             canUpgrade={(gameState.phase === 'TURN_END' || gameState.phase === 'ACTION') && gameState.tiles[selectedTileId].ownerId === myPlayerId && gameState.players[gameState.currentPlayerIndex]?.id === myPlayerId}
             currentPlayer={gameState.players.find(p => p.id === myPlayerId)}
-            myProperties={myProperties}
+            myProperties={gameState.tiles}
             onMortgage={() => handleDispatch({ type: 'MORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onUnmortgage={() => handleDispatch({ type: 'UNMORTGAGE_PROPERTY', payload: { tileId: selectedTileId } })}
             onSell={() => handleDispatch({ type: 'SELL_PROPERTY', payload: { tileId: selectedTileId } })}

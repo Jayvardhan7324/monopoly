@@ -42,12 +42,14 @@ const AdSlot: React.FC<Props> = ({ placement, className = '', debug = false }) =
 
   if (ad.htmlSnippet) {
     return (
-      <div
-        className={`ad-slot ${className}`}
+      <iframe
+        className={`ad-slot w-full border-0 ${className}`}
         data-placement={placement}
-        // Admin-controlled HTML — same trust model as store assetUrl/imageUrl.
-        // Sanitize on the admin side, not here.
-        dangerouslySetInnerHTML={{ __html: ad.htmlSnippet }}
+        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        referrerPolicy="strict-origin-when-cross-origin"
+        srcDoc={ad.htmlSnippet}
+        title={ad.name}
+        loading="lazy"
       />
     );
   }

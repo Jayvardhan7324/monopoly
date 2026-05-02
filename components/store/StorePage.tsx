@@ -155,6 +155,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
           <button
             onClick={onBack}
+            aria-label="Back to game"
             className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -229,6 +230,15 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
                     transition={{ delay: i * 0.06 }}
                     className={`relative rounded-xl border bg-gradient-to-br ${grad} overflow-hidden group cursor-pointer`}
                     onClick={() => purchase(item)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        purchase(item);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Buy ${item.name} for ${item.priceCoins.toLocaleString()} coins`}
                   >
                     <div className="aspect-square flex items-center justify-center bg-black/20 overflow-hidden">
                       {item.assetUrl ? (
@@ -264,6 +274,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
               <button
                 key={t}
                 onClick={() => setFilterType(t)}
+                aria-pressed={isActive}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all active:scale-95 ${
                   isActive
                     ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg shadow-indigo-600/30'
@@ -346,6 +357,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
                           <button
                             onClick={() => equip(item)}
                             disabled={equipping === item.id}
+                            aria-label={equippedItemId === item.id ? `Unequip ${item.name}` : `Equip ${item.name}`}
                             className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                               equippedItemId === item.id
                                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 hover:bg-rose-500/10'
@@ -368,6 +380,7 @@ const StorePage: React.FC<Props> = ({ onBack, userId, onProfilePicEquipped }) =>
                           <button
                             onClick={() => purchase(item)}
                             disabled={busy || !canAfford}
+                            aria-label={`Buy ${item.name} for ${item.priceCoins.toLocaleString()} coins`}
                             className={`w-full flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                               canAfford
                                 ? 'bg-amber-500 hover:bg-amber-400 text-slate-900 shadow-md shadow-amber-500/20'

@@ -19,8 +19,8 @@ export const PLAYER_ALLOWED_ACTIONS: ReadonlySet<string> = new Set<string>([
   'DECLINE_TRADE',
   'CANCEL_TRADE',
   'PLACE_BID',
+  'PASS_AUCTION',
   'END_TURN',
   'DECLARE_BANKRUPT',
   'VOTE_KICK',
-  'CANCEL_VOTE_KICK',
 ]);

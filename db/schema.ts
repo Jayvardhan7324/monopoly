@@ -252,6 +252,14 @@ export const ad = pgTable("ad", {
   index("ad_enabled_idx").on(t.enabled),
 ]);
 
+// Global application settings. Values are edited by admins through the server
+// and read by public endpoints for app-wide visuals/configuration.
+export const appSetting = pgTable("app_setting", {
+  key:       text("key").primaryKey(),
+  value:     jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ── Back-compat alias ─────────────────────────────────────────────────────────
 // Some older call sites still reference `profiles`. Keep the export name so we
 // can migrate imports one file at a time.

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,13 @@ import {
 } from 'lucide-react';
 import BoardBuilder from './BoardBuilder';
 import type { CustomBoard } from './types';
+import {
+  VISUAL_DEFAULTS,
+  cacheVisualSettings,
+  loadCachedVisualSettings,
+  normalizeVisualSettings,
+  type VisualSettings,
+} from '@/services/visualSettings';
 
 interface AdRow {
   id: string;
@@ -62,22 +69,6 @@ interface Analytics {
 const ITEM_TYPES = ['avatar', 'board_skin', 'token', 'profile_pic', 'misc'];
 
 // ── Visual settings ──────────────────────────────────────────────────────────
-const VISUAL_DEFAULTS = {
-  particleCount: 40, particleSpeed: 1.0, particleSize: 0.5,
-  particleOpacity: 0.29, particleFadeZone: 0.59,
-  glowOpacity: 0.46, glowWidth: 810, glowHeight: 600, glowY: -180,
-  particleShape: 'circle' as 'circle' | 'snowflake',
-};
-type VisualSettings = typeof VISUAL_DEFAULTS;
-function loadVisual(): VisualSettings {
-  try { const r = localStorage.getItem('cashly_visual_settings'); return r ? { ...VISUAL_DEFAULTS, ...JSON.parse(r) } : VISUAL_DEFAULTS; }
-  catch { return VISUAL_DEFAULTS; }
-}
-function saveVisual(s: VisualSettings) {
-  localStorage.setItem('cashly_visual_settings', JSON.stringify(s));
-  window.dispatchEvent(new Event('cashly_visual_change'));
-}
-
 interface Props { token: string; onLogout: () => void; }
 
 const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
@@ -85,16 +76,52 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [activeBoard, setActiveBoard] = useState<CustomBoard | null>(null);
   const [editingBoard, setEditingBoard] = useState<CustomBoard | null>(null);
   const [tab, setTab] = useState('overview');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-admin-token': token };
 
   // Visual tab
-  const [visual, setVisual] = useState<VisualSettings>(loadVisual);
+  const [visual, setVisual] = useState<VisualSettings>(loadCachedVisualSettings);
+  const [visualSaving, setVisualSaving] = useState(false);
+  const visualSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visualSaveSeqRef = useRef(0);
+
+  const persistVisual = (settings: VisualSettings) => {
+    if (visualSaveTimerRef.current) clearTimeout(visualSaveTimerRef.current);
+    const seq = ++visualSaveSeqRef.current;
+    visualSaveTimerRef.current = setTimeout(async () => {
+      setVisualSaving(true);
+      try {
+        const res = await fetch('/api/admin/visual-settings', {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ settings }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          toast.error(data.error || 'Failed to save visual settings');
+          return;
+        }
+        const saved = cacheVisualSettings(data.settings ?? settings);
+        if (seq === visualSaveSeqRef.current) setVisual(saved);
+      } catch {
+        toast.error('Failed to save visual settings');
+      } finally {
+        if (seq === visualSaveSeqRef.current) setVisualSaving(false);
+      }
+    }, 250);
+  };
+
   const updateVisual = (patch: Partial<VisualSettings>) => {
     setVisual(prev => {
-      const next = { ...prev, ...patch };
-      saveVisual(next);
+      const next = normalizeVisualSettings({ ...prev, ...patch });
+      cacheVisualSettings(next);
+      persistVisual(next);
       return next;
     });
   };
+
+  useEffect(() => () => {
+    if (visualSaveTimerRef.current) clearTimeout(visualSaveTimerRef.current);
+  }, []);
 
   // Users tab
   const [users, setUsers] = useState<UserRow[]>([]);
@@ -161,7 +188,15 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const [editingItem, setEditingItem] = useState<StoreItemRow | null>(null);
   const [itemForm, setItemForm] = useState({ name: '', description: '', type: 'avatar', priceCoins: 100, assetUrl: '', active: true });
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json', 'x-admin-token': token };
+  const fetchVisual = async () => {
+    try {
+      const res = await fetch('/api/admin/visual-settings', { headers });
+      if (!res.ok) return;
+      const data = await res.json();
+      const settings = cacheVisualSettings(data.settings);
+      setVisual(settings);
+    } catch {}
+  };
 
   const fetchBoards = async () => {
     try {
@@ -172,7 +207,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
       setActiveBoard(data.activeBoard || null);
     } catch { toast.error('Failed to load boards'); }
   };
-  useEffect(() => { fetchBoards(); }, []);
+  useEffect(() => { fetchBoards(); fetchVisual(); }, []);
 
   const fetchUsers = async () => {
     setUsersLoading(true);
@@ -381,6 +416,7 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
     if (tab === 'analytics') fetchAnalytics();
     if (tab === 'bugs') fetchBugReports();
     if (tab === 'ads') fetchAds();
+    if (tab === 'visual') fetchVisual();
   }, [tab]);
 
   const pushBoard = async (id: string) => {
@@ -1429,8 +1465,8 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                 </CardContent>
               </Card>
 
-              <Button variant="outline" onClick={() => { saveVisual(VISUAL_DEFAULTS); setVisual(VISUAL_DEFAULTS); }}>
-                Reset to Defaults
+              <Button variant="outline" onClick={() => updateVisual(VISUAL_DEFAULTS)}>
+                {visualSaving ? 'Saving...' : 'Reset to Defaults'}
               </Button>
             </div>
           </TabsContent>

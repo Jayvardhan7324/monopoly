@@ -63,6 +63,7 @@ export const CreateTradeModal: React.FC<CreateTradeModalProps> = ({
   const myProperties = tiles.filter(t =>
     t.ownerId === myPlayerId &&
     !t.isMortgaged &&
+    t.buildingCount === 0 &&
     (t.type === TileType.PROPERTY || t.type === TileType.RAILROAD || t.type === TileType.UTILITY)
   );
 
@@ -70,6 +71,7 @@ export const CreateTradeModal: React.FC<CreateTradeModalProps> = ({
     ? tiles.filter(t =>
         t.ownerId === targetPlayerId &&
         !t.isMortgaged &&
+        t.buildingCount === 0 &&
         (t.type === TileType.PROPERTY || t.type === TileType.RAILROAD || t.type === TileType.UTILITY)
       )
     : [];

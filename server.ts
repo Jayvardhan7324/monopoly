@@ -4,6 +4,8 @@ import { createServer as createHttpServer } from "http";
 import { Server } from "socket.io";
 import { randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import { PLAYER_ALLOWED_ACTIONS } from "./services/actionPolicy";
+import { VISUAL_DEFAULTS, normalizeVisualSettings } from "./services/visualSettings";
+import type { VisualSettings } from "./services/visualSettings";
 
 // Actions that may only be submitted by the player whose turn it currently is.
 // Everything else in PLAYER_ALLOWED_ACTIONS (trades, auction bids, vote-kicks)
@@ -14,6 +16,7 @@ const OWN_TURN_ONLY_ACTIONS = new Set<string>([
   'ATTEMPT_JAIL_ROLL',
   'SKIP_JAIL_TURN',
   'PAY_JAIL_FINE',
+  'USE_JAIL_CARD',
   'MORTGAGE_PROPERTY',
   'UNMORTGAGE_PROPERTY',
   'UPGRADE_PROPERTY',
@@ -194,6 +197,16 @@ async function startServer() {
     console.warn("DATABASE_URL not set — auth and store routes disabled");
   }
 
+  async function getSessionUser(req: any) {
+    if (!auth || !fromNodeHeaders) return null;
+    try {
+      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
+      return session?.user ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   // Gzip/brotli compress all responses
   app.use(compression());
 
@@ -213,7 +226,8 @@ async function startServer() {
     "font-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "script-src 'self'" + (isProd ? "" : " 'unsafe-eval'"),
+    "script-src 'self' https://static.cloudflareinsights.com" + (isProd ? "" : " 'unsafe-eval'"),
+    "script-src-elem 'self' https://static.cloudflareinsights.com" + (isProd ? "" : " 'unsafe-eval'"),
     "script-src-attr 'none'",
     `connect-src ${cspConnect.join(' ')}`,
     "media-src 'self' https: data:",
@@ -238,9 +252,9 @@ async function startServer() {
     next();
   });
 
-  // SEC: Cap JSON body size. Admin board saves can be a few hundred KB (tiles jsonb), so 256KB
-  // is the generous upper bound. Anything larger is almost certainly abuse.
-  app.use(express.json({ limit: '256kb' }));
+  // SEC: Cap JSON body size. Bug reports allow screenshots up to ~1.5MB, so keep
+  // the parser limit just above that and let route-level validators reject excess.
+  app.use(express.json({ limit: '2mb' }));
 
   // Serve audio assets from richup_assets/sounds at /sounds
   const pathModule = await import("path");
@@ -336,6 +350,8 @@ async function startServer() {
   // In-memory cache of the pushed board for fast /api/active-board reads.
   // Source of truth is the admin_board table (is_active flag).
   let activeAdminBoard: any = null;
+  const VISUAL_SETTINGS_KEY = 'visual_settings';
+  let activeVisualSettings: VisualSettings = { ...VISUAL_DEFAULTS };
 
   // Helper: shape a DB row into the legacy client shape (flat fields, ms timestamps).
   const rowToBoard = (r: any) => r ? ({
@@ -350,12 +366,54 @@ async function startServer() {
     io.emit('boards_catalog_updated', { activeBoard: activeAdminBoard });
   };
 
+  async function loadVisualSettingsFromDB(): Promise<VisualSettings> {
+    if (!db || !schema?.appSetting) return activeVisualSettings;
+    const rows = await db.select().from(schema.appSetting).where(eq(schema.appSetting.key, VISUAL_SETTINGS_KEY)).limit(1);
+    if (rows[0]) {
+      activeVisualSettings = normalizeVisualSettings(rows[0].value);
+      return activeVisualSettings;
+    }
+
+    activeVisualSettings = normalizeVisualSettings(VISUAL_DEFAULTS);
+    try {
+      await db.insert(schema.appSetting).values({
+        key: VISUAL_SETTINGS_KEY,
+        value: activeVisualSettings,
+        updatedAt: new Date(),
+      });
+    } catch (err: any) {
+      if (isDev) log('visual settings default insert skipped:', err?.message);
+    }
+    return activeVisualSettings;
+  }
+
+  async function saveVisualSettingsToDB(settings: VisualSettings): Promise<VisualSettings> {
+    const next = normalizeVisualSettings(settings);
+    const updatedAt = new Date();
+    const [updated] = await db.update(schema.appSetting)
+      .set({ value: next, updatedAt })
+      .where(eq(schema.appSetting.key, VISUAL_SETTINGS_KEY))
+      .returning();
+    if (!updated) {
+      await db.insert(schema.appSetting).values({
+        key: VISUAL_SETTINGS_KEY,
+        value: next,
+        updatedAt,
+      });
+    }
+    activeVisualSettings = next;
+    return next;
+  }
+
   // Load active board from DB on startup so it survives restarts.
   if (db && schema) {
     try {
       const rows = await db.select().from(schema.adminBoard).where(eq(schema.adminBoard.isActive, true)).limit(1);
       if (rows[0]) activeAdminBoard = rowToBoard(rows[0]);
     } catch (e: any) { log('admin_board startup load failed:', e?.message); }
+    try {
+      await loadVisualSettingsFromDB();
+    } catch (e: any) { log('visual settings startup load failed:', e?.message); }
   }
 
   // SEC: Timing-safe string comparison to prevent token oracle attacks
@@ -369,10 +427,12 @@ async function startServer() {
     } catch { return false; }
   }
 
-  function requireAdmin(req: any, res: any, next: any) {
-    if (!ADMIN_TOKEN) return res.status(401).json({ error: 'Unauthorized' });
+  async function requireAdmin(req: any, res: any, next: any) {
     const provided = typeof req.headers['x-admin-token'] === 'string' ? req.headers['x-admin-token'] : '';
-    if (!safeEqual(provided, ADMIN_TOKEN)) return res.status(401).json({ error: 'Unauthorized' });
+    if (ADMIN_TOKEN && safeEqual(provided, ADMIN_TOKEN)) return next();
+    const sessionUser = await getSessionUser(req);
+    const role = String(sessionUser?.role ?? '');
+    if (!sessionUser || !['admin', 'moderator'].includes(role)) return res.status(401).json({ error: 'Unauthorized' });
     next();
   }
 
@@ -505,6 +565,42 @@ async function startServer() {
     res.json({ board: activeAdminBoard });
   });
 
+  // Public visual settings. Falls back to the cached/default settings if the DB
+  // is temporarily unavailable so the landing page can still render.
+  app.get('/api/visual-settings', async (_req, res) => {
+    try {
+      const settings = await loadVisualSettingsFromDB();
+      res.json({ settings });
+    } catch (e: any) {
+      if (isDev) log('visual settings public load failed:', e?.message);
+      res.json({ settings: activeVisualSettings });
+    }
+  });
+
+  app.get('/api/admin/visual-settings', requireAdmin, async (_req, res) => {
+    if (!requireDB(res)) return;
+    try {
+      const settings = await loadVisualSettingsFromDB();
+      res.json({ settings });
+    } catch (e: any) {
+      log('admin visual settings load failed:', e?.message);
+      res.status(500).json({ error: 'Failed to load visual settings' });
+    }
+  });
+
+  app.patch('/api/admin/visual-settings', requireAdmin, async (req, res) => {
+    if (!requireDB(res)) return;
+    try {
+      const settings = normalizeVisualSettings(req.body?.settings ?? req.body);
+      const saved = await saveVisualSettingsToDB(settings);
+      io.emit('visual_settings_updated', { settings: saved });
+      res.json({ success: true, settings: saved });
+    } catch (e: any) {
+      log('admin visual settings save failed:', e?.message);
+      res.status(500).json({ error: 'Failed to save visual settings' });
+    }
+  });
+
   // SEC-02: Simple per-IP rate limiter factory — creates isolated limiters per endpoint
   function makeRateLimiter(maxRequests: number, windowMs: number) {
     const map = new Map<string, number[]>();
@@ -537,7 +633,12 @@ async function startServer() {
   }
 
   function emitRoomUpdate(roomId: string, room: RoomData) {
-    io.to(roomId).emit("room_updated", { players: room.players, settings: room.settings });
+    const players = room.players.map((p: any) => {
+      const socketKey = p.originalId || p.id;
+      const gamePlayerId = room.socketToGamePlayerId?.[socketKey];
+      return gamePlayerId === undefined ? p : { ...p, gamePlayerId };
+    });
+    io.to(roomId).emit("room_updated", { players, settings: room.settings });
   }
 
   function generateBotLobbyName(room: RoomData, indexHint = room.players.length): string {
@@ -789,6 +890,14 @@ async function startServer() {
     return publicRooms;
   }
 
+  function generateRoomId(): string {
+    for (let i = 0; i < 10; i++) {
+      const roomId = randomBytes(3).toString('hex').toUpperCase();
+      if (!rooms.has(roomId)) return roomId;
+    }
+    throw new Error('Unable to allocate a unique room ID');
+  }
+
   // REST API: List active public rooms
   app.get("/api/rooms", (req, res) => {
     res.json(getPublicRoomsList());
@@ -800,7 +909,7 @@ async function startServer() {
     if (isRoomCreateRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many requests. Please wait.' });
     const data = req.body;
     // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
-    const roomId = randomBytes(3).toString('hex').toUpperCase();
+    const roomId = generateRoomId();
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const safeImg = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
     const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg(data.profileImage), isHost: true };
@@ -869,7 +978,7 @@ async function startServer() {
       res.json({ success: true, roomId: targetRoomId, playerId, players: room.players, settings: room.settings });
     } else {
       // Create a new room
-      const roomId = randomBytes(3).toString('hex').toUpperCase();
+      const roomId = generateRoomId();
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const safeImg3 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
       const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg3(data.profileImage), isHost: true };
@@ -1246,11 +1355,9 @@ async function startServer() {
 
       chatHistory.push({ t: now, msg: broken });
 
-      // SEC-4: HTML-escape before broadcast.
-      const safeText = escapeHtml(broken);
-      if (!safeText) return;
+      if (!broken) return;
       // SEC: Use server clock, not client-supplied time, so clients can't backdate or spoof ordering.
-      io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: safeText, time: now });
+      io.to(roomId).emit("chat_message", { sender: chatPlayer.name, text: broken, time: now });
     });
 
     // SEC-05 / CQ-8: Allowlist lives in services/actionPolicy.ts — shared with App.tsx host gate.
@@ -1337,7 +1444,13 @@ async function startServer() {
               }
             }
           }
-          io.to(room.host).emit("host_process_action", { ...data, _senderId: socket.id });
+          const payloadWithActor =
+            data?.payload && typeof data.payload === 'object'
+              ? { ...data.payload, senderPlayerId: senderGamePlayerId }
+              : senderGamePlayerId !== undefined
+                ? { senderPlayerId: senderGamePlayerId }
+                : data?.payload;
+          io.to(room.host).emit("host_process_action", { ...data, payload: payloadWithActor, _senderId: socket.id });
         }
       }
     });
@@ -1462,16 +1575,6 @@ async function startServer() {
   // ─── Store API (only when DB is available) ───────────────────────────────────
   if (hasDB && db) {
 
-  // Helper: get authed user from request via Better Auth session cookie.
-  async function getSessionUser(req: any) {
-    try {
-      const session = await auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
-      return session?.user ?? null;
-    } catch {
-      return null;
-    }
-  }
-
   app.get('/api/store/items', async (_req, res) => {
     try {
       const items = await db.select().from(schema.storeItem).where(eq(schema.storeItem.active, true));
@@ -1482,6 +1585,9 @@ async function startServer() {
   });
 
   app.get('/api/store/inventory/:userId', async (req, res) => {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    if (sessionUser.id !== req.params.userId) return res.status(403).json({ error: 'Forbidden' });
     try {
       const purchases = await db
         .select({ itemId: schema.purchase.itemId })
@@ -1703,6 +1809,7 @@ async function startServer() {
       ['trade_history', schema.tradeHistory],
       ['audit_log', schema.auditLog],
       ['admin_board', schema.adminBoard],
+      ['app_setting', schema.appSetting],
       ['achievements', schema.achievements],
       ['user_achievements', schema.userAchievements],
     ];
@@ -1991,6 +2098,7 @@ async function startServer() {
   app.post('/api/profile/stats', async (req, res) => {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(410).json({ error: 'Client-submitted profile stats are disabled. Results must be recorded by the game server.' });
     const {
       gamesPlayed = 0, gamesWon = 0, gamesLost = 0,
       totalEarnings = 0, propertiesBought = 0,
@@ -2027,6 +2135,7 @@ async function startServer() {
   app.post('/api/profile/win-coin', async (req, res) => {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(410).json({ error: 'Client-submitted win rewards are disabled. Results must be recorded by the game server.' });
     if (isWinCoinRateLimited(sessionUser.id)) return res.status(429).json({ error: 'Too many requests.' });
     try {
       const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));

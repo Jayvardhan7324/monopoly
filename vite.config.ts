@@ -11,7 +11,19 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
       },
-      plugins: [react(), tailwindcss()],
+      plugins: [
+        react(),
+        tailwindcss(),
+        {
+          name: 'cloudflare-rocket-loader-opt-out',
+          transformIndexHtml(html) {
+            return html.replace(
+              /<script(?![^>]*\bdata-cfasync=)([^>]*\btype="module"[^>]*)>/g,
+              '<script data-cfasync="false"$1>'
+            );
+          },
+        },
+      ],
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
