@@ -252,7 +252,7 @@
       100dvh,
       calc(100vw - var(--game-row-sidebar-min) - var(--game-row-sidebar-min))
     );
-    display: grid;
+    display: grid !important;
     grid-template-columns:
       minmax(var(--game-row-sidebar-min), 1fr)
       minmax(0, var(--game-row-board-size))
@@ -283,6 +283,18 @@
   .group[data-layout="stacked"] .game-board-frame {
     width: min(100%, calc(100vw - 0.75rem), calc(100dvh - 5.5rem));
     max-height: calc(100dvh - 5.5rem);
+  }
+
+  .game-table-shell[data-layout="stacked"] > .game-board-column {
+    order: 1;
+  }
+
+  .game-table-shell[data-layout="stacked"] > .game-mobile-ad {
+    order: 2;
+  }
+
+  .game-table-shell[data-layout="stacked"] > .game-sidebar {
+    order: 3;
   }
 
   .game-table-shell[data-layout="row"] .game-board-frame {

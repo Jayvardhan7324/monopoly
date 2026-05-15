@@ -2658,7 +2658,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         )}
 
         {/* Left Column: Share, Ad & Chat */}
-          <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-1">
+          <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3 group-data-[layout=row]:order-1">
           {renderShareBox(false)}
 
           {/* Ad Banner Space — desktop only; mobile version sits below board */}
@@ -2674,7 +2674,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         </div>
 
         {/* Center Column: Board */}
-        <div className="game-board-column flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2">
+        <div className="game-board-column flex w-full group-data-[layout=row]:flex-1 flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
           <div className="game-board-stage w-full max-w-[calc(100vw-0.75rem)] sm:max-w-[660px] group-data-[layout=row]:max-w-none group-data-[layout=row]:w-full group-data-[layout=row]:h-full flex items-center justify-center mx-auto">
             <Board gameState={lobbyPreviewState} onTileClick={() => { }}>
               <div className="flex-1 flex flex-col items-center justify-center gap-6">
@@ -2818,7 +2818,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
         </div>
 
         {/* Ad Banner — mobile only, below board */}
-        <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-16">
+        <div className="game-mobile-ad sm:hidden order-2 bg-[#1e1e24] border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-16">
           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
           <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
         </div>
@@ -2949,7 +2949,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Left Column: Share, Ad Banner & Chat */}
-      <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-1">
+      <div className="game-sidebar w-full group-data-[layout=row]:w-64 flex flex-col gap-2 sm:gap-4 shrink-0 z-10 group-data-[layout=row]:h-full order-3 group-data-[layout=row]:order-1">
         {isOnline && renderShareBox(true)}
 
         {/* Ad Banner Space — desktop only; mobile version sits below board */}
@@ -3049,7 +3049,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Center Column: Board Preview */}
-      <div className="game-board-column w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-2">
+      <div className="game-board-column w-full group-data-[layout=row]:flex-1 flex flex-col items-center justify-center relative z-10 group-data-[layout=row]:overflow-hidden group-data-[layout=row]:h-full p-0 order-1 group-data-[layout=row]:order-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -3087,7 +3087,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       </div>
 
       {/* Ad Banner — mobile only, below board */}
-      <div className="sm:hidden order-3 bg-[#1e1e24] border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-16">
+      <div className="game-mobile-ad sm:hidden order-2 bg-[#1e1e24] border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group min-h-16">
         <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 opacity-50 group-hover:opacity-100 transition-opacity" />
         <span className="text-slate-500 font-black uppercase tracking-[0.2em] text-xs text-center relative z-10">Advertisement<br />Space</span>
       </div>
