@@ -875,16 +875,10 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
     return () => clearTimeout(timer);
   }, [
-    gameState.phase,
-    gameState.currentPlayerIndex,
+    gameState,
     gameStarted,
-    gameState.winnerId,
     isOnline,
     isHost,
-    gameState.turnLogs.length,
-    // NOTE: pendingTrade deliberately excluded — trade resolution resets the roll
-    // timer causing bots to freeze. getBotAction reads pendingTrade from gameState
-    // directly at fire-time, so removing it from deps is safe.
   ]);
 
   // ── Bot ROLL watchdog: hard guarantee bot always rolls within 2 seconds ─────
@@ -942,10 +936,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
 
     return () => clearTimeout(watchdog);
   }, [
-    gameState.phase,
-    gameState.currentPlayerIndex,
+    gameState,
     gameStarted,
-    gameState.winnerId,
     isOnline,
     isHost,
   ]);
