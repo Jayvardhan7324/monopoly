@@ -101,10 +101,15 @@ function Root() {
   }, [navigate]);
 
   const refreshSession = useCallback(async () => {
-    const { data } = await authClient.getSession();
-    const normalized = normalizeSession(data);
-    setSessionData(normalized);
-    return normalized;
+    try {
+      const { data } = await authClient.getSession();
+      const normalized = normalizeSession(data);
+      setSessionData(normalized);
+      return normalized;
+    } catch {
+      setSessionData(null);
+      return null;
+    }
   }, []);
 
   // Initial session load — Better Auth uses cookie-based sessions so a single

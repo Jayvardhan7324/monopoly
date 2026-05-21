@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import * as CANNON from 'cannon-es';
 import { createDiceMesh } from '../lib/dice3d';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface DiceProps {
   value: number;
@@ -10,12 +11,57 @@ interface DiceProps {
   index?: number;
 }
 
+const PIP_POSITIONS: Record<number, string[]> = {
+  1: ['center'],
+  2: ['top-left', 'bottom-right'],
+  3: ['top-left', 'center', 'bottom-right'],
+  4: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+  5: ['top-left', 'top-right', 'center', 'bottom-left', 'bottom-right'],
+  6: ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right'],
+};
+
+const PIP_CLASSES: Record<string, string> = {
+  'top-left': 'left-[24%] top-[24%]',
+  'top-right': 'right-[24%] top-[24%]',
+  'middle-left': 'left-[24%] top-1/2 -translate-y-1/2',
+  'middle-right': 'right-[24%] top-1/2 -translate-y-1/2',
+  center: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+  'bottom-left': 'left-[24%] bottom-[24%]',
+  'bottom-right': 'right-[24%] bottom-[24%]',
+};
+
+const StaticDiceFace: React.FC<{ value: number; size: number }> = ({ value, size }) => {
+  const normalizedValue = Number.isInteger(value) && value >= 1 && value <= 6 ? value : 1;
+  const pipSize = Math.max(6, Math.round(size * 0.095));
+  return (
+    <div
+      className="relative rounded-[18%] border border-white/50 bg-gradient-to-br from-white via-indigo-100 to-indigo-300 shadow-[0_18px_45px_rgba(15,23,42,0.28),inset_0_1px_0_rgba(255,255,255,0.9)]"
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label={`Dice showing ${normalizedValue}`}
+    >
+      {PIP_POSITIONS[normalizedValue].map((position, i) => (
+        <span
+          key={`${position}-${i}`}
+          className={`absolute rounded-full bg-slate-950 shadow-[0_1px_2px_rgba(15,23,42,0.4)] ${PIP_CLASSES[position]}`}
+          style={{ width: pipSize, height: pipSize }}
+        />
+      ))}
+    </div>
+  );
+};
+
 export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 100, index = 0 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [sceneState, setSceneState] = useState<{ body: CANNON.Body, world: CANNON.World } | null>(null);
+  const reducedMotion = useReducedMotion();
 
   useEffect(() => {
     if (!mountRef.current) return;
+    if (reducedMotion) {
+      setSceneState(null);
+      return;
+    }
     const width = size;
     const height = size;
 
@@ -32,7 +78,8 @@ export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 100, index 
     const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
     renderer.setSize(width, height);
     renderer.shadowMap.enabled = true;
-    renderer.setPixelRatio(window.devicePixelRatio);
+    const isMobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobile ? 1.5 : 2));
     mountRef.current.appendChild(renderer.domElement);
 
     // Set up Lights
@@ -102,10 +149,10 @@ export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 100, index 
       world.removeBody(body);
       world.removeBody(floorBody);
     };
-  }, [size]);
+  }, [size, reducedMotion]);
 
   useEffect(() => {
-    if (!sceneState) return;
+    if (!sceneState || reducedMotion) return;
     const { body } = sceneState;
 
     if (isRolling) {
@@ -142,12 +189,14 @@ export const Dice: React.FC<DiceProps> = ({ value, isRolling, size = 100, index 
       const finalQuat = yawQuat.mult(baseQuat);
       body.quaternion.set(finalQuat.x, finalQuat.y, finalQuat.z, finalQuat.w);
     }
-  }, [isRolling, value, sceneState, index]);
+  }, [isRolling, value, sceneState, index, reducedMotion]);
   return (
     <div
       ref={mountRef}
       className="flex items-center justify-center transition-transform"
       style={{ width: size, height: size }}
-    />
+    >
+      {reducedMotion && <StaticDiceFace value={value} size={size} />}
+    </div>
   );
 };

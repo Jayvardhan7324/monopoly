@@ -35,6 +35,7 @@ import {
   subscribeToVisualSettings,
   type VisualSettings,
 } from './services/visualSettings';
+import { useReducedMotion } from './hooks/useReducedMotion';
 
 const Controls = lazy(() => import('./components/Controls').then(m => ({ default: m.Controls })));
 const PropertyModal = lazy(() => import('./components/PropertyModal').then(m => ({ default: m.PropertyModal })));
@@ -167,6 +168,7 @@ function HomeGlow() {
 function HomeParticles() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sRef = useRef<VisualSettings>(loadCachedVisualSettings());
+  const reducedMotion = useReducedMotion();
   useEffect(() => {
     return subscribeToVisualSettings((settings) => { sRef.current = settings; });
   }, []);
@@ -175,12 +177,20 @@ function HomeParticles() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    if (reducedMotion) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
     let raf: number;
     let cssW = 0, cssH = 0;
+    let isMobile = false;
+    let lastFrame = 0;
     type P = { x: number; y: number; vx: number; baseVy: number; baseSize: number; baseAlpha: number; rot: number; rotV: number };
     const particles: P[] = [];
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      isMobile = window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+      const maxDpr = isMobile ? 1.5 : 2;
+      const dpr = Math.min(window.devicePixelRatio || 1, maxDpr);
       const rect = canvas.getBoundingClientRect();
       cssW = rect.width || window.innerWidth;
       cssH = rect.height || Math.round(window.innerHeight * 0.72);
@@ -214,11 +224,16 @@ function HomeParticles() {
       }
       ctx.restore();
     };
-    const tick = () => {
+    const tick = (now = 0) => {
+      raf = requestAnimationFrame(tick);
+      const frameMs = isMobile ? 1000 / 30 : 1000 / 60;
+      if (now - lastFrame < frameMs) return;
+      lastFrame = now;
       const s = sRef.current;
+      const targetCount = isMobile ? Math.min(s.particleCount, 120) : s.particleCount;
       ctx.clearRect(0, 0, cssW, cssH);
-      while (particles.length < s.particleCount) particles.push(spawn());
-      while (particles.length > s.particleCount) particles.pop();
+      while (particles.length < targetCount) particles.push(spawn());
+      while (particles.length > targetCount) particles.pop();
       const fadeStart = s.particleFadeZone * cssH;
       const fadeEnd = fadeStart + cssH * 0.10;
       for (let i = particles.length - 1; i >= 0; i--) {
@@ -240,11 +255,11 @@ function HomeParticles() {
           ctx.fillStyle = `rgba(255,255,255,${alpha})`; ctx.fill();
         }
       }
-      raf = requestAnimationFrame(tick);
     };
     tick();
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
-  }, []);
+  }, [reducedMotion]);
+  if (reducedMotion) return null;
   return (
     <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '72dvh', pointerEvents: 'none', zIndex: 0 }} />
   );

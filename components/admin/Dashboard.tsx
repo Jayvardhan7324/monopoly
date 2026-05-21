@@ -51,6 +51,14 @@ const PLACEMENT_LABELS: Record<string, string> = {
   profile_top: 'Profile — Top of Page',
 };
 
+const isHttpsUrl = (value: string) => {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
 interface UserRow {
   id: string; name: string; email: string; role: string | null;
   banned: boolean | null; banReason: string | null; createdAt: string | null; coins: number;
@@ -357,16 +365,24 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
   const saveAd = async () => {
     if (!adForm.name.trim()) { toast.error('Name required'); return; }
     if (!adForm.placement) { toast.error('Placement required'); return; }
-    if (!adForm.imageUrl.trim() && !adForm.htmlSnippet.trim()) {
-      toast.error('Provide either an image URL or HTML snippet');
+    if (!adForm.imageUrl.trim()) {
+      toast.error('Provide an HTTPS image URL');
+      return;
+    }
+    if (!isHttpsUrl(adForm.imageUrl.trim())) {
+      toast.error('Image URL must be a valid https:// URL');
+      return;
+    }
+    if (adForm.linkUrl.trim() && !isHttpsUrl(adForm.linkUrl.trim())) {
+      toast.error('Click-through URL must be a valid https:// URL');
       return;
     }
     const body: Record<string, any> = {
       name: adForm.name,
       placement: adForm.placement,
-      imageUrl: adForm.imageUrl || null,
-      linkUrl: adForm.linkUrl || null,
-      htmlSnippet: adForm.htmlSnippet || null,
+      imageUrl: adForm.imageUrl.trim(),
+      linkUrl: adForm.linkUrl.trim() || null,
+      htmlSnippet: null,
       altText: adForm.altText || null,
       weight: Number(adForm.weight) || 1,
       enabled: adForm.enabled,
@@ -1253,17 +1269,9 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                       <label className="text-xs text-muted-foreground mb-1 block font-medium">Alt text</label>
                       <Input value={adForm.altText} onChange={e => setAdForm(f => ({ ...f, altText: e.target.value }))} placeholder="Accessibility text" />
                     </div>
-                    <div className="md:col-span-2">
-                      <label className="text-xs text-muted-foreground mb-1 block font-medium flex items-center gap-1.5">
-                        <Code2 className="h-3 w-3" /> HTML snippet (overrides image — for ad networks like AdSense)
-                      </label>
-                      <textarea
-                        value={adForm.htmlSnippet}
-                        onChange={e => setAdForm(f => ({ ...f, htmlSnippet: e.target.value }))}
-                        placeholder="<script>… or <ins class=&quot;adsbygoogle&quot; …>"
-                        rows={3}
-                        className="w-full px-3 py-2 text-xs font-mono bg-background border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-                      />
+                    <div className="md:col-span-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                      <Code2 className="h-3 w-3 inline mr-1.5" />
+                      HTML ad snippets are disabled for launch. Use HTTPS image creatives only.
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground mb-1 block font-medium">Weight (rotation)</label>
@@ -1289,15 +1297,10 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                   </div>
 
                   {/* Live preview */}
-                  {(adForm.imageUrl || adForm.htmlSnippet) && (
+                  {adForm.imageUrl && isHttpsUrl(adForm.imageUrl) && (
                     <div className="mb-3 rounded-lg border border-dashed border-border p-3 bg-background/40">
                       <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2 font-semibold">Live preview</p>
-                      {adForm.imageUrl && !adForm.htmlSnippet && (
-                        <img src={adForm.imageUrl} alt={adForm.altText} className="max-h-32 rounded" />
-                      )}
-                      {adForm.htmlSnippet && (
-                        <div className="text-xs text-muted-foreground italic">HTML snippet preview disabled in admin (renders live on the site).</div>
-                      )}
+                      <img src={adForm.imageUrl} alt={adForm.altText} className="max-h-32 rounded" />
                     </div>
                   )}
 
@@ -1333,8 +1336,6 @@ const Dashboard: React.FC<Props> = ({ token, onLogout }) => {
                             <div className="shrink-0 h-20 w-28 rounded-md border border-border bg-muted/30 overflow-hidden flex items-center justify-center">
                               {ad.imageUrl ? (
                                 <img src={ad.imageUrl} alt={ad.altText || ad.name} className="h-full w-full object-cover" />
-                              ) : ad.htmlSnippet ? (
-                                <Code2 className="h-6 w-6 text-muted-foreground" />
                               ) : (
                                 <ImageIcon className="h-6 w-6 text-muted-foreground/40" />
                               )}

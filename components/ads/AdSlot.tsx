@@ -40,24 +40,13 @@ const AdSlot: React.FC<Props> = ({ placement, className = '', debug = false }) =
     trackAd(ad.id, 'click');
   };
 
-  if (ad.htmlSnippet) {
-    return (
-      <iframe
-        className={`ad-slot w-full border-0 ${className}`}
-        data-placement={placement}
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-        referrerPolicy="strict-origin-when-cross-origin"
-        srcDoc={ad.htmlSnippet}
-        title={ad.name}
-        loading="lazy"
-      />
-    );
-  }
+  const safeImageUrl = toHttpsUrl(ad.imageUrl);
+  const safeLinkUrl = toHttpsUrl(ad.linkUrl);
 
-  if (ad.imageUrl) {
+  if (safeImageUrl) {
     const img = (
       <img
-        src={ad.imageUrl}
+        src={safeImageUrl}
         alt={ad.altText || ad.name}
         loading="lazy"
         className="block w-full h-full object-contain rounded-md"
@@ -65,9 +54,9 @@ const AdSlot: React.FC<Props> = ({ placement, className = '', debug = false }) =
     );
     return (
       <div className={`ad-slot ${className}`} data-placement={placement}>
-        {ad.linkUrl ? (
+        {safeLinkUrl ? (
           <a
-            href={ad.linkUrl}
+            href={safeLinkUrl}
             target="_blank"
             rel="noopener noreferrer sponsored"
             onClick={handleClick}
@@ -82,5 +71,15 @@ const AdSlot: React.FC<Props> = ({ placement, className = '', debug = false }) =
 
   return null;
 };
+
+function toHttpsUrl(value: string | null | undefined): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
 
 export default AdSlot;

@@ -228,9 +228,8 @@ export const adminBoard = pgTable("admin_board", {
 // ── Ads ───────────────────────────────────────────────────────────────────────
 // Lightweight ad records the admin panel can manage. Each row is one creative
 // pinned to a placement slot (header, footer, lobby_top, lobby_side, etc.).
-// Either render `imageUrl` (clickable through `linkUrl`) or, for ad networks,
-// drop in a raw `htmlSnippet` (e.g. an AdSense block). Empty placements just
-// render nothing on the client.
+// Production rendering only allows HTTPS image creatives. `htmlSnippet` is kept
+// for old rows/migration compatibility, but the server rejects and hides it.
 export const ad = pgTable("ad", {
   id:          text("id").primaryKey().$defaultFn(() => randomUUID()),
   name:        text("name").notNull(),

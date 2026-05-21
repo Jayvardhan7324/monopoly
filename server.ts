@@ -112,6 +112,22 @@ function sanitizeRoomSettings(input: any, current = DEFAULT_ROOM_SETTINGS) {
 }
 
 async function startServer() {
+  // ── Programmatic env loading ────────────────────────────────────────────────
+  // Node.js v20.12.0+ native env file loading. Skip if DATABASE_URL is already
+  // injected by the environment (e.g. in production), or if the .env file is missing.
+  if (!process.env.DATABASE_URL) {
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+      const envPath = path.resolve(process.cwd(), ".env");
+      if (fs.existsSync(envPath)) {
+        // @ts-ignore
+        process.loadEnvFile(envPath);
+      }
+    } catch (e: any) {
+      console.warn("[WARN] Could not load .env programmatically:", e?.message);
+    }
+  }
   // ── Startup env validation ──────────────────────────────────────────────────
   const isProd = process.env.NODE_ENV === 'production';
   const missingCritical: string[] = [];
@@ -266,12 +282,35 @@ async function startServer() {
     pathModule.default.resolve(process.cwd(), "assets")
   ));
 
+  const REQUIRED_DB_TABLES = [
+    'user', 'session', 'account', 'verification',
+    'store_item', 'purchase', 'user_stats', 'bug_report',
+    'friendships', 'game_history', 'trade_history', 'audit_log',
+    'admin_board', 'app_setting', 'ad',
+  ];
+
   app.get("/api/health", async (_req, res) => {
     if (db && sql) {
       try {
         await db.execute(sql`SELECT 1`);
-        res.json({ status: "ok", db: "ok" });
-      } catch {
+        const missingTables: string[] = [];
+        for (const table of REQUIRED_DB_TABLES) {
+          const qualified = table === 'user' ? 'public."user"' : `public.${table}`;
+          const probe = await db.execute(sql`select to_regclass(${qualified}) as table_oid`);
+          if (!probe?.rows?.[0]?.table_oid) missingTables.push(table);
+        }
+        if (missingTables.length) {
+          return res.status(503).json({
+            status: "ok",
+            db: "ok",
+            schema: "missing",
+            missingTables,
+            migrationCommand: "npm run db:push",
+          });
+        }
+        res.json({ status: "ok", db: "ok", schema: "ok" });
+      } catch (err: any) {
+        if (isDev) log('[health] DB check failed:', err?.message ?? err);
         res.status(503).json({ status: "ok", db: "unreachable" });
       }
     } else {
@@ -410,10 +449,10 @@ async function startServer() {
     try {
       const rows = await db.select().from(schema.adminBoard).where(eq(schema.adminBoard.isActive, true)).limit(1);
       if (rows[0]) activeAdminBoard = rowToBoard(rows[0]);
-    } catch (e: any) { log('admin_board startup load failed:', e?.message); }
+    } catch (e: any) { console.warn('[startup] admin_board load skipped:', e?.message ?? e); }
     try {
       await loadVisualSettingsFromDB();
-    } catch (e: any) { log('visual settings startup load failed:', e?.message); }
+    } catch (e: any) { console.warn('[startup] visual settings load skipped:', e?.message ?? e); }
   }
 
   // SEC: Timing-safe string comparison to prevent token oracle attacks
@@ -454,6 +493,12 @@ async function startServer() {
     if (!db || !schema) { res.status(503).json({ error: 'Database not configured' }); return false; }
     return true;
   };
+  const sendDatabaseNotReady = (res: any, context: string, err: any) => {
+    console.warn(`[${context}] Database unavailable or schema not ready:`, err?.message ?? err);
+    res.status(503).json({
+      error: 'Database unavailable or schema not ready. Run npm run db:push and verify /api/health before using this admin feature.',
+    });
+  };
 
   app.get('/api/admin/boards', requireAdmin, async (_req, res) => {
     if (!requireDB(res)) return;
@@ -464,8 +509,7 @@ async function startServer() {
         activeBoard: activeAdminBoard,
       });
     } catch (e: any) {
-      log('admin boards list failed:', e?.message);
-      res.status(500).json({ error: 'Failed to load boards' });
+      sendDatabaseNotReady(res, 'admin boards list', e);
     }
   });
 
@@ -485,8 +529,7 @@ async function startServer() {
       broadcastBoardsCatalog();
       res.json({ success: true, board: rowToBoard(row) });
     } catch (e: any) {
-      log('admin board save failed:', e?.message);
-      res.status(500).json({ error: 'Failed to save board' });
+      sendDatabaseNotReady(res, 'admin board save', e);
     }
   });
 
@@ -507,8 +550,7 @@ async function startServer() {
       broadcastBoardsCatalog();
       res.json({ success: true, board: rowToBoard(row) });
     } catch (e: any) {
-      log('admin board update failed:', e?.message);
-      res.status(500).json({ error: 'Failed to update board' });
+      sendDatabaseNotReady(res, 'admin board update', e);
     }
   });
 
@@ -534,8 +576,7 @@ async function startServer() {
       broadcastBoardsCatalog();
       res.json({ success: true });
     } catch (e: any) {
-      log('admin board delete failed:', e?.message);
-      res.status(500).json({ error: 'Failed to delete board' });
+      sendDatabaseNotReady(res, 'admin board delete', e);
     }
   });
 
@@ -555,8 +596,7 @@ async function startServer() {
       log(`Admin pushed board "${row.name}" to all clients.`);
       res.json({ success: true });
     } catch (e: any) {
-      log('admin board push failed:', e?.message);
-      res.status(500).json({ error: 'Failed to push board' });
+      sendDatabaseNotReady(res, 'admin board push', e);
     }
   });
 
@@ -583,8 +623,7 @@ async function startServer() {
       const settings = await loadVisualSettingsFromDB();
       res.json({ settings });
     } catch (e: any) {
-      log('admin visual settings load failed:', e?.message);
-      res.status(500).json({ error: 'Failed to load visual settings' });
+      sendDatabaseNotReady(res, 'admin visual settings load', e);
     }
   });
 
@@ -596,8 +635,7 @@ async function startServer() {
       io.emit('visual_settings_updated', { settings: saved });
       res.json({ success: true, settings: saved });
     } catch (e: any) {
-      log('admin visual settings save failed:', e?.message);
-      res.status(500).json({ error: 'Failed to save visual settings' });
+      sendDatabaseNotReady(res, 'admin visual settings save', e);
     }
   });
 
@@ -1938,6 +1976,26 @@ async function startServer() {
     'global_header', 'global_footer',
     'store_top', 'profile_top',
   ]);
+  const AD_URL_MAX_LENGTH = 1000;
+
+  function normalizeHttpsUrl(value: unknown): string | null {
+    if (value === null || value === undefined || value === '') return null;
+    const raw = String(value).trim();
+    if (!raw || raw.length > AD_URL_MAX_LENGTH) return null;
+    try {
+      const url = new URL(raw);
+      return url.protocol === 'https:' ? url.toString() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function sanitizeHttpsAdUrl(value: unknown, field: string): { value: string | null; error?: string } {
+    if (value === null || value === undefined || value === '') return { value: null };
+    const normalized = normalizeHttpsUrl(value);
+    if (!normalized) return { value: null, error: `${field} must be a valid https:// URL.` };
+    return { value: normalized };
+  }
 
   // Public — only enabled + within window. Grouped by placement for cheap lookup.
   app.get('/api/ads', async (_req, res) => {
@@ -1955,10 +2013,12 @@ async function startServer() {
       });
       const grouped: Record<string, any[]> = {};
       for (const r of visible) {
+        const imageUrl = normalizeHttpsUrl(r.imageUrl);
+        if (!imageUrl) continue;
         (grouped[r.placement] ||= []).push({
           id: r.id, name: r.name, placement: r.placement,
-          imageUrl: r.imageUrl, linkUrl: r.linkUrl,
-          htmlSnippet: r.htmlSnippet, altText: r.altText,
+          imageUrl, linkUrl: normalizeHttpsUrl(r.linkUrl),
+          htmlSnippet: null, altText: r.altText,
           weight: r.weight,
         });
       }
@@ -1995,9 +2055,22 @@ async function startServer() {
       if (!AD_PLACEMENTS.has(String(body.placement))) return { error: 'Invalid placement' };
       out.placement = String(body.placement);
     }
-    if (body.imageUrl !== undefined) out.imageUrl = body.imageUrl ? String(body.imageUrl).slice(0, 1000) : null;
-    if (body.linkUrl !== undefined) out.linkUrl = body.linkUrl ? String(body.linkUrl).slice(0, 1000) : null;
-    if (body.htmlSnippet !== undefined) out.htmlSnippet = body.htmlSnippet ? String(body.htmlSnippet).slice(0, 4000) : null;
+    if (body.imageUrl !== undefined) {
+      const result = sanitizeHttpsAdUrl(body.imageUrl, 'imageUrl');
+      if (result.error) return { error: result.error };
+      out.imageUrl = result.value;
+    }
+    if (body.linkUrl !== undefined) {
+      const result = sanitizeHttpsAdUrl(body.linkUrl, 'linkUrl');
+      if (result.error) return { error: result.error };
+      out.linkUrl = result.value;
+    }
+    if (body.htmlSnippet !== undefined) {
+      if (String(body.htmlSnippet ?? '').trim()) {
+        return { error: 'HTML ad snippets are disabled for launch. Use an https:// image creative instead.' };
+      }
+      out.htmlSnippet = null;
+    }
     if (body.altText !== undefined) out.altText = body.altText ? String(body.altText).slice(0, 200) : null;
     if (body.weight !== undefined) {
       const w = Number(body.weight);

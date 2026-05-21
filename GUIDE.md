@@ -12,17 +12,17 @@ Your Dokploy env as pasted has **three blockers** that will prevent the app from
 
 Your current value:
 ```
-DATABASE_URL=postgresql://idkman:Narayana@123@monopoly-cashlydb-tvgpgl:5432/cashly-db
+DATABASE_URL=postgresql://<user>:<raw-password>@<internal-db-host>:5432/<database>
 ```
 
-Postgres URL parsers see the first `@` (inside `Narayana@123`) as the username/host separator. That's why the app can't reach the database — and that causes the 502 you're seeing (Express never finishes booting, so Traefik has no upstream → 502 + missing favicon).
+Postgres URL parsers see an unencoded `@` inside the password as the username/host separator. That's why the app can't reach the database — and that causes the 502 you're seeing (Express never finishes booting, so Traefik has no upstream → 502 + missing favicon).
 
 Change `@` → `%40`:
 ```
-DATABASE_URL=postgresql://idkman:Narayana%40123@monopoly-cashlydb-tvgpgl:5432/cashly-db
+DATABASE_URL=postgresql://<user>:<url-encoded-password>@<internal-db-host>:5432/<database>
 ```
 
-Even better — rotate the password to one without special characters (`@`, `:`, `/`, `?`, `#`, `%`, space). In Dokploy open `monopoly-cashlydb-tvgpgl` → Advanced → change password to something like `cashly_prod_a7f3k2m9p4q6w8r1`.
+Even better — rotate the password to one without special characters (`@`, `:`, `/`, `?`, `#`, `%`, space). In Dokploy open the Postgres service → Advanced → change password to a new strong value and then update `DATABASE_URL`.
 
 ### 🔴 Fix 2 — Generate a real `BETTER_AUTH_SECRET`
 
@@ -85,7 +85,7 @@ Paste this into Dokploy → `cashly-app` → **Environment**, filling the angle-
 # ── Database ────────────────────────────────────────────────────────────────
 # Use the INTERNAL connection URL from the Postgres service.
 # If your password contains @ : / ? # % or space, URL-encode it (@ → %40).
-DATABASE_URL=postgresql://idkman:Narayana%40123@monopoly-cashlydb-tvgpgl:5432/cashly-db
+DATABASE_URL=postgresql://<user>:<url-encoded-password>@<internal-db-host>:5432/<database>
 
 # ── Better Auth ─────────────────────────────────────────────────────────────
 # Generate with: openssl rand -base64 32
@@ -132,7 +132,7 @@ Remove `NODE_VERSION=20` from the env — Nixpacks controls Node via `nixpacks.t
 4. **Attach a domain** — Dokploy → App → Domains → add `cashly.yourdomain.com` → toggle HTTPS (Dokploy auto-provisions Let's Encrypt). DNS A record must already point at the Dokploy host.
 5. **Deploy** — wait for green.
 6. **Run the DB migration once** — App → Console → `npm run db:push`. Creates `user`, `session`, `account`, `verification`, and all app tables.
-7. **Health check** — `curl https://cashly.yourdomain.com/api/health` → `{"status":"ok"}`.
+7. **Health check** — `curl https://cashly.yourdomain.com/api/health` → `{"status":"ok","db":"ok","schema":"ok"}`.
 8. **Sign up normally** through the app's login page.
 9. **Promote to admin** — Dokploy → Postgres service → Console:
    ```sql
@@ -212,6 +212,7 @@ Edit `db/schema.ts` locally → commit + push → after Dokploy redeploys → Ap
 | 502 at the root URL + favicon 404 | App never booted. Almost always `DATABASE_URL` parse error or missing `BETTER_AUTH_SECRET`. | Check App → Logs for `[FATAL]`. Fix env → redeploy. |
 | `[FATAL] Missing required env vars: DATABASE_URL` | Env var not set, or set but empty. | Paste the internal URL into Dokploy env → redeploy. |
 | DB connects but `db:push` hangs | Password special chars not URL-encoded. | Encode `@` → `%40`, or rotate to a simpler password. |
+| `/api/health` returns `schema:"missing"` | The app can connect to Postgres, but required tables are missing. | In the app console run `npm run db:push`, then re-check `/api/health`. |
 | Google sign-in bounces back to login | `BETTER_AUTH_URL` ≠ the origin in Google Console's redirect URI. | Make them byte-identical including scheme + no trailing slash. |
 | User signs in but is immediately signed out | `BETTER_AUTH_URL` is `http://` while browser is on `https://` → secure-cookie mismatch. | Set `BETTER_AUTH_URL=https://…`. |
 | `/__sys` returns 401 even with correct creds | `ADMIN_TOKEN` / `ADMIN_USERNAME` / `ADMIN_PASSWORD` not all three set. | Set all three → redeploy. |
@@ -228,7 +229,7 @@ openssl rand -base64 32           # → BETTER_AUTH_SECRET
 openssl rand -hex 32              # → ADMIN_TOKEN
 
 # 2. In Dokploy env, set (minimum):
-DATABASE_URL=postgresql://idkman:Narayana%40123@monopoly-cashlydb-tvgpgl:5432/cashly-db
+DATABASE_URL=postgresql://<user>:<url-encoded-password>@<internal-db-host>:5432/<database>
 BETTER_AUTH_SECRET=<secret from above>
 BETTER_AUTH_URL=https://cashly.yourdomain.com
 ALLOWED_ORIGINS=https://cashly.yourdomain.com
