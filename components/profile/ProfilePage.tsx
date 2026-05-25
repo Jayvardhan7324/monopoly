@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   Trophy, Coins, LogOut, Calendar, Gamepad2,
@@ -60,17 +60,34 @@ const ProfilePage: React.FC<Props> = ({ sessionData, onClose, onSignOut, onOpenF
   const [editName, setEditName] = useState(sessionData.user.name ?? '');
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
-  useEffect(() => {
+  const loadProfile = useCallback(() => {
+    setLoading(true);
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
       .then(data => { setProfile(data); setLoading(false); })
       .catch(() => setLoading(false));
+  }, [sessionData.user.id]);
 
+  useEffect(() => {
+    loadProfile();
     fetch('/api/friends', { credentials: 'include' })
       .then(r => r.ok ? r.json() : { friends: [] })
       .then(data => setFriends(data.friends ?? []))
       .catch(() => {});
-  }, [sessionData.user.id]);
+  }, [loadProfile]);
+
+  useEffect(() => {
+    const refreshProfile = (event: Event) => {
+      const userId = (event as CustomEvent<{ userId?: string }>).detail?.userId;
+      if (!userId || userId === sessionData.user.id) loadProfile();
+    };
+    window.addEventListener('cashly:profile-updated', refreshProfile);
+    window.addEventListener('focus', refreshProfile);
+    return () => {
+      window.removeEventListener('cashly:profile-updated', refreshProfile);
+      window.removeEventListener('focus', refreshProfile);
+    };
+  }, [loadProfile, sessionData.user.id]);
 
   const currentImage = profile?.image ?? sessionData.user.image;
   const currentName = profile?.name ?? sessionData.user.name;

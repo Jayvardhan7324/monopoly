@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { X, Trophy, Coins, LogOut, Calendar, Gamepad2, TrendingUp, Building2, Loader2, Pencil, Check, AlertCircle, Skull } from 'lucide-react';
 import { toast } from 'sonner';
@@ -28,12 +28,30 @@ const ProfileModal: React.FC<Props> = ({ sessionData, onClose, onSignOut, onProf
   const [editName, setEditName] = useState(sessionData.user.name ?? '');
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const loadProfile = useCallback(() => {
+    setLoading(true);
     fetch(`/api/profile/${sessionData.user.id}`, { credentials: 'include' })
       .then(r => { if (!r.ok) throw new Error('Failed'); return r.json(); })
       .then(data => { setProfile(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [sessionData.user.id]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    const refreshProfile = (event: Event) => {
+      const userId = (event as CustomEvent<{ userId?: string }>).detail?.userId;
+      if (!userId || userId === sessionData.user.id) loadProfile();
+    };
+    window.addEventListener('cashly:profile-updated', refreshProfile);
+    window.addEventListener('focus', refreshProfile);
+    return () => {
+      window.removeEventListener('cashly:profile-updated', refreshProfile);
+      window.removeEventListener('focus', refreshProfile);
+    };
+  }, [loadProfile, sessionData.user.id]);
 
   const currentImage = profile?.image ?? sessionData.user.image;
   const currentName = profile?.name ?? sessionData.user.name;

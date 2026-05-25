@@ -1,0 +1,28 @@
+{
+  "description": "Mobile share-flow assertions for TestSprite generated UI tests.",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "deviceScaleFactor": 2,
+    "isMobile": true
+  },
+  "steps": [
+    "Open the app at the configured base URL.",
+    "Create a private room.",
+    "Locate the Share this game panel.",
+    "Assert the room URL uses /room/{roomId}.",
+    "Assert documentElement.scrollWidth is not greater than clientWidth by more than 1px.",
+    "Tap the share/copy button.",
+    "Assert one of these visible states appears: Share sheet opened, Room link copied, Copied with fallback clipboard, or Select the link and copy it manually."
+  ],
+  "expectedVisibleText": [
+    "Share this game",
+    "Ready to invite players.",
+    "Copy"
+  ],
+  "fallbackVisibleText": [
+    "Room link copied.",
+    "Copied with fallback clipboard.",
+    "Select the link and copy it manually."
+  ]
+}

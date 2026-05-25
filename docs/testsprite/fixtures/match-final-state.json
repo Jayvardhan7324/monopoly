@@ -1,0 +1,83 @@
+{
+  "roomId": "TEST01",
+  "description": "Minimal completed game state fixture for server-result pipeline tests.",
+  "initialRoomPlayers": [
+    {
+      "id": "socket_host",
+      "originalId": "p_host",
+      "userId": "user_winner",
+      "name": "WinnerUser",
+      "isHost": true
+    },
+    {
+      "id": "socket_guest",
+      "originalId": "p_guest",
+      "userId": "user_loser",
+      "name": "LoserUser",
+      "isHost": false
+    }
+  ],
+  "socketToGamePlayerId": {
+    "p_host": 0,
+    "p_guest": 1
+  },
+  "finalState": {
+    "players": [
+      {
+        "id": 0,
+        "name": "WinnerUser",
+        "money": 2100,
+        "isBot": false,
+        "isBankrupt": false
+      },
+      {
+        "id": 1,
+        "name": "LoserUser",
+        "money": 0,
+        "isBot": false,
+        "isBankrupt": true
+      }
+    ],
+    "tiles": [
+      {
+        "id": 1,
+        "name": "Salvador",
+        "price": 60,
+        "houseCost": 50,
+        "buildingCount": 1,
+        "ownerId": 0
+      },
+      {
+        "id": 3,
+        "name": "Rio",
+        "price": 60,
+        "houseCost": 50,
+        "buildingCount": 0,
+        "ownerId": 0
+      }
+    ],
+    "winnerId": 0,
+    "turnCount": 42,
+    "settings": {
+      "rules": {
+        "startingCash": 1500
+      }
+    }
+  },
+  "expectedProfileWrites": {
+    "user_winner": {
+      "gamesPlayed": 1,
+      "gamesWon": 1,
+      "gamesLost": 0,
+      "rewardCoins": 1,
+      "bankruptcies": 0
+    },
+    "user_loser": {
+      "gamesPlayed": 1,
+      "gamesWon": 0,
+      "gamesLost": 1,
+      "rewardCoins": 0,
+      "bankruptcies": 1
+    }
+  }
+}

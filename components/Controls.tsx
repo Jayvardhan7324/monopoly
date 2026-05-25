@@ -9,6 +9,7 @@ import { Avatar } from './Avatar';
 import { playSound } from '../services/audioService';
 import { motion, AnimatePresence } from 'motion/react';
 import { GAME_CONSTANTS } from '../constants';
+import { useReducedMotion } from '../hooks/useReducedMotion';
 
 interface ControlsProps {
   gameState: GameState;
@@ -45,7 +46,8 @@ export const Controls: React.FC<ControlsProps> = ({
   const currentTile = gameState.tiles[currentPlayer?.position || 0];
   const isHumanTurn = currentPlayer?.id === myPlayerId;
 
-  const showConfetti = localStorage.getItem('pref_confetti') !== 'false';
+  const reducedMotion = useReducedMotion();
+  const showConfetti = !reducedMotion && localStorage.getItem('pref_confetti') !== 'false';
   const showGoldFrame = localStorage.getItem('pref_goldFrame') !== 'false';
   const [confettiPieces] = useState(() =>
     Array.from({ length: 28 }, (_, i) => ({

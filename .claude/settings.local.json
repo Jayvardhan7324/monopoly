@@ -48,7 +48,15 @@
       "mcp__supabase__list_migrations",
       "mcp__supabase__execute_sql",
       "mcp__supabase__apply_migration",
-      "mcp__supabase__get_advisors"
+      "mcp__supabase__get_advisors",
+      "Bash(netstat -ano)",
+      "Bash(npm run *)",
+      "Bash(echo \"Started dev server, PID: $!\")",
+      "Bash(NODE_OPTIONS=\"--env-file=.env\" npx tsx server.ts)",
+      "Bash(echo \"PID: $!\" sleep 8 cat /tmp/devserver2.log)",
+      "mcp__playwright__browser_evaluate",
+      "Bash(openssl s_client -servername monopoly-deployment-ysfclr-0acc4b-159-253-120-165.traefik.me -connect monopoly-deployment-ysfclr-0acc4b-159-253-120-165.traefik.me:443)",
+      "Bash(openssl x509 *)"
     ]
   }
 }

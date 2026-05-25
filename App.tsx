@@ -9,7 +9,7 @@ import {
   LayoutGrid, ChevronRight, ChevronLeft, Volume2, VolumeX, Eye, Trophy, X,
   Dices, Key, Copy, MessageSquare, ChevronsRight, Bot, Crown,
   TrendingUp, Landmark, ShoppingCart, LogIn, Package, Zap, Plane, Handshake, UserX, Flag, LogOut, Coins, WifiOff, UserCircle, ChevronDown, User,
-  Building2, Wallet, Gem, Briefcase, Medal, Gift, Car, Anchor, Train
+  Building2, Wallet, Gem, Briefcase, Medal, Gift, Car, Anchor, Train, Share2
 } from 'lucide-react';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem,
@@ -27,7 +27,6 @@ import { Button } from './components/ui/button';
 import NavDock, { NavDockItem, NavDockLink, NavDockSep } from './components/ui/NavDock';
 import { motion, AnimatePresence } from 'motion/react';
 import { initSocket, getSocket, resetSocket } from './services/socketService';
-import { authFetch } from './lib/auth-client';
 import {
   cacheVisualSettings,
   fetchVisualSettings,
@@ -56,6 +55,12 @@ type LoadingScreenProps = {
   subtitle: string;
   mode?: 'fixed' | 'absolute';
 };
+
+type RoomShareStatus =
+  | { kind: 'idle'; message: string }
+  | { kind: 'success'; message: string }
+  | { kind: 'fallback'; message: string }
+  | { kind: 'manual'; message: string };
 
 
 async function getResponseError(response: Response, fallback: string): Promise<string> {
@@ -388,6 +393,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const lastActionTimeRef = useRef<Map<string, number>>(new Map());
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [activePolicyPage, setActivePolicyPage] = useState<'privacy' | 'terms' | 'cookies' | 'contact' | null>(null);
+  const [shareStatus, setShareStatus] = useState<RoomShareStatus>({ kind: 'idle', message: 'Ready to invite players.' });
   const [showBugModal, setShowBugModal] = useState(false);
   const [bugTitle, setBugTitle] = useState('');
   const [bugDesc, setBugDesc] = useState('');
@@ -396,6 +402,8 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   const [bugSubmitted, setBugSubmitted] = useState(false);
   const [bugError, setBugError] = useState<string | null>(null);
   const session = sessionUser ? { user: sessionUser } : null;
+  const sessionUserIdRef = useRef<string | null>(sessionUser?.id ?? null);
+  useEffect(() => { sessionUserIdRef.current = sessionUser?.id ?? null; }, [sessionUser?.id]);
   const [nowTs, setNowTs] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNowTs(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => {
@@ -663,6 +671,17 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       if (data?.settings) cacheVisualSettings(data.settings);
     };
 
+    const handleProfileResultRecorded = (data: any) => {
+      const userId = sessionUserIdRef.current;
+      if (!userId) return;
+      const myResult = data?.result || (Array.isArray(data?.results) ? data.results.find((result: any) => result?.userId === userId) : null);
+      if (!myResult) return;
+      window.dispatchEvent(new CustomEvent('cashly:profile-updated', { detail: { userId } }));
+      const reward = Number(myResult.rewardCoins || 0);
+      const outcome = myResult.outcome === 'win' ? 'Win saved' : 'Match saved';
+      setSystemAlert(reward > 0 ? `${outcome}. +${reward} coin${reward === 1 ? '' : 's'} added.` : `${outcome}. Profile stats updated.`);
+    };
+
     const handleSessionRejected = () => {
       localStorage.removeItem('cashly_session');
       if (roomId) localStorage.removeItem(`cashly_game_${roomId}`);
@@ -696,6 +715,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     });
     socket.on("boards_catalog_updated", fetchBoardCatalog);
     socket.on("visual_settings_updated", handleVisualSettingsUpdated);
+    socket.on("profile_result_recorded", handleProfileResultRecorded);
     socket.on("disconnect", handleSocketDisconnect);
     socket.on("connect", handleSocketConnect);
     socket.on("connect_error", handleSocketDisconnect);
@@ -715,6 +735,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
       socket.off("admin_board_pushed");
       socket.off("boards_catalog_updated", fetchBoardCatalog);
       socket.off("visual_settings_updated", handleVisualSettingsUpdated);
+      socket.off("profile_result_recorded", handleProfileResultRecorded);
       socket.off("disconnect", handleSocketDisconnect);
       socket.off("you_are_host", handleYouAreHost);
       socket.off("connect", handleSocketConnect);
@@ -1201,7 +1222,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   };
 
   const leaveRoom = () => {
-    recordLeaveLoss();
     // NET-05: Tell server we're intentionally leaving so slot is freed immediately
     const socket = getSocket();
     if (socket) socket.emit("leave_room");
@@ -1239,7 +1259,6 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
   useEffect(() => {
     const handlePopState = () => {
       if (isOnlineRef.current) {
-        recordLeaveLoss();
         resetSocket();
         setIsOnline(false); setRoomId(null); setSessionPlayerId(null);
         setIsHost(false); setLobbyPlayers([]); setGameStarted(false);
@@ -1274,76 +1293,7 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     } catch {}
   }, [gameState.turnCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Award 1 coin to logged-in user when they win
-  const winCoinPostedRef = useRef(false);
-  useEffect(() => {
-    if (!gameStarted || gameState.winnerId === null) { winCoinPostedRef.current = false; return; }
-    if (gameState.winnerId === myPlayerId && sessionUser && !winCoinPostedRef.current) {
-      winCoinPostedRef.current = true;
-      authFetch('/api/profile/win-coin', { method: 'POST' }).catch(() => {});
-    }
-  }, [gameState.winnerId, myPlayerId, gameStarted, sessionUser]);
-
-  // ── Profile stats tracking ────────────────────────────────────────────────
-  // Fires at most 2 requests per game: once on start, once on end/leave/bankruptcy.
-  const statsStartedRef = useRef(false);
-  const statsEndedRef = useRef(false);
-  const postStats = (payload: Record<string, number>, useBeacon = false) => {
-    if (useBeacon && 'fetch' in window) {
-      try {
-        fetch('/api/profile/stats', {
-          method: 'POST',
-          credentials: 'include',
-          keepalive: true,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).catch(() => {});
-      } catch {}
-    } else {
-      authFetch('/api/profile/stats', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      }).catch(() => {});
-    }
-  };
-
-  // gamesPlayed: increment once when a game begins for a non-spectator user
-  useEffect(() => {
-    if (!gameStarted) {
-      statsStartedRef.current = false;
-      statsEndedRef.current = false;
-      return;
-    }
-    if (sessionUser && !isSpectator && !statsStartedRef.current) {
-      statsStartedRef.current = true;
-      postStats({ gamesPlayed: 1 });
-    }
-  }, [gameStarted, sessionUser, isSpectator]);
-
-  // gamesWon / gamesLost / bankruptcies: increment once when this player's game ends
-  const myPlayer = gameState.players.find(p => p.id === myPlayerId);
-  const myBankrupt = !!myPlayer?.isBankrupt;
-  useEffect(() => {
-    if (!gameStarted || !sessionUser || isSpectator || statsEndedRef.current) return;
-    const gameOver = gameState.winnerId !== null;
-    if (!gameOver && !myBankrupt) return;
-    statsEndedRef.current = true;
-    const payload: Record<string, number> = { totalTurns: gameState.turnCount ?? 0 };
-    if (gameOver && gameState.winnerId === myPlayerId) payload.gamesWon = 1;
-    else payload.gamesLost = 1;
-    if (myBankrupt) payload.bankruptcies = 1;
-    postStats(payload);
-  }, [gameState.winnerId, myBankrupt, gameStarted, sessionUser, isSpectator, myPlayerId, gameState.turnCount]);
-
-  // Record a loss if the user leaves an in-progress game (called from leave handlers)
-  const recordLeaveLoss = () => {
-    if (!gameStarted || statsEndedRef.current || !sessionUser || isSpectator) return;
-    if (gameState.winnerId !== null) return; // game already ended — end-effect handles it
-    statsEndedRef.current = true;
-    postStats({ gamesLost: 1, totalTurns: gameState.turnCount ?? 0 }, true);
-  };
-
+  // Profile results are recorded by the server when a match ends.
   const fetchRooms = async () => {
     try {
       const rooms = await fetch("/api/rooms").then(r => r.json());
@@ -1470,49 +1420,87 @@ const App: React.FC<AppProps> = ({ onOpenStore, onOpenLogin, onOpenProfile, onOp
     </div>
   );
 
+  const copyRoomLink = async (url: string): Promise<RoomShareStatus> => {
+    if (navigator.clipboard && window.isSecureContext) {
+      try {
+        await navigator.clipboard.writeText(url);
+        return { kind: 'success', message: 'Room link copied.' };
+      } catch {}
+    }
+
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      textArea.setAttribute('readonly', 'true');
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      textArea.style.top = '0';
+      document.body.appendChild(textArea);
+      textArea.select();
+      const copied = document.execCommand('copy');
+      textArea.remove();
+      if (copied) return { kind: 'fallback', message: 'Copied with fallback clipboard.' };
+    } catch {}
+
+    return { kind: 'manual', message: 'Select the link and copy it manually.' };
+  };
+
+  const shareRoomLink = async () => {
+    if (!roomId) return;
+    const url = `${window.location.origin}/room/${roomId}`;
+    const shareData = {
+      title: 'Join my Cashly room',
+      text: 'Jump into my Cashly match.',
+      url,
+    };
+
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share(shareData);
+        setShareStatus({ kind: 'success', message: 'Share sheet opened.' });
+        return;
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          setShareStatus({ kind: 'manual', message: 'Sharing canceled. Link is ready below.' });
+          return;
+        }
+      }
+    }
+
+    const nextStatus = await copyRoomLink(url);
+    setShareStatus(nextStatus);
+    if (nextStatus.kind === 'success' || nextStatus.kind === 'fallback') {
+      setSystemAlert(nextStatus.message);
+    }
+  };
+
   const renderShareBox = (showSettingsButton = false) => (
     <div className="bg-[#1e1e24] border border-slate-800 rounded-2xl p-3 sm:p-5 flex flex-col gap-3 shadow-lg shrink-0">
-      <div className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-2">
-        Share this game <Info size={14} className="text-slate-500" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs sm:text-sm font-bold text-slate-200 flex items-center gap-2">
+            Share this game <Info size={14} className="text-slate-500 shrink-0" />
+          </div>
+          <div className={`mt-1 text-[11px] leading-snug ${
+            shareStatus.kind === 'success' ? 'text-emerald-300' :
+            shareStatus.kind === 'fallback' ? 'text-sky-300' :
+            shareStatus.kind === 'manual' ? 'text-amber-300' :
+            'text-slate-500'
+          }`}>
+            {shareStatus.message}
+          </div>
+        </div>
       </div>
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="flex-1 bg-[#111116] px-3 py-2 rounded-xl text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 min-w-0">
+        <div className="flex-1 min-w-0 bg-[#111116] px-3 py-2 rounded-xl text-xs sm:text-sm font-mono text-slate-300 select-all border border-slate-800 truncate">
           {window.location.origin}/room/{roomId}
         </div>
         <button
-          onClick={() => {
-            const textToCopy = `${window.location.origin}/room/${roomId || ''}`;
-
-            if (navigator.clipboard && window.isSecureContext) {
-              navigator.clipboard.writeText(textToCopy)
-                .then(() => setSystemAlert("Copied room link to clipboard!"))
-                .catch(() => setSystemAlert("Failed to copy link via clipboard API."));
-            } else {
-              // Fallback for non-HTTPS (like local network IP testing)
-              try {
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                textArea.style.position = "fixed";
-                textArea.style.left = "-999999px";
-                textArea.style.top = "-999999px";
-                document.body.appendChild(textArea);
-                textArea.focus();
-                textArea.select();
-                const successful = document.execCommand('copy');
-                textArea.remove();
-                if (successful) {
-                  setSystemAlert("Copied room link to clipboard!");
-                } else {
-                  setSystemAlert("Failed to copy link using fallback.");
-                }
-              } catch (err) {
-                setSystemAlert("Failed to copy link. Please select the text and copy manually.");
-              }
-            }
-          }}
-          className="bg-indigo-500 hover:bg-indigo-400 min-h-10 p-2 rounded-xl text-white transition-colors flex items-center gap-1.5 sm:gap-2 px-3 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-500/20 shrink-0"
+          onClick={shareRoomLink}
+          className="w-full sm:w-auto bg-indigo-500 hover:bg-indigo-400 min-h-10 p-2 rounded-xl text-white transition-colors flex items-center justify-center gap-1.5 sm:gap-2 px-3 text-xs sm:text-sm font-bold shadow-lg shadow-indigo-500/20 shrink-0"
         >
-          <Copy size={16} /> Copy
+          {typeof navigator.share === 'function' ? <Share2 size={16} /> : <Copy size={16} />}
+          {typeof navigator.share === 'function' ? 'Share' : 'Copy'}
         </button>
       </div>
       {showSettingsButton && (

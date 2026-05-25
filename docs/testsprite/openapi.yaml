@@ -1,0 +1,247 @@
+openapi: 3.1.0
+info:
+  title: Cashly TestSprite API Surface
+  version: 1.0.0
+  description: >
+    Upload-ready API summary for Cashly's room, profile, store, and support
+    endpoints. Socket.io is used for live gameplay; see extra-testing-instructions.md
+    for realtime event expectations.
+servers:
+  - url: http://localhost:3000
+    description: Local development or production-built server
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Server and database health status
+  /api/rooms:
+    get:
+      summary: List public lobby rooms
+      responses:
+        "200":
+          description: Public rooms that have not started and are not full
+    post:
+      summary: Create a room
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomRequest"
+      responses:
+        "200":
+          description: Created room session
+        "429":
+          description: Room creation rate limited
+  /api/rooms/random:
+    post:
+      summary: Join an available public room or create one if none exists
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinRoomRequest"
+      responses:
+        "200":
+          description: Joined or created room session
+        "429":
+          description: Join rate limited
+  /api/rooms/{roomId}/join:
+    post:
+      summary: Join a specific room
+      parameters:
+        - name: roomId
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 6
+            maxLength: 6
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinRoomRequest"
+      responses:
+        "200":
+          description: Joined room session or spectator session
+        "400":
+          description: Room is full
+        "404":
+          description: Room not found
+        "429":
+          description: Join rate limited
+  /api/profile/{userId}:
+    get:
+      summary: Load public profile and stats
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Profile, coins, friend count, and stats
+        "404":
+          description: User not found
+  /api/profile:
+    patch:
+      summary: Update current authenticated user's profile
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 40
+                image:
+                  type: string
+      responses:
+        "200":
+          description: Profile updated
+        "401":
+          description: Not authenticated
+  /api/store/inventory/{userId}:
+    get:
+      summary: Load authenticated user's store inventory
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Coins, owned items, and equipped avatar
+        "401":
+          description: Not authenticated
+        "403":
+          description: Cannot read another user's inventory
+  /api/store/items:
+    get:
+      summary: List active store items
+      responses:
+        "200":
+          description: Active purchasable items
+  /api/store/purchase:
+    post:
+      summary: Purchase a store item
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [itemId]
+              properties:
+                itemId:
+                  type: string
+      responses:
+        "200":
+          description: Purchase successful with updated coins
+        "400":
+          description: Invalid item or insufficient coins
+        "401":
+          description: Not authenticated
+  /api/bug-report:
+    post:
+      summary: Submit a bug report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description]
+              properties:
+                title:
+                  type: string
+                description:
+                  type: string
+                imageUrl:
+                  type: string
+                consentGiven:
+                  type: boolean
+      responses:
+        "200":
+          description: Bug report saved
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+  schemas:
+    CreateRoomRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 20
+        avatar:
+          type: integer
+          minimum: 0
+          maximum: 11
+        profileImage:
+          type: string
+        maxPlayers:
+          type: integer
+          minimum: 2
+          maximum: 8
+        isPrivate:
+          type: boolean
+        allowBots:
+          type: boolean
+        boardMap:
+          type: string
+        rules:
+          $ref: "#/components/schemas/GameRules"
+    JoinRoomRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 20
+        avatar:
+          type: integer
+          minimum: 0
+          maximum: 11
+        profileImage:
+          type: string
+    GameRules:
+      type: object
+      properties:
+        doubleRentOnFullSet:
+          type: boolean
+        vacationCash:
+          type: boolean
+        auctionEnabled:
+          type: boolean
+        noRentInJail:
+          type: boolean
+        mortgageEnabled:
+          type: boolean
+        evenBuild:
+          type: boolean
+        startingCash:
+          type: integer
+          minimum: 500
+          maximum: 10000
+        randomizeOrder:
+          type: boolean

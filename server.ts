@@ -35,6 +35,8 @@ interface RoomData {
   maxPlayers: number;
   settings: any;
   createdAt: number;
+  gameStartedAt?: number;
+  resultRecordedAt?: number;
   socketToGamePlayerId?: Record<string, number>;
 }
 
@@ -58,6 +60,7 @@ const DEFAULT_ROOM_SETTINGS = {
 const BOT_ADJ = ['Swift','Brave','Fierce','Bold','Dark','Iron','Stone','Silent','Shadow','Crimson','Silver','Golden','Arctic','Cosmic','Neon','Phantom','Rogue','Thunder','Velvet','Blazing','Crystal','Electric','Sacred','Frozen','Obsidian','Scarlet','Astral','Hollow','Ember','Void'];
 const BOT_NOUN = ['Falcon','Wolf','Panther','Dragon','Phoenix','Hawk','Blade','Shield','Ghost','Viper','Tiger','Lion','Fox','Raven','Eagle','Cobra','Titan','Ranger','Knight','Wizard','Ninja','Viking','Warrior','Samurai','Mage','Archer','Scout','Cipher','Wraith','Oracle'];
 const AVATAR_COLOR_COUNT = 12;
+const WIN_REWARD_COINS = 1;
 
 // Dev-only logger — silent in production
 const isDev = process.env.NODE_ENV !== 'production';
@@ -221,6 +224,11 @@ async function startServer() {
     } catch {
       return null;
     }
+  }
+
+  async function resolveSessionUserId(req: any): Promise<string | undefined> {
+    const sessionUser = await getSessionUser(req);
+    return typeof sessionUser?.id === 'string' ? sessionUser.id : undefined;
   }
 
   // Gzip/brotli compress all responses
@@ -656,8 +664,6 @@ async function startServer() {
   const isJoinRateLimited      = makeRateLimiter(10, 60_000); // 10 joins/min
   const isRoomCreateRateLimited = makeRateLimiter(5,  60_000); // 5 room creates/min
   const isAdminLoginRateLimited = makeRateLimiter(5,  60_000); // 5 login attempts/min
-  const isWinCoinRateLimited    = makeRateLimiter(3,  60_000); // 3 coin awards/min
-
   const rooms = new Map<string, RoomData>();
   const disconnectTimers = new Map<string, NodeJS.Timeout>(); // keyed by originalPlayerId
   const roomIdleTimers = new Map<string, NodeJS.Timeout>(); // keyed by roomId — fires when all players disconnected
@@ -936,21 +942,154 @@ async function startServer() {
     throw new Error('Unable to allocate a unique room ID');
   }
 
+  function calculateNetWorth(player: any, state: any): number {
+    const tiles = Array.isArray(state?.tiles) ? state.tiles : [];
+    const propertyValue = tiles
+      .filter((tile: any) => tile?.ownerId === player?.id)
+      .reduce((sum: number, tile: any) => {
+        const price = Number(tile?.price || 0);
+        const buildings = Number(tile?.buildingCount || 0) * Number(tile?.houseCost || 0);
+        return sum + price + buildings;
+      }, 0);
+    return Number(player?.money || 0) + propertyValue;
+  }
+
+  async function recordCompletedGameResult(roomId: string, room: RoomData, finalState: any) {
+    if (room.resultRecordedAt || finalState?.winnerId == null) return;
+    room.resultRecordedAt = Date.now();
+
+    if (!db || !schema?.profilesStats || !schema?.profiles || !schema?.gameHistory) return;
+
+    const gamePlayers = Array.isArray(finalState.players) ? finalState.players : [];
+    const tiles = Array.isArray(finalState.tiles) ? finalState.tiles : [];
+    const turnsPlayed = Number(finalState.turnCount || 0);
+    const startingCash = Number(finalState.settings?.rules?.startingCash || room.settings?.rules?.startingCash || 1500);
+    const startedAt = new Date(room.gameStartedAt || room.createdAt);
+    const hostUserId = room.players.find((p: any) => p.isHost && p.userId)?.userId
+      || room.players.find((p: any) => p.userId)?.userId
+      || null;
+
+    const playerResults = room.players
+      .filter((roomPlayer: any) => roomPlayer.userId && !roomPlayer.isBot && !roomPlayer.isSpectator)
+      .map((roomPlayer: any) => {
+        const socketKey = roomPlayer.originalId || roomPlayer.id;
+        const gamePlayerId = room.socketToGamePlayerId?.[socketKey];
+        const gamePlayer = gamePlayerId != null
+          ? gamePlayers.find((p: any) => p.id === gamePlayerId)
+          : gamePlayers.find((p: any) => p.name === roomPlayer.name);
+        if (!gamePlayer) return null;
+        const propertiesOwned = tiles.filter((tile: any) => tile?.ownerId === gamePlayer.id).length;
+        const netWorth = calculateNetWorth(gamePlayer, finalState);
+        const isWinner = gamePlayer.id === finalState.winnerId;
+        const rewardCoins = isWinner ? WIN_REWARD_COINS : 0;
+        return {
+          userId: roomPlayer.userId as string,
+          name: String(gamePlayer.name || roomPlayer.name || 'Player'),
+          gamePlayerId: gamePlayer.id,
+          outcome: isWinner ? 'win' : 'loss',
+          rewardCoins,
+          netWorth,
+          propertiesOwned,
+          bankruptcies: gamePlayer.isBankrupt ? 1 : 0,
+          totalEarnings: Math.max(0, netWorth - startingCash),
+        };
+      })
+      .filter(Boolean) as any[];
+
+    const uniqueResults = Array.from(new Map(playerResults.map((result: any) => [result.userId, result])).values()) as any[];
+
+    try {
+      await db.insert(schema.gameHistory).values({
+        roomId,
+        hostUserId,
+        winnerUserId: uniqueResults.find((result: any) => result.outcome === 'win')?.userId ?? null,
+        players: uniqueResults.map((result: any) => ({
+          userId: result.userId,
+          name: result.name,
+          outcome: result.outcome,
+          rewardCoins: result.rewardCoins,
+        })),
+        finalNetWorth: gamePlayers.map((player: any) => ({
+          id: player.id,
+          name: player.name,
+          netWorth: calculateNetWorth(player, finalState),
+        })),
+        startedAt,
+        endedAt: new Date(),
+        durationMinutes: Math.max(0, Math.round((Date.now() - startedAt.getTime()) / 60000)),
+        turnsPlayed,
+      });
+
+      for (const result of uniqueResults) {
+        const existing = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, result.userId));
+        if (existing.length) {
+          const current = existing[0];
+          await db.update(schema.profilesStats).set({
+            gamesPlayed: current.gamesPlayed + 1,
+            gamesWon: current.gamesWon + (result.outcome === 'win' ? 1 : 0),
+            gamesLost: current.gamesLost + (result.outcome === 'win' ? 0 : 1),
+            totalEarnings: current.totalEarnings + result.totalEarnings,
+            propertiesBought: current.propertiesBought + result.propertiesOwned,
+            peakPropertiesOwned: Math.max(current.peakPropertiesOwned, result.propertiesOwned),
+            bankruptcies: current.bankruptcies + result.bankruptcies,
+            totalTurns: current.totalTurns + turnsPlayed,
+            updatedAt: new Date(),
+          }).where(eq(schema.profilesStats.userId, result.userId));
+        } else {
+          await db.insert(schema.profilesStats).values({
+            userId: result.userId,
+            gamesPlayed: 1,
+            gamesWon: result.outcome === 'win' ? 1 : 0,
+            gamesLost: result.outcome === 'win' ? 0 : 1,
+            totalEarnings: result.totalEarnings,
+            propertiesBought: result.propertiesOwned,
+            peakPropertiesOwned: result.propertiesOwned,
+            bankruptcies: result.bankruptcies,
+            totalTurns: turnsPlayed,
+            updatedAt: new Date(),
+          });
+        }
+
+        if (result.rewardCoins > 0) {
+          await db.update(schema.profiles)
+            .set({ coins: sql`${schema.profiles.coins} + ${result.rewardCoins}` })
+            .where(eq(schema.profiles.id, result.userId));
+        }
+      }
+
+      for (const result of uniqueResults) {
+        const recipient = room.players.find((player: any) => player.userId === result.userId && player.id);
+        if (!recipient) continue;
+        io.to(recipient.id).emit('profile_result_recorded', {
+          roomId,
+          result: {
+            outcome: result.outcome,
+            rewardCoins: result.rewardCoins,
+          },
+        });
+      }
+    } catch (err: any) {
+      room.resultRecordedAt = undefined;
+      if (process.env.NODE_ENV !== 'production') log('recordCompletedGameResult failed:', err?.message);
+    }
+  }
+
   // REST API: List active public rooms
   app.get("/api/rooms", (req, res) => {
     res.json(getPublicRoomsList());
   });
 
   // REST API: Create a room
-  app.post("/api/rooms", (req, res) => {
+  app.post("/api/rooms", async (req, res) => {
     const ip = req.ip || 'unknown';
     if (isRoomCreateRateLimited(ip)) return res.status(429).json({ success: false, error: 'Too many requests. Please wait.' });
     const data = req.body;
+    const userId = await resolveSessionUserId(req);
     // SEC-08/09: Use CSPRNG for IDs instead of Math.random()
     const roomId = generateRoomId();
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const safeImg = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-    const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg(data.profileImage), isHost: true };
+    const player = { id: playerId, originalId: playerId, userId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg(data.profileImage), isHost: true };
     const settings = sanitizeRoomSettings(data, {
       ...DEFAULT_ROOM_SETTINGS,
       isPrivate: !!data.isPrivate,
@@ -988,12 +1127,13 @@ async function startServer() {
   });
 
   // REST API: Join a random room
-  app.post("/api/rooms/random", (req, res) => {
+  app.post("/api/rooms/random", async (req, res) => {
     const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '');
     if (isJoinRateLimited(ip)) {
       return res.status(429).json({ success: false, error: "Too many requests. Please wait." });
     }
     const data = req.body;
+    const userId = await resolveSessionUserId(req);
     // Find a room that is not full, not private, and hasn't started
     let targetRoomId = null;
     for (const [id, room] of rooms.entries()) {
@@ -1008,7 +1148,7 @@ async function startServer() {
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
       const safeImg2 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-      const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg2(data.profileImage), isHost: false };
+      const player = { id: playerId, originalId: playerId, userId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg2(data.profileImage), isHost: false };
       room.players.push(player);
       reconcileLobbyBots(targetRoomId, room, false);
       // We don't broadcast room_updated here because socket isn't connected yet.
@@ -1019,7 +1159,7 @@ async function startServer() {
       const roomId = generateRoomId();
       const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
       const safeImg3 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-      const player = { id: playerId, originalId: playerId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg3(data.profileImage), isHost: true };
+      const player = { id: playerId, originalId: playerId, userId, name: sanitizeName(data.name), avatar: normalizeAvatarIndex(data.avatar) ?? randomAvatarIndex(), profileImage: safeImg3(data.profileImage), isHost: true };
       const settings = sanitizeRoomSettings(data, DEFAULT_ROOM_SETTINGS);
       rooms.set(roomId, {
         host: playerId,
@@ -1038,13 +1178,14 @@ async function startServer() {
   });
 
   // REST API: Join a specific room
-  app.post("/api/rooms/:id/join", (req, res) => {
+  app.post("/api/rooms/:id/join", async (req, res) => {
     const ip = (req.headers['x-forwarded-for'] as string || req.socket.remoteAddress || '');
     if (isJoinRateLimited(ip)) {
       return res.status(429).json({ success: false, error: "Too many requests. Please wait." });
     }
     const roomId = req.params.id.trim().toUpperCase();
     const data = req.body;
+    const userId = await resolveSessionUserId(req);
     const room = rooms.get(roomId);
 
     if (!room) {
@@ -1059,7 +1200,7 @@ async function startServer() {
         // All game players are gone — new joiner becomes host so they can control/restart
         room.players.forEach((p: any) => { p.isHost = false; });
         const safeImg4 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg4(data.profileImage), isHost: true };
+        const player = { id: playerId, originalId: playerId, userId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg4(data.profileImage), isHost: true };
         room.players.push(player);
         room.host = playerId; // updated to socket.id on join_session
         room.hostName = uniqueName;
@@ -1072,7 +1213,7 @@ async function startServer() {
       } else {
         // Game in progress with active players — join as spectator
         const safeImg5 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-        const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg5(data.profileImage), isHost: false, isSpectator: true };
+        const player = { id: playerId, originalId: playerId, userId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg5(data.profileImage), isHost: false, isSpectator: true };
         room.players.push(player);
         res.json({ success: true, roomId, playerId, players: room.players, settings: room.settings, isSpectator: true });
       }
@@ -1089,7 +1230,7 @@ async function startServer() {
     const playerId = "p_" + randomUUID().replace(/-/g, '').slice(0, 16);
     const uniqueName = getUniqueName(sanitizeName(data.name), room.players);
     const safeImg6 = (url: any) => (typeof url === 'string' && url.startsWith('https://') && url.length <= 500) ? url : undefined;
-    const player = { id: playerId, originalId: playerId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg6(data.profileImage), isHost: false };
+    const player = { id: playerId, originalId: playerId, userId, name: uniqueName, avatar: randomAvailableAvatar(room, data.avatar), profileImage: safeImg6(data.profileImage), isHost: false };
     room.players.push(player);
     reconcileLobbyBots(roomId, room, false);
 
@@ -1102,7 +1243,7 @@ async function startServer() {
     log("Client connected:", socket.id);
 
     // Initial connection linking REST session to Socket
-    socket.on("join_session", (data, callback) => {
+    socket.on("join_session", async (data, callback) => {
       const { playerId } = data;
       const roomId = data.roomId?.trim().toUpperCase();
       const room = rooms.get(roomId);
@@ -1127,6 +1268,9 @@ async function startServer() {
 
       const player = room.players[playerIndex];
       const oldId = player.id;
+      if (!player.userId) {
+        player.userId = await resolveSessionUserId(socket.request).catch(() => undefined);
+      }
 
       // Clear any active disconnect timer for this player
       const timerKey = player.originalId || playerId;
@@ -1235,6 +1379,8 @@ async function startServer() {
           } catch { return; }
           clearRoomBotTimers(roomId);
           room.state = data.initialState;
+          room.gameStartedAt = Date.now();
+          room.resultRecordedAt = undefined;
           room.settings = sanitizeRoomSettings(data.initialState?.settings, room.settings);
           // B6 FIX: Build socket→gamePlayerId map at game-start using name matching (names are unique at this point)
           if (data.initialState?.players && Array.isArray(data.initialState.players)) {
@@ -1502,6 +1648,7 @@ async function startServer() {
         if (room && room.host === socket.id) {
           // Detect a freshly-accepted trade (lastTradeLog.ts changed since last sync) and persist
           const prevTradeTs = room.state?.lastTradeLog?.ts;
+          const prevWinnerId = room.state?.winnerId;
           const newTradeLog = data.state?.lastTradeLog;
           if (
             db && schema?.tradeHistory &&
@@ -1528,6 +1675,9 @@ async function startServer() {
             });
           }
           room.state = data.state; // store full state for reconnects
+          if (prevWinnerId == null && data.state?.winnerId != null) {
+            void recordCompletedGameResult(roomId, room, data.state);
+          }
           // Trim logs to last 50 entries before broadcasting — keeps payload small
           const broadcastState = Array.isArray(data.state.logs) && data.state.logs.length > 50
             ? { ...data.state, logs: data.state.logs.slice(-50) }
@@ -2165,59 +2315,6 @@ async function startServer() {
       });
     } catch {
       res.status(500).json({ error: 'Failed to load profile' });
-    }
-  });
-
-  app.post('/api/profile/stats', async (req, res) => {
-    const sessionUser = await getSessionUser(req);
-    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
-    return res.status(410).json({ error: 'Client-submitted profile stats are disabled. Results must be recorded by the game server.' });
-    const {
-      gamesPlayed = 0, gamesWon = 0, gamesLost = 0,
-      totalEarnings = 0, propertiesBought = 0,
-      peakPropertiesOwned = 0, bankruptcies = 0, totalTurns = 0,
-    } = req.body ?? {};
-    try {
-      const existing = await db.select().from(schema.profilesStats).where(eq(schema.profilesStats.userId, sessionUser.id));
-      if (existing.length) {
-        const e = existing[0];
-        await db.update(schema.profilesStats).set({
-          gamesPlayed:         e.gamesPlayed + gamesPlayed,
-          gamesWon:            e.gamesWon + gamesWon,
-          gamesLost:           e.gamesLost + gamesLost,
-          totalEarnings:       e.totalEarnings + totalEarnings,
-          propertiesBought:    e.propertiesBought + propertiesBought,
-          peakPropertiesOwned: Math.max(e.peakPropertiesOwned, peakPropertiesOwned),
-          bankruptcies:        e.bankruptcies + bankruptcies,
-          totalTurns:          e.totalTurns + totalTurns,
-          updatedAt:           new Date(),
-        }).where(eq(schema.profilesStats.userId, sessionUser.id));
-      } else {
-        await db.insert(schema.profilesStats).values({
-          userId: sessionUser.id, gamesPlayed, gamesWon, gamesLost,
-          totalEarnings, propertiesBought, peakPropertiesOwned, bankruptcies, totalTurns,
-          updatedAt: new Date(),
-        });
-      }
-      res.json({ success: true });
-    } catch {
-      res.status(500).json({ error: 'Failed to update stats' });
-    }
-  });
-
-  app.post('/api/profile/win-coin', async (req, res) => {
-    const sessionUser = await getSessionUser(req);
-    if (!sessionUser) return res.status(401).json({ error: 'Not authenticated' });
-    return res.status(410).json({ error: 'Client-submitted win rewards are disabled. Results must be recorded by the game server.' });
-    if (isWinCoinRateLimited(sessionUser.id)) return res.status(429).json({ error: 'Too many requests.' });
-    try {
-      const rows = await db.select({ coins: schema.profiles.coins }).from(schema.profiles).where(eq(schema.profiles.id, sessionUser.id));
-      if (!rows.length) return res.status(404).json({ error: 'User not found' });
-      const newCoins = (rows[0].coins || 0) + 1;
-      await db.update(schema.profiles).set({ coins: newCoins }).where(eq(schema.profiles.id, sessionUser.id));
-      res.json({ success: true, coins: newCoins });
-    } catch {
-      res.status(500).json({ error: 'Failed to award coin' });
     }
   });
 
