@@ -1,0 +1,17 @@
+[STARTUP][WARN] DATABASE_URL is required so auth, economy, store, and history routes can boot. Auth, economy, store, and history routes will be disabled in development.
+[STARTUP][WARN] BETTER_AUTH_SECRET must be a real 32+ character secret, not a placeholder. Better Auth will not be production-equivalent in development.
+[STARTUP][WARN] Admin panel disabled because ADMIN_TOKEN, ADMIN_USERNAME, or ADMIN_PASSWORD is missing.
+[WARN] Admin panel disabled — required configuration missing
+DATABASE_URL not set — auth and store routes disabled
+[2m10:39:48 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mError[22m: @vitejs/plugin-react can't detect preamble. Something is wrong.
+[39m > components/Avatar.tsx:116:11
+    
+
+[2m10:42:10 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mError[22m: @vitejs/plugin-react can't detect preamble. Something is wrong.
+[39m > components/Avatar.tsx:116:11
+    
+
+[2m10:42:13 am[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mError[22m: @vitejs/plugin-react can't detect preamble. Something is wrong.
+[39m > components/Avatar.tsx:116:11
+    
+

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /__sys
+
+Sitemap: https://cashly.io/sitemap.xml

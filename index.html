@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary SEO -->
+    <title>Cashly — Free Multiplayer Board Game | Play Online with Friends</title>
+    <meta name="description" content="Play Cashly free — the real-time multiplayer board game. Buy properties, build houses, trade with friends and dominate the board. No download or sign-up required." />
+    <meta name="keywords" content="cashly, free online board game, multiplayer board game online, play board games online, property trading game, online games with friends, browser board game no download, real estate board game, free multiplayer games, board game with friends online, online property game, free to play board game" />
+    <meta name="author" content="Cashly" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://cashly.io" />
+
+    <!-- Open Graph (Facebook, Discord, WhatsApp) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cashly" />
+    <meta property="og:title" content="Cashly — Free Multiplayer Board Game | Play Online with Friends" />
+    <meta property="og:description" content="The free online board game where you buy properties, build houses and trade with friends in real time. No download needed — play instantly in your browser." />
+    <meta property="og:url" content="https://cashly.io" />
+    <meta property="og:image" content="https://cashly.io/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Cashly — Free Multiplayer Board Game | Play Online with Friends" />
+    <meta name="twitter:description" content="Buy properties, build houses, trade with friends and dominate the board. Free to play in your browser — no download needed." />
+    <meta name="twitter:image" content="https://cashly.io/og-image.png" />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Cashly",
+      "url": "https://cashly.io",
+      "description": "Free online multiplayer board game. Buy properties, build houses, trade with friends in real time and become the ultimate tycoon. No download required.",
+      "applicationCategory": "GameApplication",
+      "genre": "Board Game",
+      "operatingSystem": "Any",
+      "browserRequirements": "Requires JavaScript. Requires HTML5.",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Real-time multiplayer",
+        "Custom boards",
+        "In-game chat",
+        "Property trading",
+        "Auctions",
+        "No download required"
+      ],
+      "keywords": "free online board game, multiplayer board game, property trading game, play with friends online, browser board game"
+    }
+    </script>
+
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" /></noscript>
+    <link rel="stylesheet" href="/index.css">
+  </head>
+  <body>
+    <div id="root">
+      <!-- Splash shown until React hydrates — large bundle makes first paint slow on 3G -->
+      <div style="min-height:100vh;background:#020617;display:flex;align-items:center;justify-content:center;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:14px;">
+          <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#6366f1,#a855f7);display:flex;align-items:center;justify-content:center;box-shadow:0 0 80px 20px rgba(129,140,248,.55),0 0 160px 40px rgba(168,85,247,.35),0 10px 30px -8px rgba(99,102,241,.8);">
+            <span style="color:#fff;font:900 22px 'Space Grotesk',system-ui,sans-serif;">C</span>
+          </div>
+          <div style="width:22px;height:22px;border:2px solid #6366f1;border-top-color:transparent;border-radius:50%;animation:cashly-splash-spin .8s linear infinite;"></div>
+        </div>
+      </div>
+      <style>@keyframes cashly-splash-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

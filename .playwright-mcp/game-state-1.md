@@ -1,0 +1,340 @@
+- generic [ref=e173]:
+  - button "Mute" [ref=e755] [cursor=pointer]:
+    - img [ref=e756]
+  - generic [ref=e760]:
+    - generic [ref=e761]:
+      - generic [ref=e762]:
+        - text: Share this game
+        - img [ref=e763]
+      - generic [ref=e765]:
+        - generic [ref=e766]: https://monopoly-deployment-ysfclr-0acc4b-159-253-120-165.traefik.me/rooms/9A47FD
+        - button "Copy" [ref=e767] [cursor=pointer]:
+          - img [ref=e768]
+          - text: Copy
+      - generic [ref=e771]:
+        - button "View room settings" [ref=e772] [cursor=pointer]:
+          - img [ref=e773]
+          - text: View room settings
+        - button "Mute" [ref=e776] [cursor=pointer]:
+          - img [ref=e777]
+    - generic [ref=e783]:
+      - text: Advertisement
+      - text: Space
+    - generic [ref=e784]:
+      - generic [ref=e785]:
+        - button "Activity" [ref=e786] [cursor=pointer]
+        - button "Chat" [ref=e787] [cursor=pointer]
+      - generic [ref=e789]:
+        - img [ref=e790]
+        - generic [ref=e792]: No messages yet
+      - generic [ref=e794]:
+        - textbox "Say something..." [ref=e795]
+        - button [ref=e796] [cursor=pointer]:
+          - img [ref=e797]
+  - generic [ref=e802]:
+    - button "ROLL DICE" [ref=e1233] [cursor=pointer]: ROLL DICE
+    - generic [ref=e818] [cursor=pointer]:
+      - generic [ref=e819]: Start
+      - img [ref=e820]
+    - generic [ref=e824] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $60
+      - generic [ref=e827]: Salvador
+      - generic:
+        - generic:
+          - img "br"
+    - generic [ref=e832] [cursor=pointer]:
+      - generic [ref=e833]: Treasure
+      - img [ref=e835]
+    - generic [ref=e841] [cursor=pointer]:
+      - generic [ref=e844]: Rio
+      - generic:
+        - generic:
+          - img "br"
+    - generic [ref=e849] [cursor=pointer]:
+      - generic [ref=e850]: Income Tax
+      - generic [ref=e853]: ×10
+    - generic [ref=e856] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $200
+      - generic [ref=e858]:
+        - generic [ref=e859]: TLV Airport
+        - img [ref=e861]
+    - generic [ref=e865] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $100
+      - generic [ref=e868]: Tel Aviv
+      - generic:
+        - generic:
+          - img "il"
+    - generic [ref=e873] [cursor=pointer]:
+      - generic [ref=e874]: Surprise
+      - generic [ref=e876]: "?"
+    - generic [ref=e879] [cursor=pointer]:
+      - generic [ref=e882]: Haifa
+      - generic:
+        - generic:
+          - img "il"
+    - generic [ref=e885] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $120
+      - generic [ref=e888]: Jerusalem
+      - generic:
+        - generic:
+          - img "il"
+    - generic [ref=e893] [cursor=pointer]:
+      - generic [ref=e894]: Passing by
+      - generic [ref=e900]: In Prison
+    - generic [ref=e903] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $140
+      - generic [ref=e906]: Venice
+      - generic:
+        - generic:
+          - img "it"
+    - generic [ref=e909] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $150
+      - generic [ref=e913]:
+        - img [ref=e914]
+        - generic [ref=e916]: Electric
+        - generic [ref=e917]: Company
+    - generic [ref=e920] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $140
+      - generic [ref=e923]: Milan
+      - generic:
+        - generic:
+          - img "it"
+    - generic [ref=e926] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $160
+      - generic [ref=e929]: Rome
+      - generic:
+        - generic:
+          - img "it"
+    - generic [ref=e932] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $200
+      - generic [ref=e934]:
+        - generic [ref=e935]: MUC Airport
+        - img [ref=e937]
+    - generic [ref=e941] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $180
+      - generic [ref=e944]: Frankfurt
+      - generic:
+        - generic:
+          - img "de"
+    - generic [ref=e949] [cursor=pointer]:
+      - generic [ref=e950]: Treasure
+      - img [ref=e952]
+    - generic [ref=e958] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $180
+      - generic [ref=e961]: Munich
+      - generic:
+        - generic:
+          - img "de"
+    - generic [ref=e964] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $200
+      - generic [ref=e967]: Berlin
+      - generic:
+        - generic:
+          - img "de"
+    - generic [ref=e972] [cursor=pointer]:
+      - img [ref=e973]
+      - generic [ref=e978]: Vacation
+    - generic [ref=e981] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $220
+      - generic [ref=e984]: Shenzhen
+      - generic:
+        - generic:
+          - img "cn"
+    - generic [ref=e989] [cursor=pointer]:
+      - generic [ref=e990]: Surprise
+      - generic [ref=e992]: "?"
+    - generic [ref=e995] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $220
+      - generic [ref=e998]: Beijing
+      - generic:
+        - generic:
+          - img "cn"
+    - generic [ref=e1001] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $240
+      - generic [ref=e1004]: Shanghai
+      - generic:
+        - generic:
+          - img "cn"
+    - generic [ref=e1007] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $200
+      - generic [ref=e1009]:
+        - generic [ref=e1010]: CDG Airport
+        - img [ref=e1012]
+    - generic [ref=e1016] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $260
+      - generic [ref=e1019]: Lyon
+      - generic:
+        - generic:
+          - img "fr"
+    - generic [ref=e1022] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $260
+      - generic [ref=e1025]: Toulouse
+      - generic:
+        - generic:
+          - img "fr"
+    - generic [ref=e1028] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $150
+      - generic [ref=e1032]:
+        - img [ref=e1033]
+        - generic [ref=e1036]: Water
+        - generic [ref=e1037]: Company
+    - generic [ref=e1040] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $280
+      - generic [ref=e1043]: Paris
+      - generic:
+        - generic:
+          - img "fr"
+    - generic [ref=e1048] [cursor=pointer]:
+      - img [ref=e1049]
+      - generic [ref=e1054]: Go to prison
+    - generic [ref=e1057] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $300
+      - generic [ref=e1060]: Liverpool
+      - generic:
+        - generic:
+          - img "gb"
+    - generic [ref=e1063] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $300
+      - generic [ref=e1066]: Manchester
+      - generic:
+        - generic:
+          - img "gb"
+    - generic [ref=e1071] [cursor=pointer]:
+      - generic [ref=e1072]: Treasure
+      - img [ref=e1074]
+    - generic [ref=e1080] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $320
+      - generic [ref=e1083]: London
+      - generic:
+        - generic:
+          - img "gb"
+    - generic [ref=e1086] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $200
+      - generic [ref=e1088]:
+        - generic [ref=e1089]: JFK Airport
+        - img [ref=e1091]
+    - generic [ref=e1097] [cursor=pointer]:
+      - generic [ref=e1098]: Surprise
+      - generic [ref=e1100]: "?"
+    - generic [ref=e1103] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $350
+      - generic [ref=e1106]: San Francisco
+      - generic:
+        - generic:
+          - img "us"
+    - generic [ref=e1111] [cursor=pointer]:
+      - generic [ref=e1112]: Luxury Tax
+      - generic [ref=e1115]: ×10
+    - generic [ref=e1118] [cursor=pointer]:
+      - generic:
+        - generic:
+          - generic: $400
+      - generic [ref=e1121]: New York
+      - generic:
+        - generic:
+          - img "us"
+  - generic [ref=e1122]:
+    - generic [ref=e1123]:
+      - generic [ref=e1124] [cursor=pointer]:
+        - generic [ref=e1133]:
+          - generic [ref=e1134]:
+            - generic [ref=e1135]: Bot Delta
+            - generic [ref=e1136]: AI
+          - generic [ref=e1137]:
+            - img [ref=e1138]
+            - generic [ref=e1143]: $1,440
+        - generic [ref=e1144]: 1 props
+      - generic [ref=e1145] [cursor=pointer]:
+        - generic [ref=e1153]:
+          - generic [ref=e1154]:
+            - generic [ref=e1155]: Bot Beta
+            - generic [ref=e1156]: AI
+          - generic [ref=e1157]:
+            - img [ref=e1158]
+            - generic [ref=e1163]: $1,406
+        - generic [ref=e1164]: 1 props
+      - generic [ref=e1165] [cursor=pointer]:
+        - generic [ref=e1173]:
+          - generic [ref=e1174]:
+            - generic [ref=e1175]: Bot Theta
+            - generic [ref=e1176]: AI
+          - generic [ref=e1177]:
+            - img [ref=e1178]
+            - generic [ref=e1183]: $1,494
+        - generic [ref=e1184]: 0 props
+      - generic [ref=e1185] [cursor=pointer]:
+        - generic [ref=e1193]:
+          - generic [ref=e1195]: SwiftWraith
+          - generic [ref=e1196]:
+            - img [ref=e1197]
+            - generic [ref=e1202]: $1,500
+        - generic [ref=e1203]: 0 props
+    - generic [ref=e1204]:
+      - button "Kick player" [disabled]:
+        - img
+        - text: Kick player
+      - button "Bankrupt" [ref=e1207] [cursor=pointer]:
+        - img
+        - text: Bankrupt
+    - generic [ref=e1208]:
+      - generic [ref=e1209]:
+        - generic [ref=e1210]:
+          - img [ref=e1211]
+          - text: Trades
+        - button "Create" [ref=e1216] [cursor=pointer]
+      - paragraph [ref=e1217]: No pending trades. Open a property to propose one.
+    - generic [ref=e1218]:
+      - generic [ref=e1219]:
+        - img [ref=e1220]
+        - text: My Properties (0)
+      - paragraph [ref=e1222]: No properties yet.
