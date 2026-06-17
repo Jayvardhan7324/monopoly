@@ -4,10 +4,10 @@ cacheDirectories = []
 NODE_ENV = "production"
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["npm install --no-audit"]
+cmds = ["rm -f package-lock.json && npm install --no-audit"]
 
 [phases.build]
 cmds = ["npm run build"]
