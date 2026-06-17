@@ -7,7 +7,7 @@ NODE_ENV = "production"
 nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npm ci --prefer-offline --no-audit"]
+cmds = ["npm install --no-audit"]
 
 [phases.build]
 cmds = ["npm run build"]
