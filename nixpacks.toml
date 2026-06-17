@@ -7,7 +7,7 @@ NODE_ENV = "production"
 nixPkgs = ["nodejs_22"]
 
 [phases.install]
-cmds = ["rm -f package-lock.json && npm install --no-audit"]
+cmds = ["rm -f package-lock.json && npm install --no-audit && BINDING_VER=$(node -p \"require('./node_modules/rolldown/package.json').optionalDependencies['@rolldown/binding-linux-x64-gnu']\") && npm install --no-save --no-audit \"@rolldown/binding-linux-x64-gnu@${BINDING_VER}\""]
 
 [phases.build]
 cmds = ["npm run build"]
